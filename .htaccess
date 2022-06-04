@@ -1,0 +1,12 @@
+RewriteEngine On
+
+RewriteBase /
+
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule "favicon.ico" "public/favicon.ico" [QSA,L]
+
+RewriteRule  ^(db|src)(.*) / [F]
+
+RewriteRule "^(.*)" "index.php/$1" [QSA,L]
+

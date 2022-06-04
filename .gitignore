@@ -1,0 +1,15 @@
+
+# dbfiles
+*.db
+
+# backups
+*~
+
+# env file
+.env
+
+# linter cache
+*.cache
+
+# editor settings
+.vscode/
