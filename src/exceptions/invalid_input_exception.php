@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace AuthServer\Exceptions;
 
-class BadRequestException extends \UnexpectedValueException
+class InvalidInputException extends \UnexpectedValueException
 {
     public function __construct(string $message)
     {

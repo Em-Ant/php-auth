@@ -6,7 +6,7 @@ namespace AuthServer\Lib;
 
 class Utils
 {
-    public static function send_json(array $data)
+    public static function send_json($data)
     {
         header('Content-Type: text/javascript; charset=utf8');
         if (isset($_GET['callback'])) {

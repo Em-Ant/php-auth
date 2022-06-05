@@ -19,16 +19,33 @@ class Router
         $this->_path = '/'.trim($path, '/')."/";
     }
 
-    public function route(string $method, ?string $route, callable $handler)
+    public function get(string $route, callable $handler)
     {
-        array_push(
-            $this->_routes,
-            array(
-                'method' => $method,
-                'route' => $route,
-                'handler' => $handler
-            )
-        );
+        $this->route('GET', $route, $handler);
+    }
+    public function post(string $route, callable $handler)
+    {
+        $this->route('POST', $route, $handler);
+    }
+    public function patch(string $route, callable $handler)
+    {
+        $this->route('PATCH', $route, $handler);
+    }
+    public function put(string $route, callable $handler)
+    {
+        $this->route('PUT', $route, $handler);
+    }
+    public function delete(string $route, callable $handler)
+    {
+        $this->route('DELETE', $route, $handler);
+    }
+    public function use(callable $handler)
+    {
+        $this->route('ALL', null, $handler);
+    }
+    public function all(string $route, callable $handler)
+    {
+        $this->route('ALL', $route, $handler);
     }
 
     public function run()
@@ -53,6 +70,17 @@ class Router
         }
     }
 
+    private function route(string $method, ?string $route, callable $handler)
+    {
+        array_push(
+            $this->_routes,
+            array(
+                'method' => $method,
+                'route' => $route,
+                'handler' => $handler
+            )
+        );
+    }
     private function matchHelper(string $route, array &$params)
     {
         preg_match_all("/\{(.+)\}/U", $route, $params_keys);

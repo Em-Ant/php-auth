@@ -5,50 +5,28 @@ declare(strict_types=1);
 namespace AuthServer\Controllers;
 
 use AuthServer\Lib\Utils;
-use AuthServer\Exceptions\BadRequestException;
+use AuthServer\Exceptions\InvalidInputException;
+use AuthServer\Validators\ValidateAuthorize;
 
 require_once 'src/lib/utils.php';
-require_once 'src/exceptions/bad_request_exception.php';
-
+require_once 'src/exceptions/invalid_input_exception.php';
 
 class Authorize
 {
+    private ValidateAuthorize $validator;
+
+    public function __construct(ValidateAuthorize $validator)
+    {
+        $this->validator = $validator;
+    }
     public function auth(array $params)
     {
         try {
-            self::validate_query_params();
+            $this->validator->execute($_GET);
 
-            Utils::send_json(array('status' => 'ok'));
-        } catch (BadRequestException $e) {
+            Utils::send_json(array("status" => "ok"));
+        } catch (InvalidInputException $e) {
             Utils::server_error('invalid request', $e->getMessage(), 400);
-        }
-    }
-
-    private static function is_empty(?string $param)
-    {
-        return !isset($param) || $param == ' ';
-    }
-
-    private static function validate_query_params()
-    {
-        extract($_GET);
-
-        if (self::is_empty($scope) ||
-            self::is_empty($response_type) ||
-            self::is_empty($redirect_uri) ||
-            self::is_empty($client_id) ||
-            self::is_empty($code_challenge) ||
-            self::is_empty($code_challenge_method)
-        ) {
-            throw new BadRequestException('missing required parameters');
-        }
-
-        if ($response_type !== 'code') {
-            throw new BadRequestException('unsupported flow');
-        }
-
-        if (!in_array('openid', explode(' ', $scope))) {
-            throw new BadRequestException('invalid scope');
         }
     }
 }

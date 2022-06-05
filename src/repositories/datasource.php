@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace AuthServer\Services;
+namespace AuthServer\Repositories;
 
 class DataSource
 {
