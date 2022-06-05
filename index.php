@@ -14,12 +14,12 @@ $app = new Router();
 
 $authController = new Controllers\Authorize();
 
-$app->route('ALL', null, 'AuthServer\Lib\Utils\enable_cors');
-$app->route('ALL', null, 'AuthServer\Lib\Utils\parse_json_body');
+$app->route('ALL', null, [Lib\Utils::class, 'enable_cors']);
+$app->route('ALL', null, [Lib\Utils::class, 'parse_json_body']);
 
-$app->route('GET', '/authorize', array($authController, 'auth'));
+$app->route('GET', '/authorize', [$authController, 'auth']);
 
-$app->route('ALL', '/', 'AuthServer\Lib\Utils\api_not_found');
-$app->route('ALL', '/{unknown}', 'AuthServer\Lib\Utils\api_not_found');
+$app->route('ALL', '/', [Lib\Utils::class, 'not_found']);
+$app->route('ALL', '/{unknown}', [Lib\Utils::class, 'not_found']);
 
 $app->run();

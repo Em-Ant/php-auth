@@ -12,7 +12,7 @@ class DataSource
 
     private function __construct()
     {
-        $this->$db = new SQLite3('db/data.db');
+        $this->db = new \SQLite3('db/data.db');
     }
 
     public static function getInstance(): DataSource
@@ -23,7 +23,7 @@ class DataSource
         return self::$instance;
     }
 
-    public function getDb(): Sqlite3
+    public function getDb(): \Sqlite3
     {
         return $this->db;
     }

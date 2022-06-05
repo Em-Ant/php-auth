@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace AuthServer\Lib;
 
+use AuthServer\Lib\Utils;
+
 class Router
 {
     private $_routes = array();
@@ -22,28 +24,32 @@ class Router
         array_push(
             $this->_routes,
             array(
-        'method' => $method,
-        'route' => $route,
-        'handler' => $handler
-      )
+                'method' => $method,
+                'route' => $route,
+                'handler' => $handler
+            )
         );
     }
 
     public function run()
     {
-        $params = array();
-        foreach ($this->_routes as $r) {
-            extract($r);
-            if ($method == $_SERVER['REQUEST_METHOD'] || $method == "ALL") {
-                if (is_null($route)) {
-                    $handler();
-                    continue;
-                }
-                $m = $this->matchHelper($route, $params);
-                if ($m) {
-                    return $handler($params);
+        try {
+            $params = array();
+            foreach ($this->_routes as $r) {
+                extract($r);
+                if ($method == $_SERVER['REQUEST_METHOD'] || $method == "ALL") {
+                    if (is_null($route)) {
+                        $handler();
+                        continue;
+                    }
+                    $m = $this->matchHelper($route, $params);
+                    if ($m) {
+                        return $handler($params);
+                    }
                 }
             }
+        } catch (\Exception $e) {
+            Utils::unknown_error();
         }
     }
 
