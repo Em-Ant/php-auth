@@ -8,6 +8,6 @@ require_once 'src/models/client.php';
 
 interface ClientRepository
 {
-    public function findClientById(string $id): ?Client;
-    public function findClientByClientId(string $id): ?Client;
+  public function findById(string $id): ?Client;
+  public function findByClientId(string $id): ?Client;
 }
