@@ -13,3 +13,6 @@
 
 # editor settings
 .vscode/
+
+# public and private keys
+keys/*

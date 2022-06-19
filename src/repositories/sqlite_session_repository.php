@@ -70,7 +70,7 @@ class SQLiteSessionRepository implements IRepo
     $uid = Utils::get_guid();
 
     $q = $this->db->prepare(
-      "INSERT INTO sessions ('id', 'client_id', 'state', 'nonce', 'redirect_uri)
+      "INSERT INTO sessions ('id', 'client_id', 'state', 'nonce', 'redirect_uri')
        VALUES (:id, :client_id, :state, :nonce, :redirect_uri)"
     );
 
