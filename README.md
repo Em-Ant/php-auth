@@ -1,8 +1,10 @@
-# FCC Microservice Challenges - php5 (SQLite3)
+# php auth
 
-Featuring a tiny [Express](https://expressjs.com)-like routing system.
+### OpenId connect like php auth server, implementing code grant flow.
 
-See it live at https://www.emant.altervista.org/micro/.
+Depends on php7, Sqlite3, open_ssl
+Featuring a tiny express like routing system.
 
 #### License
+
 MIT
