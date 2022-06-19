@@ -6,23 +6,51 @@ namespace AuthServer\Services;
 
 class TokenService
 {
-  private string $keys_location;
+  private string $public_key;
+  private string $private_key;
 
-  function __construct(string $keys_location)
+
+  function __construct(string $pub, string $pri)
   {
-    $this->keys_location = rtrim($keys_location, '/');;
+    $this->public_key = $pub;
+    $this->private_key = $pri;
+  }
+
+  function validateToken(string $token): int
+  {
+    $t = explode('.', $token);
+    $header = json_decode(self::b64UrlDecode($t[0]), true);
+
+    if ($header['alg'] != 'RS256') return 0;
+
+    $data = "$t[0].$t[1]";
+    $signature = self::b64UrlDecode($t[2]);
+
+    return openssl_verify(
+      $data,
+      $signature,
+      $this->public_key,
+      "sha256WithRSAEncryption"
+    );
   }
 
   function createToken(array $payload): string
   {
-    $pkey = file_get_contents($this->keys_location . "/private_key.pem");
-    return self::_createToken($payload, $pkey);
-  }
 
-  function verifyToken(string $token)
-  {
-    $pkey = file_get_contents($this->keys_location . "/public_key.pem");
-    return self::_validateToken($token, $pkey);
+    $header = json_encode(['typ' => 'JWT', 'alg' => 'RS256']);
+
+    $base64UrlHeader = self::b64UrlEncode($header);
+    $base64UrlPayload = self::b64UrlEncode(json_encode($payload));
+
+    openssl_sign(
+      $base64UrlHeader . "." . $base64UrlPayload,
+      $signature,
+      $this->private_key,
+      OPENSSL_ALGO_SHA256
+    );
+
+    $base64UrlSignature = self::b64UrlEncode($signature);
+    return $base64UrlHeader . "." . $base64UrlPayload . "." . $base64UrlSignature;
   }
 
   function decodeTokenPayload(string $token): array
@@ -33,7 +61,11 @@ class TokenService
 
   private static function b64UrlEncode($data): string
   {
-    return str_replace(['+', '/', '='], ['-', '_', ''], base64_encode($data));
+    return str_replace(
+      ['+', '/', '='],
+      ['-', '_', ''],
+      base64_encode($data)
+    );
   }
 
   private static function b64UrlDecode(string $data)
@@ -47,40 +79,7 @@ class TokenService
     return base64_decode($b64);
   }
 
-  private static function  _validateToken(string $token, string $publicKey): int
-  {
-    $t = explode('.', $token);
-    $header = json_decode(self::b64UrlDecode($t[0]), true);
-
-    if ($header['alg'] != 'RS256') return 0;
-
-    $data = "$t[0].$t[1]";
-    $signature = self::b64UrlDecode($t[2]);
-
-    return openssl_verify($data, $signature, $publicKey, "sha256WithRSAEncryption");
-  }
-
-  private static function _createToken(array $payload, string $privateKey): string
-  {
-
-    $header = json_encode(['typ' => 'JWT', 'alg' => 'RS256']);
-
-    $base64UrlHeader = self::b64UrlEncode($header);
-    $base64UrlPayload = self::b64UrlEncode(json_encode($payload));
-
-    openssl_sign(
-      $base64UrlHeader . "." . $base64UrlPayload,
-      $signature,
-      $privateKey,
-      OPENSSL_ALGO_SHA256
-    );
-
-    $base64UrlSignature = self::b64UrlEncode($signature);
-    return $base64UrlHeader . "." . $base64UrlPayload . "." . $base64UrlSignature;
-  }
-
-
-  function makeKeys()
+  function createKeyPair(): array
   {
 
     $new_key_pair = openssl_pkey_new(array(
@@ -92,7 +91,9 @@ class TokenService
     $details = openssl_pkey_get_details($new_key_pair);
     $public_key_pem = $details['key'];
 
-    file_put_contents($this->keys_location . '/private_key.pem', $private_key_pem);
-    file_put_contents($this->keys_location . '/public_key.pem', $public_key_pem);
+    return [
+      "public" => $public_key_pem,
+      "private" => $private_key_pem
+    ];
   }
 }
