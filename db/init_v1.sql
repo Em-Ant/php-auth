@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS 'users' (
 CREATE UNIQUE INDEX 'email_ind' ON 'users' ('email');
 DROP TABLE IF EXISTS 'clients';
 CREATE TABLE IF NOT EXISTS 'clients' (
-  'id' INTEGER PRIMARY KEY NOT NULL,
+  'id' varchar(36) PRIMARY KEY NOT NULL,
   'client_id' varchar(32) NOT NULL,
   'client_secret' varchar(64) NOT NULL,
   'uri' varchar(256) NOT NULL,
