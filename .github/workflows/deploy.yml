@@ -1,0 +1,24 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    if: "!contains(toJSON(github.event.commits.*.message), '[skip-ci]')"
+    steps:
+      - uses: actions/checkout@v3
+      - name: Create dist folder
+        run: |
+          mkdir -p ./dist && cp -r src public dist && cp index.php dist 
+          ls dist
+      - name: Simple FTP deploy
+        uses: sebastianpopp/ftp-action@releases/v2
+        with:
+          host: ${{ secrets.FTP_HOST }}
+          user: ${{ secrets.FTP_USER }}
+          password: ${{ secrets.FTP_PWD }}
+          localDir: ./dist
+          remoteDir: auth
