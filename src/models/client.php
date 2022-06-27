@@ -7,17 +7,20 @@ class Client implements \JsonSerializable
   private string $id;
   private string $client_id;
   private string $uri;
+  private array $scopes;
   private string $client_secret;
 
   public function __construct(
     string $id,
     string $client_id,
     string $uri,
+    string $scopes,
     string $client_secret
   ) {
     $this->id = $id;
     $this->client_id = $client_id;
     $this->uri = $uri;
+    $this->scopes = explode(' ', $scopes);
     $this->client_secret = $client_secret;
   }
 
@@ -36,6 +39,10 @@ class Client implements \JsonSerializable
   public function get_client_secret()
   {
     return $this->client_secret;
+  }
+  public function get_scopes()
+  {
+    return $this->scopes;
   }
 
   public function jsonSerialize()

@@ -6,13 +6,21 @@ use AuthServer\Exceptions\InvalidInputException;
 use AuthServer\Exceptions\StorageErrorException;
 use AuthServer\Interfaces\ClientRepository as IClientRepo;
 use AuthServer\Interfaces\SessionRepository as ISessionRepo;
+use AuthServer\Interfaces\UserRepository as IUserRepo;
+
 use AuthServer\Lib\Utils;
 use AuthServer\Models\Client;
 use AuthServer\Models\Session;
+use AuthServer\Models\User;
+use Error;
 
+use function PHPSTORM_META\map;
 
 require_once 'src/interfaces/client_repository.php';
 require_once 'src/interfaces/session_repository.php';
+require_once 'src/interfaces/user_repository.php';
+
+require_once 'src/services/secrets_service.php';
 
 require_once 'src/exceptions/invalid_input_exception.php';
 require_once 'src/exceptions/storage_error_exception.php';
@@ -22,14 +30,19 @@ class AuthorizeService
 {
   private IClientRepo $client_repository;
   private ISessionRepo $session_repository;
-
+  private IUserRepo $user_repository;
+  private SecretsService $secrets_service;
 
   public function __construct(
     IClientRepo $client_repo,
-    ISessionRepo $session_repo
+    ISessionRepo $session_repo,
+    IUserRepo $user_repo,
+    SecretsService $secrets_service
   ) {
     $this->client_repository = $client_repo;
     $this->session_repository = $session_repo;
+    $this->user_repository = $user_repo;
+    $this->secrets_service = $secrets_service;
   }
 
   public function show_login_form(array $query)
@@ -37,14 +50,77 @@ class AuthorizeService
     self::validate_query_params($query);
     $client = $this->get_client($query['client_id']);
     self::validate_redirect_uri($client, $query['redirect_uri']);
+    self::validate_client_scopes($client, $query['scope']);
     $session = $this->create_pending_session(
-      $client->get_uri(),
+      $client->get_id(),
       $query['state'],
       $query['nonce'],
       $query['redirect_uri']
     );
-    Utils::show_view('login_form', ['session_id' => $session->get_id()]);
+    Utils::show_view(
+      'login_form',
+      [
+        'session_id' => $session->get_id(),
+        'scopes' => $query['scope']
+      ]
+    );
   }
+
+  public function authenticate(
+    string $email,
+    string $password,
+    string $sessionId,
+    string $scopes
+  ): ?Session {
+    $user = $this->user_repository->findByEmail($email);
+    $errors = [];
+    if ($user == null) $errors['email'] = 'email not found';
+    $valid_pwd = $this->secrets_service->validate_password(
+      $password,
+      $user->get_password()
+    );
+    if (!$valid_pwd) $errors['password'] = 'invalid password';
+
+    if ($errors) {
+      Utils::show_view(
+        'login_form',
+        [
+          'session_id' => $sessionId,
+          'scopes' => $scopes,
+          'errors' => $errors
+        ]
+      );
+      die();
+    }
+
+    $valid_user_scopes = self::validate_user_scopes($user, $scopes);
+    if (!$valid_user_scopes) self::show_critical_error('invalid user scopes');
+
+    $session = $this->session_repository->findById($sessionId);
+    error_log(print_r($session->get_status()));
+    if ($session == null || $session->get_status() != 'PENDING') {
+      self::show_critical_error('invalid user scopes');
+    }
+
+    $session = $this->session_repository->updateWithUserIdAndCode(
+      $sessionId,
+      $user->get_id(),
+      $this->secrets_service->generate_code()
+    );
+
+    return $session;
+  }
+
+
+  private static function show_critical_error(string $error)
+  {
+    Utils::show_view(
+      'critical_error',
+      ['error' => $error]
+    );
+    die();
+  }
+
 
   private function create_pending_session(
     string $client_id,
@@ -71,6 +147,32 @@ class AuthorizeService
       throw new InvalidInputException('invalid client id');
     }
     return $client;
+  }
+
+  private static function validate_scopes(
+    array $allowed_scopes,
+    string $requested_scopes
+  ): bool {
+    $input_scopes_array = explode(' ', $requested_scopes);
+    $valid = TRUE;
+    foreach ($input_scopes_array as $s) {
+      if ($s == 'openid') continue;
+      if (!in_array($s, $allowed_scopes)) {
+        $valid = FALSE;
+        break;
+      }
+    }
+    return $valid;
+  }
+  private static function validate_client_scopes(Client $client, string $scopes)
+  {
+    if (!self::validate_scopes($client->get_scopes(), $scopes)) {
+      throw new InvalidInputException('scopes not allowed for client');
+    }
+  }
+  private static function validate_user_scopes(User $user, string $scopes): bool
+  {
+    return self::validate_scopes($user->get_scopes(), $scopes);
   }
 
   private static function validate_redirect_uri(Client $client, string $redirect_uri)

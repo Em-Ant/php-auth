@@ -6,7 +6,6 @@ namespace AuthServer\Controllers;
 
 use AuthServer\Lib\Utils;
 use AuthServer\Exceptions\InvalidInputException;
-use AuthServer\Interfaces\SessionRepository;
 use AuthServer\Services\AuthorizeService;
 
 require_once 'src/lib/utils.php';
@@ -31,7 +30,22 @@ class Authorize
   }
   public function login(array $params)
   {
-    header('location: http://localhost:3000', true, 302);
+    $sessionId = $_GET['q'];
+    $scopes = $_GET['s'];
+    $email = $_POST['email'];
+    $password = $_POST['password'];
+
+    $session = $this->auth_service->authenticate(
+      $email,
+      $password,
+      $sessionId,
+      $scopes
+    );
+    $location = $session->get_redirect_uri() .
+      '?code=' . $session->get_code() .
+      '&state=' . $session->get_state();
+
+    header("location: $location", true, 302);
     die();
   }
 }

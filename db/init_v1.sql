@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS 'users' (
   'id' varchar(36) PRIMARY KEY NOT NULL,
   'email' varchar(64) UNIQUE NOT NULL,
   'password' varchar(128) UNIQUE NOT NULL,
-  'scopes' varchar(100) DEFAULT 'user',
+  'scopes' varchar(100),
   'created_at' TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
   'valid' INTEGER DEFAULT "TRUE"
 );
@@ -12,15 +12,16 @@ DROP TABLE IF EXISTS 'clients';
 CREATE TABLE IF NOT EXISTS 'clients' (
   'id' varchar(36) PRIMARY KEY NOT NULL,
   'client_id' varchar(32) NOT NULL,
-  'client_secret' varchar(64) NOT NULL,
+  'client_secret' varchar(64),
+  'scopes' varchar(100),
   'uri' varchar(256) NOT NULL,
   UNIQUE ('client_id', 'uri')
 );
 DROP TABLE IF EXISTS 'sessions';
 CREATE TABLE IF NOT EXISTS 'sessions' (
   'id' VARCHAR(36) PRIMARY KEY NOT NULL,
-  'user_id' INTEGER default NULL,
-  'client_id' INTEGER,
+  'user_id' varchar(36) default NULL,
+  'client_id' varchar(36),
   'state' varchar(256) default NULL,
   'nonce' varchar(256) default NULL,
   'redirect_uri' varchar(256) default NULL,

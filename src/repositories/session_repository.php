@@ -95,9 +95,8 @@ class SessionRepository implements IRepo
     try {
       $q = $this->db->prepare(
         "UPDATE sessions 
-      SET 'user_id' = :user_id, 'code' = :code, 'status' = 'AUTHENTICATED', 
-      WHERE 'id' = :id;
-      "
+      SET user_id=:user_id, code=:code, status='AUTHENTICATED'
+      WHERE id=:id"
       );
       $q->bindValue(':user_id', $user_id);
       $q->bindValue(':code', $code);
@@ -138,7 +137,7 @@ class SessionRepository implements IRepo
   private static function build_from_data(array $r): Session
   {
     return new Session(
-      (string) $r['id'],
+      $r['id'],
       $r['client_id'],
       $r['state'],
       $r['nonce'],

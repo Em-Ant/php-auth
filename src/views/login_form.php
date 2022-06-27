@@ -1,5 +1,6 @@
 <h1>Login</h1>
-<form method="POST" action="login-actions/authenticate?q=<?php echo $session_id; ?>">
+<?php $query = "?q=$session_id&s=$scopes" ?>
+<form method="POST" action="login-actions/authenticate<?php echo $query ?>">
   <label>
     email
     <input type="email" name="email" />
