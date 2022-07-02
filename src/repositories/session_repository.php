@@ -51,6 +51,8 @@ class SessionRepository implements IRepo
 
       $r = $statement->fetch();
 
+      if (!$r) return null;
+
       return self::build_from_data($r);
     } catch (\PDOException $e) {
       error_log($e->getMessage());

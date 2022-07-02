@@ -53,6 +53,11 @@ form label {
   margin-right: 10px;
 }
 
+form p.error {
+  font-size: 14px;
+  color: red;
+}
+
 /****** Logo Div Styling ******/
 
 img {

@@ -57,6 +57,8 @@ class ClientRepository implements IRepo
 
       $r = $statement->fetch();
 
+      if (!$r) return null;
+
       return new Client(
         $r['id'],
         $r['client_id'],

@@ -60,6 +60,7 @@ class AuthorizeService
     Utils::show_view(
       'login_form',
       [
+        'title' => 'Login',
         'session_id' => $session->get_id(),
         'scopes' => $query['scope']
       ]
@@ -74,20 +75,26 @@ class AuthorizeService
   ): ?Session {
     $user = $this->user_repository->findByEmail($email);
     $errors = [];
-    if ($user == null) $errors['email'] = 'email not found';
-    $valid_pwd = $this->secrets_service->validate_password(
-      $password,
-      $user->get_password()
-    );
-    if (!$valid_pwd) $errors['password'] = 'invalid password';
+    if ($user == null) {
+      $error = 'email not found';
+    } else {
+      $valid_pwd = $this->secrets_service->validate_password(
+        $password,
+        $user->get_password()
+      );
+      if (!$valid_pwd) $error = 'invalid password';
+    }
 
-    if ($errors) {
+    if ($error) {
       Utils::show_view(
         'login_form',
         [
+          'title' => 'Login',
           'session_id' => $sessionId,
           'scopes' => $scopes,
-          'errors' => $errors
+          'password' => $password,
+          'email' => $email,
+          'error' => $error
         ]
       );
       die();
@@ -97,9 +104,8 @@ class AuthorizeService
     if (!$valid_user_scopes) self::show_critical_error('invalid user scopes');
 
     $session = $this->session_repository->findById($sessionId);
-    error_log(print_r($session->get_status()));
     if ($session == null || $session->get_status() != 'PENDING') {
-      self::show_critical_error('invalid user scopes');
+      self::show_critical_error('invalid session');
     }
 
     $session = $this->session_repository->updateWithUserIdAndCode(

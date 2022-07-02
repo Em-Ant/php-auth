@@ -31,6 +31,8 @@ class UserRepository implements IUser
 
       $r = $statement->fetch();
 
+      if (!$r) return null;
+
       return new User(
         $r['id'],
         $r['email'],
