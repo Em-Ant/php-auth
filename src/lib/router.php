@@ -66,6 +66,7 @@ class Router
         }
       }
     } catch (\Exception $e) {
+      error_log(print_r("unhandled error $e", TRUE));
       Utils::unknown_error();
     }
   }

@@ -4,6 +4,7 @@ namespace AuthServer\Services;
 
 use AuthServer\Exceptions\InvalidInputException;
 use AuthServer\Exceptions\StorageErrorException;
+use AuthServer\Exceptions\CriticalLoginErrorException;
 use AuthServer\Interfaces\ClientRepository as IClientRepo;
 use AuthServer\Interfaces\SessionRepository as ISessionRepo;
 use AuthServer\Interfaces\UserRepository as IUserRepo;
@@ -24,7 +25,7 @@ require_once 'src/services/secrets_service.php';
 
 require_once 'src/exceptions/invalid_input_exception.php';
 require_once 'src/exceptions/storage_error_exception.php';
-
+require_once 'src/exceptions/critical_login_error_exception.php';
 
 class AuthorizeService
 {
@@ -74,7 +75,7 @@ class AuthorizeService
     string $scopes
   ): ?Session {
     $user = $this->user_repository->findByEmail($email);
-    $errors = [];
+    $error = null;
     if ($user == null) {
       $error = 'email not found';
     } else {
@@ -101,11 +102,12 @@ class AuthorizeService
     }
 
     $valid_user_scopes = self::validate_user_scopes($user, $scopes);
-    if (!$valid_user_scopes) self::show_critical_error('invalid user scopes');
+    if (!$valid_user_scopes)
+      throw new CriticalLoginErrorException('invalid user scopes');
 
     $session = $this->session_repository->findById($sessionId);
     if ($session == null || $session->get_status() != 'PENDING') {
-      self::show_critical_error('invalid session');
+      throw new CriticalLoginErrorException('invalid session');
     }
 
     $session = $this->session_repository->updateWithUserIdAndCode(
@@ -116,17 +118,6 @@ class AuthorizeService
 
     return $session;
   }
-
-
-  private static function show_critical_error(string $error)
-  {
-    Utils::show_view(
-      'critical_error',
-      ['error' => $error]
-    );
-    die();
-  }
-
 
   private function create_pending_session(
     string $client_id,

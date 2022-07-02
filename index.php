@@ -42,6 +42,7 @@ $app->use([Lib\Utils::class, 'enable_cors']);
 $app->use([Lib\Utils::class, 'parse_json_body']);
 
 $app->get('/authorize', [$auth_controller, 'authorize']);
+$app->get('/error', [$auth_controller, 'error']);
 $app->post('/login-actions/authenticate', [$auth_controller, 'login']);
 
 $app->all('/', [Lib\Utils::class, 'not_found']);
