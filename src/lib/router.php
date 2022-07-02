@@ -11,11 +11,9 @@ class Router
   private $_routes = array();
   private $_path = '';
 
-  public function __construct(?string $path = null)
+  public function __construct()
   {
-    if (!isset($path)) {
-      $path = isset($_SERVER['PATH_INFO']) ? $_SERVER['PATH_INFO'] : "";
-    }
+    $path = ($_SERVER['PATH_INFO'] ?: "");
     $this->_path = '/' . trim($path, '/') . "/";
   }
 

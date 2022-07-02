@@ -5,6 +5,7 @@ namespace AuthServer;
 use AuthServer\Controllers;
 use AuthServer\Lib;
 use AuthServer\Lib\Router;
+use AuthServer\Lib\Utils;
 use AuthServer\Repositories\DataSource;
 use AuthServer\Repositories\ClientRepository;
 use AuthServer\Repositories\SessionRepository;
@@ -35,8 +36,10 @@ $auth_service = new AuthorizeService(
 );
 $auth_controller = new Controllers\Authorize($auth_service);
 
+$env = Utils::read_env('_env');
+$sub_path = $env['ENV_BASE_PATH'];
 
-$app = new Router();
+$app = new Router('/auth');
 
 $app->use([Lib\Utils::class, 'enable_cors']);
 $app->use([Lib\Utils::class, 'parse_json_body']);

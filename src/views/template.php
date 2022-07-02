@@ -1,6 +1,6 @@
 <?php
-if (!$sub_path) $sub_path = '';
-if (!$title) $title = 'Auth';
+$sub_path = $GLOBALS['sub_path'] ?: '';
+$title = $title ?: 'Auth';
 ?>
 
 <!DOCTYPE html>

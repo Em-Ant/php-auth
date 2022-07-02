@@ -52,7 +52,8 @@ class Authorize
       die();
     } catch (CriticalLoginErrorException $e) {
       $message = $e->getMessage();
-      header("location: /error?e=$message", true, 302);
+      $sub = $GLOBALS['sub_path'] ?: '';
+      header("location: $sub/error?e=$message", true, 302);
     }
   }
   public function error(array $params)
