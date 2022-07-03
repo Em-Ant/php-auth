@@ -6,16 +6,16 @@ class Client implements \JsonSerializable
 {
   private string $id;
   private string $client_id;
-  private string $uri;
-  private array $scopes;
   private string $client_secret;
+  private array $scopes;
+  private string $uri;
 
   public function __construct(
     string $id,
     string $client_id,
-    string $uri,
+    ?string $client_secret,
     string $scopes,
-    string $client_secret
+    string $uri
   ) {
     $this->id = $id;
     $this->client_id = $client_id;

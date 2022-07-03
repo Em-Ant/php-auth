@@ -9,6 +9,8 @@ use AuthServer\Models\Client;
 use AuthServer\Repositories\DataSource;
 
 require_once 'src/interfaces/client_repository.php';
+require_once 'src/models/client.php';
+
 
 class ClientRepository implements IRepo
 {
@@ -34,9 +36,9 @@ class ClientRepository implements IRepo
       return new Client(
         $r['id'],
         $r['client_id'],
-        $r['uri'],
+        $r['client_secret'],
         $r['scopes'],
-        $r['client_secret']
+        $r['uri'],
       );
     } catch (\PDOException $e) {
       error_log($e->getMessage());
@@ -62,9 +64,9 @@ class ClientRepository implements IRepo
       return new Client(
         $r['id'],
         $r['client_id'],
-        $r['uri'],
+        $r['client_secret'],
         $r['scopes'],
-        $r['client_secret']
+        $r['uri'],
       );
     } catch (\PDOException $e) {
       error_log($e->getMessage());

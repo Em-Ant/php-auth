@@ -26,7 +26,7 @@ class Session implements \JsonSerializable
     ?string $refresh_token = null,
     ?string $user_id = null,
     ?string $code = null,
-    ?\DateTime $created_at = null,
+    ?string $created_at = null,
     ?string $status = 'PENDING'
   ) {
     $this->id = $id;
@@ -39,7 +39,7 @@ class Session implements \JsonSerializable
     $this->code = $code;
     $this->created_at = is_null($created_at) ?
       date_create() :
-      $created_at;
+      \DateTime::createFromFormat('Y-m-d H:i:s', $created_at);
     $this->status = is_null($status) ? 'PENDING' : $status;
   }
 

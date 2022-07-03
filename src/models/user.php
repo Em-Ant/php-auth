@@ -18,14 +18,15 @@ class User implements \JsonSerializable
     string $email,
     string $password,
     string $scopes,
-    DateTime $created_at,
-    bool $valid
+    string $created_at,
+    bool $valid = true
   ) {
     $this->id = $id;
     $this->email = $email;
     $this->password = $password;
     $this->scopes = explode(' ', $scopes);
-    $this->created_at = $created_at;
+    $this->created_at =
+      \DateTime::createFromFormat('Y-m-d H:i:s', $created_at);
     $this->valid = $valid;
   }
 

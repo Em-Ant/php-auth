@@ -9,6 +9,7 @@ use AuthServer\Models\User;
 use AuthServer\Repositories\DataSource;
 
 require_once 'src/interfaces/user_repository.php';
+require_once 'src/models/user.php';
 
 class UserRepository implements IUser
 {
@@ -38,7 +39,7 @@ class UserRepository implements IUser
         $r['email'],
         $r['password'],
         $r['scopes'],
-        \DateTime::createFromFormat('Y-m-d H:i:s', $r['created_at']),
+        $r['created_at'],
         $r['valid'] == 'TRUE'
       );
     } catch (\PDOException $e) {

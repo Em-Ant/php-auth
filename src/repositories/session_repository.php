@@ -10,6 +10,8 @@ use AuthServer\Models\Session;
 use AuthServer\Repositories\DataSource;
 
 require_once 'src/interfaces/session_repository.php';
+require_once 'src/models/session.php';
+
 
 class SessionRepository implements IRepo
 {
@@ -147,7 +149,7 @@ class SessionRepository implements IRepo
       $r['refresh_token'],
       $r['user_id'],
       $r['code'],
-      \DateTime::createFromFormat('Y-m-d H:i:s', $r['created_at']),
+      $r['created_at'],
       $r['status'],
     );
   }

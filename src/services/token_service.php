@@ -37,7 +37,7 @@ class TokenService
   function createToken(array $payload): string
   {
 
-    $header = json_encode(['typ' => 'JWT', 'alg' => 'RS256']);
+    $header = json_encode(['typ' => 'JWT', 'alg' => 'RS256', 'kid' => '1']);
 
     $base64UrlHeader = self::b64UrlEncode($header);
     $base64UrlPayload = self::b64UrlEncode(json_encode($payload));

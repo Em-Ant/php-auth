@@ -36,7 +36,7 @@ $auth_service = new AuthorizeService(
 );
 $auth_controller = new Controllers\Authorize($auth_service);
 
-$env = Utils::read_env('_env');
+$env = Utils::read_env('server.env');
 $sub_path = $env['ENV_BASE_PATH'];
 
 $app = new Router('/auth');
