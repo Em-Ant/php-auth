@@ -24,7 +24,7 @@ interface SessionRepository
     string $id,
     string $user_id,
     string $code
-  ): ?Session;
+  ): bool;
 
   public function setActive(
     string $id,

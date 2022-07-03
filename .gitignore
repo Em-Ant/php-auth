@@ -15,4 +15,4 @@ server.env
 .vscode/
 
 # public and private keys
-keys/*
+*.pem

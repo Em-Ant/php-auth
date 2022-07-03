@@ -77,7 +77,7 @@ class AuthorizeService
     string $password,
     string $sessionId,
     string $scopes
-  ): ?Session {
+  ): Session {
     $user = $this->user_repository->findByEmail($email);
     $error = null;
     if ($user == null) {
@@ -114,13 +114,19 @@ class AuthorizeService
       throw new CriticalLoginErrorException('invalid session');
     }
 
-    $session = $this->session_repository->setAuthenticated(
+    $ok = $this->session_repository->setAuthenticated(
       $sessionId,
       $user->get_id(),
       $this->secrets_service->generate_code()
     );
-
-    return $session;
+    if (!$ok) {
+      throw new StorageErrorException('unable to update session');
+    }
+    $updated = $this->session_repository->findById($sessionId);
+    if (!$updated) {
+      throw new StorageErrorException('unable to find updated session');
+    }
+    return $updated;
   }
 
   public function issueTokensBundle(array $post): array
@@ -154,7 +160,7 @@ class AuthorizeService
       throw new InvalidInputException('invalid code');
     }
     if ($session->get_status() != 'AUTHENTICATED') {
-      throw new InvalidInputException('invalid session status');
+      throw new InvalidInputException('code is expired');
     }
     $client = $this->client_repository->findByClientId($client_id);
     if ($client === null) {
@@ -190,13 +196,13 @@ class AuthorizeService
   ): array {
     $session = $this->session_repository->findByRefreshToken($refresh_token);
     if ($session === null) {
-      throw new InvalidInputException('invalid refresh token');
+      throw new InvalidInputException('invalid refresh_token');
     }
     $expired = $this->token_service->tokenIsExpired($refresh_token);
     if ($expired) {
       $ok = $this->session_repository->setExpired($session->get_id());
       if (!$ok) throw new StorageErrorException('unable to set session to expired');
-      throw new InvalidInputException('refresh token is expired');
+      throw new InvalidInputException('refresh_token is expired');
     }
     if ($session->get_status() != 'ACTIVE') {
       throw new InvalidInputException('invalid session status');

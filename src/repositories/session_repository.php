@@ -35,6 +35,8 @@ class SessionRepository implements IRepo
 
       $r = $statement->fetch();
 
+      if (!$r) return null;
+
       return self::build_from_data($r);
     } catch (\PDOException $e) {
       error_log($e->getMessage());
@@ -120,7 +122,7 @@ class SessionRepository implements IRepo
     string $id,
     string $user_id,
     string $code
-  ): ?Session {
+  ): bool {
     try {
       $q = $this->db->prepare(
         "UPDATE sessions 
@@ -132,12 +134,10 @@ class SessionRepository implements IRepo
       $q->bindValue(':auth_time', date_create()->format('Y-m-d H:i:s'));
       $q->bindValue(':id', $id);
 
-      $q->execute();
-
-      return $this->findById($id);
+      return $q->execute();
     } catch (\PDOException $e) {
       error_log($e->getMessage());
-      return null;
+      return false;
     }
   }
 
