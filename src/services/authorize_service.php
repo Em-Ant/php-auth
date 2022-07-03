@@ -123,16 +123,32 @@ class AuthorizeService
     return $session;
   }
 
-  public function issueFirstTokensBundle(
-    ?string $code,
-    ?string $grant_type,
-    ?string $client_id,
-    ?string $client_secret,
-    ?string $redirect_uri
+  public function issueTokensBundle(array $post): array
+  {
+    self::validate_token_params($post);
+    extract($post);
+
+    return $grant_type === 'code' ?
+      $this->issueTokensBundleByCode(
+        $code,
+        $client_id,
+        $redirect_uri,
+        $client_secret
+      ) :
+      $this->issueTokensBundleByRefreshToken(
+        $refresh_token,
+        $client_id,
+        $redirect_uri,
+        $client_secret
+      );
+  }
+
+  private function issueTokensBundleByCode(
+    string $code,
+    string $client_id,
+    string $redirect_uri,
+    ?string $client_secret
   ): array {
-    if ($grant_type !== 'code') {
-      throw new InvalidInputException('unsupported flow');
-    }
     $session = $this->session_repository->findByCode($code);
     if ($session === null) {
       throw new InvalidInputException('invalid code');
@@ -144,17 +160,7 @@ class AuthorizeService
     if ($client === null) {
       throw new InvalidInputException('invalid client');
     }
-    $stored_client_secret = $client->get_client_secret();
-    if (
-      $stored_client_secret != null &&
-      ($client_secret == null ||
-        !$this->secrets_service->validate_password(
-          $client_secret,
-          $stored_client_secret
-        ))
-    ) {
-      throw new InvalidInputException('invalid client secret');
-    }
+    $this->validate_client_secret($client, $client_secret);
     self::validate_redirect_uri($client, $redirect_uri);
     $user = $this->user_repository->findById($session->get_user_id());
     if ($user == null) {
@@ -170,7 +176,52 @@ class AuthorizeService
       $session->get_id(),
       $token_bundle['refresh_token']
     );
-    if ($updated_session == null) {
+    if (!$updated_session) {
+      throw new StorageErrorException('error updating session');
+    }
+    return $token_bundle;
+  }
+
+  private function issueTokensBundleByRefreshToken(
+    string $refresh_token,
+    string $client_id,
+    string $redirect_uri,
+    ?string $client_secret
+  ): array {
+    $session = $this->session_repository->findByRefreshToken($refresh_token);
+    if ($session === null) {
+      throw new InvalidInputException('invalid refresh token');
+    }
+    $expired = $this->token_service->tokenIsExpired($refresh_token);
+    if ($expired) {
+      $ok = $this->session_repository->setExpired($session->get_id());
+      if (!$ok) throw new StorageErrorException('unable to set session to expired');
+      throw new InvalidInputException('refresh token is expired');
+    }
+    if ($session->get_status() != 'ACTIVE') {
+      throw new InvalidInputException('invalid session status');
+    }
+    $client = $this->client_repository->findByClientId($client_id);
+    if ($client === null) {
+      throw new InvalidInputException('invalid client');
+    }
+    $this->validate_client_secret($client, $client_secret);
+    self::validate_redirect_uri($client, $redirect_uri);
+    $user = $this->user_repository->findById($session->get_user_id());
+    if ($user == null) {
+      throw new StorageErrorException('invalid session');
+    }
+    $token_bundle = $this->token_service->createTokenBundle(
+      $session,
+      $client,
+      $user,
+      '1'
+    );
+    $updated_session = $this->session_repository->updateRefreshToken(
+      $session->get_id(),
+      $token_bundle['refresh_token']
+    );
+    if (!$updated_session) {
       throw new StorageErrorException('error updating session');
     }
     return $token_bundle;
@@ -255,7 +306,6 @@ class AuthorizeService
 
   private static function validate_query_params(array $query)
   {
-    $missing = [];
     $required_fields = [
       'scope',
       'client_id',
@@ -267,16 +317,7 @@ class AuthorizeService
       'session_state'
     ];
 
-    foreach ($required_fields as $f) {
-      if (self::is_empty($query[$f])) {
-        array_push($missing, $f);
-      }
-    }
-    if (count($missing) > 0) {
-      $missing_str = implode(', ', $missing);
-      $s = count($missing) > 1 ? 's' : '';
-      throw new InvalidInputException("missing required parameter$s ($missing_str)");
-    }
+    self::validate_params($query, $required_fields);
 
     if ($query['response_type'] !== 'code') {
       throw new InvalidInputException('unsupported flow');
@@ -288,6 +329,63 @@ class AuthorizeService
 
     if (!in_array('openid', explode(' ', $query['scope']))) {
       throw new InvalidInputException('invalid scope');
+    }
+  }
+
+  private static function validate_token_params(array $query)
+  {
+    $required_fields = [
+      'grant_type',
+      'client_id',
+      'redirect_uri'
+    ];
+
+    self::validate_params($query, $required_fields);
+
+    if (!in_array($query['grant_type'], ['code', 'refresh_token'])) {
+      throw new InvalidInputException('unsupported flow');
+    }
+
+    if ($query['grant_type'] === 'code' && !isset($query['code'])) {
+      throw new InvalidInputException("missing required field 'code'");
+    }
+    if ($query['grant_type'] === 'refresh_token' && !isset($query['refresh_token'])) {
+      throw new InvalidInputException("missing required field 'refresh_token'");
+    }
+  }
+
+  private static function validate_params(
+    array $params,
+    array $required_fields
+  ) {
+    $missing = [];
+
+    foreach ($required_fields as $f) {
+      if (self::is_empty($params[$f])) {
+        array_push($missing, $f);
+      }
+    }
+    if (count($missing) > 0) {
+      $missing_str = implode(', ', $missing);
+      $s = count($missing) > 1 ? 's' : '';
+      throw new InvalidInputException("missing required parameter$s ($missing_str)");
+    }
+  }
+
+  private function validate_client_secret(
+    Client $client,
+    ?string $client_secret
+  ) {
+    $stored_client_secret = $client->get_client_secret();
+    if (
+      $stored_client_secret != null &&
+      ($client_secret == null ||
+        !$this->secrets_service->validate_password(
+          $client_secret,
+          $stored_client_secret
+        ))
+    ) {
+      throw new InvalidInputException('invalid client secret');
     }
   }
 }

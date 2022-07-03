@@ -59,6 +59,12 @@ class TokenService
     );
   }
 
+  function tokenIsExpired(string $token): bool
+  {
+    $decoded = $this->decodeTokenPayload($token);
+    return $decoded['exp'] < time();
+  }
+
   function createToken(array $payload): string
   {
 
@@ -85,7 +91,7 @@ class TokenService
   function decodeTokenPayload(string $token): array
   {
     $t = explode('.', $token);
-    return json_decode(self::b64UrlDecode($t[1]));
+    return json_decode(self::b64UrlDecode($t[1]), true);
   }
 
   private static function b64UrlEncode($data): string

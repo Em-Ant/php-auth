@@ -10,6 +10,7 @@ interface SessionRepository
 {
   public function findById(string $id): ?Session;
   public function findByCode(string $code): ?Session;
+  public function findByRefreshToken(string $token): ?Session;
 
   public function createPending(
     string $client_id,
@@ -28,5 +29,14 @@ interface SessionRepository
   public function setActive(
     string $id,
     string $refresh_token
-  ): ?Session;
+  ): bool;
+
+  public function setExpired(
+    string $id
+  ): bool;
+
+  public function updateRefreshToken(
+    string $id,
+    string $refresh_token
+  ): bool;
 }

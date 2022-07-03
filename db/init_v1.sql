@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS 'sessions' (
   'session_state' varchar(256) default NULL,
   'redirect_uri' varchar(256) default NULL,
   'code' varchar(512) default NULL,
-  'refresh_token' varchar(5000) default NULL,
+  'refresh_token' varchar(2048) default NULL,
   'created_at' TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
   'authenticated_at' TIMESTAMP,
   'status' varchar(16) DEFAULT 'PENDING',

@@ -63,6 +63,27 @@ class SessionRepository implements IRepo
     }
   }
 
+  public function findByRefreshToken(string $token): ?Session
+  {
+    try {
+      $statement = $this->db->prepare(
+        "SELECT * FROM sessions WHERE refresh_token = :token"
+      );
+      $statement->bindValue(':token', $token);
+
+      $statement->execute();
+
+      $r = $statement->fetch();
+
+      if (!$r) return null;
+
+      return self::build_from_data($r);
+    } catch (\PDOException $e) {
+      error_log($e->getMessage());
+      return null;
+    }
+  }
+
   public function createPending(
     string $client_id,
     string $state,
@@ -123,7 +144,7 @@ class SessionRepository implements IRepo
   public function setActive(
     string $id,
     string $refresh_token
-  ): ?Session {
+  ): bool {
     try {
       $q = $this->db->prepare(
         "UPDATE sessions 
@@ -133,12 +154,48 @@ class SessionRepository implements IRepo
       $q->bindValue(':refresh_token', $refresh_token);
       $q->bindValue(':id', $id);
 
-      $q->execute();
-
-      return $this->findById($id);
+      return $q->execute();
     } catch (\PDOException $e) {
       error_log($e->getMessage());
-      return null;
+      return false;
+    }
+  }
+
+  public function setExpired(
+    string $id
+  ): bool {
+    try {
+      $q = $this->db->prepare(
+        "UPDATE sessions 
+      SET status='EXPIRED' 
+      WHERE id = :id"
+      );
+      $q->bindValue(':id', $id);
+
+      return $q->execute();
+    } catch (\PDOException $e) {
+      error_log($e->getMessage());
+      return false;
+    }
+  }
+
+  public function updateRefreshToken(
+    string $id,
+    string $refresh_token
+  ): bool {
+    try {
+      $q = $this->db->prepare(
+        "UPDATE sessions 
+      SET refresh_token=:refresh_token
+      WHERE id = :id"
+      );
+      $q->bindValue(':refresh_token', $refresh_token);
+      $q->bindValue(':id', $id);
+
+      return $q->execute();
+    } catch (\PDOException $e) {
+      error_log($e->getMessage());
+      return false;
     }
   }
 

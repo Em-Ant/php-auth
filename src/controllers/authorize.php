@@ -56,21 +56,13 @@ class Authorize
       header("location: $sub/error?e=$message", true, 302);
     }
   }
+
   public function token(array $params)
   {
     try {
-      extract($_POST);
-      if (!isset($refresh_token)) {
-        Utils::send_json($this->auth_service->issueFirstTokensBundle(
-          $code,
-          $grant_type,
-          $client_id,
-          $client_secret,
-          $redirect_uri
-        ));
-      } else {
-        Utils::server_error('unimplemented', 'refresh token flow not yet avaiable', 500);
-      }
+      Utils::send_json($this->auth_service->issueTokensBundle(
+        $_POST
+      ));
     } catch (InvalidInputException $e) {
       Utils::server_error('invalid request', $e->getMessage(), 400);
     }
