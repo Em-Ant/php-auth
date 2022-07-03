@@ -20,6 +20,34 @@ class UserRepository implements IUser
     $this->db = $datasource->getDb();
   }
 
+  public function findById(string $id): ?User
+  {
+    try {
+      $statement = $this->db->prepare(
+        "SELECT * FROM users WHERE id = :id"
+      );
+      $statement->bindValue(':id', $id);
+
+      $statement->execute();
+
+      $r = $statement->fetch();
+
+      if (!$r) return null;
+
+      return new User(
+        $r['id'],
+        $r['email'],
+        $r['password'],
+        $r['scopes'],
+        $r['created_at'],
+        $r['valid'] == 'TRUE'
+      );
+    } catch (\PDOException $e) {
+      error_log($e->getMessage());
+      return null;
+    }
+  }
+
   public function findByEmail(string $email): ?User
   {
     try {

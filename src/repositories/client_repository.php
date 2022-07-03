@@ -39,6 +39,7 @@ class ClientRepository implements IRepo
         $r['client_secret'],
         $r['scopes'],
         $r['uri'],
+        $r['created_at']
       );
     } catch (\PDOException $e) {
       error_log($e->getMessage());
@@ -67,6 +68,7 @@ class ClientRepository implements IRepo
         $r['client_secret'],
         $r['scopes'],
         $r['uri'],
+        $r['created_at']
       );
     } catch (\PDOException $e) {
       error_log($e->getMessage());

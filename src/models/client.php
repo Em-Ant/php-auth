@@ -9,19 +9,24 @@ class Client implements \JsonSerializable
   private string $client_secret;
   private array $scopes;
   private string $uri;
+  private \DateTime $created_at;
+
 
   public function __construct(
     string $id,
     string $client_id,
     ?string $client_secret,
     string $scopes,
-    string $uri
+    string $uri,
+    string $created_at
   ) {
     $this->id = $id;
     $this->client_id = $client_id;
     $this->uri = $uri;
     $this->scopes = explode(' ', $scopes);
     $this->client_secret = $client_secret;
+    $this->created_at =
+      \DateTime::createFromFormat('Y-m-d H:i:s', $created_at);
   }
 
   public function get_id()
@@ -43,6 +48,10 @@ class Client implements \JsonSerializable
   public function get_scopes()
   {
     return $this->scopes;
+  }
+  public function get_created_at(): \DateTime
+  {
+    return $this->created_at;
   }
 
   public function jsonSerialize()

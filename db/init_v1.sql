@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS 'clients' (
   'client_secret' varchar(64),
   'scopes' varchar(100),
   'uri' varchar(256) NOT NULL,
+  'created_at' TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
   UNIQUE ('client_id', 'uri')
 );
 DROP TABLE IF EXISTS 'sessions';
@@ -24,10 +25,12 @@ CREATE TABLE IF NOT EXISTS 'sessions' (
   'client_id' varchar(36),
   'state' varchar(256) default NULL,
   'nonce' varchar(256) default NULL,
+  'session_state' varchar(256) default NULL,
   'redirect_uri' varchar(256) default NULL,
   'code' varchar(512) default NULL,
   'refresh_token' varchar(5000) default NULL,
   'created_at' TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+  'authenticated_at' TIMESTAMP,
   'status' varchar(16) DEFAULT 'PENDING',
   FOREIGN KEY ('user_id') REFERENCES users('id'),
   FOREIGN KEY ('client_id') REFERENCES clients('id')

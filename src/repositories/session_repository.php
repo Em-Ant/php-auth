@@ -11,6 +11,7 @@ use AuthServer\Repositories\DataSource;
 
 require_once 'src/interfaces/session_repository.php';
 require_once 'src/models/session.php';
+require_once 'src/lib/utils.php';
 
 
 class SessionRepository implements IRepo
@@ -45,7 +46,7 @@ class SessionRepository implements IRepo
   {
     try {
       $statement = $this->db->prepare(
-        "SELECT * FROM clients WHERE code = :code"
+        "SELECT * FROM sessions WHERE code = :code"
       );
       $statement->bindValue(':code', $code);
 
@@ -66,20 +67,23 @@ class SessionRepository implements IRepo
     string $client_id,
     string $state,
     string $nonce,
+    string $session_state,
     string $redirect_uri
   ): ?Session {
     try {
       $uid = Utils::get_guid();
 
       $q = $this->db->prepare(
-        "INSERT INTO sessions ('id', 'client_id', 'state', 'nonce', 'redirect_uri')
-       VALUES (:id, :client_id, :state, :nonce, :redirect_uri)"
+        "INSERT INTO sessions (
+          'id', 'client_id', 'state', 'nonce', 'session_state','redirect_uri'
+        ) VALUES (:id, :client_id, :state, :session_state, :nonce, :redirect_uri)"
       );
 
       $q->bindValue(':id', $uid);
       $q->bindValue(':client_id', $client_id);
       $q->bindValue(':state', $state);
       $q->bindValue(':nonce', $nonce);
+      $q->bindValue(':session_state', $session_state);
       $q->bindValue(':redirect_uri', $redirect_uri);
 
       $q->execute();
@@ -91,7 +95,7 @@ class SessionRepository implements IRepo
     }
   }
 
-  public function updateWithUserIdAndCode(
+  public function setAuthenticated(
     string $id,
     string $user_id,
     string $code
@@ -99,11 +103,12 @@ class SessionRepository implements IRepo
     try {
       $q = $this->db->prepare(
         "UPDATE sessions 
-      SET user_id=:user_id, code=:code, status='AUTHENTICATED'
+      SET user_id=:user_id, code=:code, authenticated_at=:auth_time, status='AUTHENTICATED'
       WHERE id=:id"
       );
       $q->bindValue(':user_id', $user_id);
       $q->bindValue(':code', $code);
+      $q->bindValue(':auth_time', date_create()->format('Y-m-d H:i:s'));
       $q->bindValue(':id', $id);
 
       $q->execute();
@@ -115,18 +120,17 @@ class SessionRepository implements IRepo
     }
   }
 
-  public function updateWithRefreshToken(
+  public function setActive(
     string $id,
     string $refresh_token
   ): ?Session {
     try {
       $q = $this->db->prepare(
         "UPDATE sessions 
-      SET 'refresh_token' = :refresh_token, 'status' = 'ACTIVE', 
-      WHERE 'id' = :id;
-      "
+      SET refresh_token=:refresh_token, status='ACTIVE' 
+      WHERE id = :id"
       );
-      $q->bindValue(':user_id', $refresh_token);
+      $q->bindValue(':refresh_token', $refresh_token);
       $q->bindValue(':id', $id);
 
       $q->execute();
@@ -145,11 +149,13 @@ class SessionRepository implements IRepo
       $r['client_id'],
       $r['state'],
       $r['nonce'],
+      $r['session_state'],
       $r['redirect_uri'],
       $r['refresh_token'],
       $r['user_id'],
       $r['code'],
       $r['created_at'],
+      $r['authenticated_at'],
       $r['status'],
     );
   }

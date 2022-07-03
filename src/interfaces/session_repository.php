@@ -15,16 +15,17 @@ interface SessionRepository
     string $client_id,
     string $state,
     string $nonce,
+    string $session_state,
     string $redirect_uri
   ): ?Session;
 
-  public function updateWithUserIdAndCode(
+  public function setAuthenticated(
     string $id,
     string $user_id,
     string $code
   ): ?Session;
 
-  public function updateWithRefreshToken(
+  public function setActive(
     string $id,
     string $refresh_token
   ): ?Session;

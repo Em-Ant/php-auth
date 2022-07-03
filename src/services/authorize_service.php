@@ -33,17 +33,20 @@ class AuthorizeService
   private ISessionRepo $session_repository;
   private IUserRepo $user_repository;
   private SecretsService $secrets_service;
+  private TokenService $token_service;
 
   public function __construct(
     IClientRepo $client_repo,
     ISessionRepo $session_repo,
     IUserRepo $user_repo,
-    SecretsService $secrets_service
+    SecretsService $secrets_service,
+    TokenService $token_service
   ) {
     $this->client_repository = $client_repo;
     $this->session_repository = $session_repo;
     $this->user_repository = $user_repo;
     $this->secrets_service = $secrets_service;
+    $this->token_service = $token_service;
   }
 
   public function show_login_form(array $query)
@@ -56,6 +59,7 @@ class AuthorizeService
       $client->get_id(),
       $query['state'],
       $query['nonce'],
+      $query['session_state'],
       $query['redirect_uri']
     );
     Utils::show_view(
@@ -110,7 +114,7 @@ class AuthorizeService
       throw new CriticalLoginErrorException('invalid session');
     }
 
-    $session = $this->session_repository->updateWithUserIdAndCode(
+    $session = $this->session_repository->setAuthenticated(
       $sessionId,
       $user->get_id(),
       $this->secrets_service->generate_code()
@@ -119,16 +123,71 @@ class AuthorizeService
     return $session;
   }
 
+  public function issueFirstTokensBundle(
+    ?string $code,
+    ?string $grant_type,
+    ?string $client_id,
+    ?string $client_secret,
+    ?string $redirect_uri
+  ): array {
+    if ($grant_type !== 'code') {
+      throw new InvalidInputException('unsupported flow');
+    }
+    $session = $this->session_repository->findByCode($code);
+    if ($session === null) {
+      throw new InvalidInputException('invalid code');
+    }
+    if ($session->get_status() != 'AUTHENTICATED') {
+      throw new InvalidInputException('invalid session status');
+    }
+    $client = $this->client_repository->findByClientId($client_id);
+    if ($client === null) {
+      throw new InvalidInputException('invalid client');
+    }
+    $stored_client_secret = $client->get_client_secret();
+    if (
+      $stored_client_secret != null &&
+      ($client_secret == null ||
+        !$this->secrets_service->validate_password(
+          $client_secret,
+          $stored_client_secret
+        ))
+    ) {
+      throw new InvalidInputException('invalid client secret');
+    }
+    self::validate_redirect_uri($client, $redirect_uri);
+    $user = $this->user_repository->findById($session->get_user_id());
+    if ($user == null) {
+      throw new StorageErrorException('invalid session');
+    }
+    $token_bundle = $this->token_service->createTokenBundle(
+      $session,
+      $client,
+      $user,
+      '1'
+    );
+    $updated_session = $this->session_repository->setActive(
+      $session->get_id(),
+      $token_bundle['refresh_token']
+    );
+    if ($updated_session == null) {
+      throw new StorageErrorException('error updating session');
+    }
+    return $token_bundle;
+  }
+
   private function create_pending_session(
     string $client_id,
     string $state,
     string $nonce,
+    string $session_state,
     string $redirect_uri
   ): Session {
     $session = $this->session_repository->createPending(
       $client_id,
       $state,
       $nonce,
+      $session_state,
       $redirect_uri
     );
     if ($session === null) {
@@ -204,7 +263,8 @@ class AuthorizeService
       'response_mode',
       'redirect_uri',
       'state',
-      'nonce'
+      'nonce',
+      'session_state'
     ];
 
     foreach ($required_fields as $f) {

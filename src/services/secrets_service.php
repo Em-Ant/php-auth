@@ -8,7 +8,7 @@ class SecretsService
 {
   static function generate_code(): string
   {
-    return str_replace(['+', '/', '='], '', base64_encode(random_bytes(48)));
+    return str_replace(['+', '/', '='], '', base64_encode(random_bytes(64)));
   }
 
   static function hash_password(string $password): string
