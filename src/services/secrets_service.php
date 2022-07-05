@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace AuthServer\Services;
 
+use AuthServer\Lib\Utils;
+
+require_once 'src/lib/utils.php';
 class SecretsService
 {
   static function generate_code(): string
   {
-    return str_replace(['+', '/', '='], '', base64_encode(random_bytes(64)));
+    return join('.', [Utils::get_guid(), Utils::get_guid(), Utils::get_guid()]);
   }
 
   static function hash_password(string $password): string

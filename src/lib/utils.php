@@ -35,7 +35,8 @@ class Utils
 
   public static function enable_cors()
   {
-    header('Access-Control-Allow-Origin:*');
+    header('Access-Control-Allow-Origin: *');
+    header('Access-Control-Allow-Credentials: true');
     header('Access-Control-Allow-Headers:content-type,accept,origin');
     header('Access-Control-Allow-Methods:GET,POST,OPTIONS');
   }

@@ -90,7 +90,6 @@ class SessionRepository implements IRepo
     string $client_id,
     string $state,
     string $nonce,
-    string $session_state,
     string $redirect_uri
   ): ?Session {
     try {
@@ -99,14 +98,14 @@ class SessionRepository implements IRepo
       $q = $this->db->prepare(
         "INSERT INTO sessions (
           'id', 'client_id', 'state', 'nonce', 'session_state','redirect_uri'
-        ) VALUES (:id, :client_id, :state, :session_state, :nonce, :redirect_uri)"
+        ) VALUES (:id, :client_id, :state, :nonce, :session_state, :redirect_uri)"
       );
 
       $q->bindValue(':id', $uid);
       $q->bindValue(':client_id', $client_id);
       $q->bindValue(':state', $state);
       $q->bindValue(':nonce', $nonce);
-      $q->bindValue(':session_state', $session_state);
+      $q->bindValue(':session_state', Utils::get_guid());
       $q->bindValue(':redirect_uri', $redirect_uri);
 
       $q->execute();

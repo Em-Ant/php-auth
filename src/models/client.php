@@ -6,7 +6,7 @@ class Client implements \JsonSerializable
 {
   private string $id;
   private string $client_id;
-  private string $client_secret;
+  private ?string $client_secret;
   private array $scopes;
   private string $uri;
   private \DateTime $created_at;

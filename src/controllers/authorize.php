@@ -34,20 +34,18 @@ class Authorize
   {
     $sessionId = $_GET['q'];
     $scopes = $_GET['s'];
+    $response_mode = $_GET['m'];
     $email = $_POST['email'];
     $password = $_POST['password'];
 
     try {
-      $session = $this->auth_service->authenticate(
+      $location = $this->auth_service->authenticate(
         $email,
         $password,
         $sessionId,
-        $scopes
+        $scopes,
+        $response_mode
       );
-      $location = $session->get_redirect_uri() .
-        '?code=' . $session->get_code() .
-        '&state=' . $session->get_state();
-
       header("location: $location", true, 302);
       die();
     } catch (CriticalLoginErrorException $e) {
@@ -60,9 +58,15 @@ class Authorize
   public function token(array $params)
   {
     try {
-      Utils::send_json($this->auth_service->issueTokensBundle(
+      $data = $this->auth_service->issueTokensBundle(
         $_POST
-      ));
+      );
+      $origin = $data['origin'];
+      header("Access-Control-Allow-Origin: $origin");
+      header('Access-Control-Allow-Credentials: true');
+      header('Access-Control-Allow-Headers:content-type,accept,origin');
+      header('Access-Control-Allow-Methods:GET,POST,OPTIONS');
+      Utils::send_json($data['tokens']);
     } catch (InvalidInputException $e) {
       Utils::server_error('invalid request', $e->getMessage(), 400);
     }

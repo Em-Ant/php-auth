@@ -9,7 +9,7 @@ values(
 INSERT INTO clients (
     'id',
     'client_id',
-    'client_secret',
+    /*'client_secret',*/
     'scopes',
     'uri'
   )
@@ -17,7 +17,7 @@ values(
     'a540c566-dfbf-430a-9941-fb8531c022d4',
     'test',
     /* plain client_id = c_id */
-    '$2y$10$jeRBi.jzl05D2bulVLI6zeY2BZYSGonKEY1UlEERVGpqT7peJAI.6',
+    /*'$2y$10$jeRBi.jzl05D2bulVLI6zeY2BZYSGonKEY1UlEERVGpqT7peJAI.6',*/
     'user',
     'http://localhost:4200'
   );

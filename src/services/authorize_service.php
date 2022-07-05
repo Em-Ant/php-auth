@@ -5,6 +5,7 @@ namespace AuthServer\Services;
 use AuthServer\Exceptions\InvalidInputException;
 use AuthServer\Exceptions\StorageErrorException;
 use AuthServer\Exceptions\CriticalLoginErrorException;
+
 use AuthServer\Interfaces\ClientRepository as IClientRepo;
 use AuthServer\Interfaces\SessionRepository as ISessionRepo;
 use AuthServer\Interfaces\UserRepository as IUserRepo;
@@ -13,9 +14,10 @@ use AuthServer\Lib\Utils;
 use AuthServer\Models\Client;
 use AuthServer\Models\Session;
 use AuthServer\Models\User;
-use Error;
 
-use function PHPSTORM_META\map;
+require_once 'src/exceptions/invalid_input_exception.php';
+require_once 'src/exceptions/storage_error_exception.php';
+require_once 'src/exceptions/critical_login_error_exception.php';
 
 require_once 'src/interfaces/client_repository.php';
 require_once 'src/interfaces/session_repository.php';
@@ -23,9 +25,6 @@ require_once 'src/interfaces/user_repository.php';
 
 require_once 'src/services/secrets_service.php';
 
-require_once 'src/exceptions/invalid_input_exception.php';
-require_once 'src/exceptions/storage_error_exception.php';
-require_once 'src/exceptions/critical_login_error_exception.php';
 
 class AuthorizeService
 {
@@ -59,7 +58,6 @@ class AuthorizeService
       $client->get_id(),
       $query['state'],
       $query['nonce'],
-      $query['session_state'],
       $query['redirect_uri']
     );
     Utils::show_view(
@@ -67,6 +65,7 @@ class AuthorizeService
       [
         'title' => 'Login',
         'session_id' => $session->get_id(),
+        'response_mode' => $query['response_mode'],
         'scopes' => $query['scope']
       ]
     );
@@ -76,8 +75,9 @@ class AuthorizeService
     string $email,
     string $password,
     string $sessionId,
-    string $scopes
-  ): Session {
+    string $scopes,
+    string $response_mode
+  ): string {
     $user = $this->user_repository->findByEmail($email);
     $error = null;
     if ($user == null) {
@@ -126,7 +126,8 @@ class AuthorizeService
     if (!$updated) {
       throw new StorageErrorException('unable to find updated session');
     }
-    return $updated;
+
+    return self::get_redirect_uri($updated, $response_mode);
   }
 
   public function issueTokensBundle(array $post): array
@@ -134,7 +135,7 @@ class AuthorizeService
     self::validate_token_params($post);
     extract($post);
 
-    return $grant_type === 'code' ?
+    return $grant_type === 'authorization_code' ?
       $this->issueTokensBundleByCode(
         $code,
         $client_id,
@@ -185,7 +186,10 @@ class AuthorizeService
     if (!$updated_session) {
       throw new StorageErrorException('error updating session');
     }
-    return $token_bundle;
+    return [
+      'tokens' => $token_bundle,
+      'origin' => $client->get_uri()
+    ];
   }
 
   private function issueTokensBundleByRefreshToken(
@@ -230,21 +234,22 @@ class AuthorizeService
     if (!$updated_session) {
       throw new StorageErrorException('error updating session');
     }
-    return $token_bundle;
+    return [
+      'tokens' => $token_bundle,
+      'origin' => $client->get_uri()
+    ];
   }
 
   private function create_pending_session(
     string $client_id,
     string $state,
     string $nonce,
-    string $session_state,
     string $redirect_uri
   ): Session {
     $session = $this->session_repository->createPending(
       $client_id,
       $state,
       $nonce,
-      $session_state,
       $redirect_uri
     );
     if ($session === null) {
@@ -320,7 +325,6 @@ class AuthorizeService
       'redirect_uri',
       'state',
       'nonce',
-      'session_state'
     ];
 
     self::validate_params($query, $required_fields);
@@ -348,11 +352,11 @@ class AuthorizeService
 
     self::validate_params($query, $required_fields);
 
-    if (!in_array($query['grant_type'], ['code', 'refresh_token'])) {
+    if (!in_array($query['grant_type'], ['authorization_code', 'refresh_token'])) {
       throw new InvalidInputException('unsupported flow');
     }
 
-    if ($query['grant_type'] === 'code' && !isset($query['code'])) {
+    if ($query['grant_type'] === 'authorization_code' && !isset($query['code'])) {
       throw new InvalidInputException("missing required field 'code'");
     }
     if ($query['grant_type'] === 'refresh_token' && !isset($query['refresh_token'])) {
@@ -393,5 +397,31 @@ class AuthorizeService
     ) {
       throw new InvalidInputException('invalid client secret');
     }
+  }
+
+  private static function get_redirect_uri(
+    Session $session,
+    string $response_mode
+  ): string {
+    $redirect_uri = $session->get_redirect_uri();
+    $append = '';
+    $char = '';
+    $hash_pos = strpos($redirect_uri, '#');
+
+    if ($response_mode == 'query') {
+      $char = strpos($redirect_uri, '?') ? '&' : '?';
+      if ($hash_pos != false) {
+        $append = substr($redirect_uri, $hash_pos);
+        $redirect_uri = substr($redirect_uri, 0, $hash_pos);
+      }
+    } else {
+      $char = $hash_pos ? '&' : '#';
+    }
+
+    return $redirect_uri . $char .
+      'code=' . $session->get_code() .
+      '&state=' . $session->get_state() .
+      '&session_state=' . $session->get_session_state() .
+      $append;
   }
 }

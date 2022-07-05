@@ -10,7 +10,7 @@ class Session implements \JsonSerializable
   private string $client_id;
   private string $state;
   private string $nonce;
-  private string $session_state;
+  private ?string $session_state;
   private string $redirect_uri;
   private ?string $refresh_token = null;
   private ?string $user_id = null;
@@ -24,7 +24,7 @@ class Session implements \JsonSerializable
     string $client_id,
     string $state,
     string $nonce,
-    ?string $session_state,
+    string $session_state,
     string $redirect_uri,
     ?string $refresh_token = null,
     ?string $user_id = null,

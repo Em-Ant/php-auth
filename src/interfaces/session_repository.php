@@ -16,7 +16,6 @@ interface SessionRepository
     string $client_id,
     string $state,
     string $nonce,
-    string $session_state,
     string $redirect_uri
   ): ?Session;
 
