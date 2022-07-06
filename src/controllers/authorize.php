@@ -22,15 +22,17 @@ class Authorize
   ) {
     $this->auth_service = $service;
   }
-  public function authorize(array $params)
+
+  public function authorize()
   {
     try {
-      $this->auth_service->show_login_form($_GET);
+      $this->auth_service->show_login($_GET);
     } catch (InvalidInputException $e) {
       Utils::server_error('invalid request', $e->getMessage(), 400);
     }
   }
-  public function login(array $params)
+
+  public function login()
   {
     $sessionId = $_GET['q'];
     $scopes = $_GET['s'];
@@ -55,22 +57,21 @@ class Authorize
     }
   }
 
-  public function token(array $params)
+  public function token()
   {
     try {
-      $data = $this->auth_service->issueTokensBundle(
-        $_POST
-      );
-      $origin = $data['origin'];
+      $origin = $this->auth_service->get_client_uri($_POST['client_id']);
       header("Access-Control-Allow-Origin: $origin");
       header('Access-Control-Allow-Credentials: true');
       header('Access-Control-Allow-Headers:content-type,accept,origin');
       header('Access-Control-Allow-Methods:GET,POST,OPTIONS');
-      Utils::send_json($data['tokens']);
+
+      Utils::send_json($this->auth_service->get_tokens($_POST));
     } catch (InvalidInputException $e) {
       Utils::server_error('invalid request', $e->getMessage(), 400);
     }
   }
+
   public function error(array $params)
   {
     $message = $_GET['e'];

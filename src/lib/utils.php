@@ -71,7 +71,7 @@ class Utils
         list($key, $val) = explode("=", $line);
         if (isset($key)) {
           $val = trim($val, "\"'");
-          $vars["ENV_$key"] = $val;
+          $vars["$key"] = $val;
         }
       }
       fclose($handle);

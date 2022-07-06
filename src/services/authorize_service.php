@@ -14,6 +14,8 @@ use AuthServer\Lib\Utils;
 use AuthServer\Models\Client;
 use AuthServer\Models\Session;
 use AuthServer\Models\User;
+use DateInterval;
+use DateTime;
 
 require_once 'src/exceptions/invalid_input_exception.php';
 require_once 'src/exceptions/storage_error_exception.php';
@@ -33,25 +35,37 @@ class AuthorizeService
   private IUserRepo $user_repository;
   private SecretsService $secrets_service;
   private TokenService $token_service;
+  private int $pendingSessionExpiresInSeconds;
+  private int $authenticatedSessionExpiresInSeconds;
 
   public function __construct(
     IClientRepo $client_repo,
     ISessionRepo $session_repo,
     IUserRepo $user_repo,
     SecretsService $secrets_service,
-    TokenService $token_service
+    TokenService $token_service,
+    int $pendingSessionExpiresInSeconds,
+    int $authenticatedSessionExpiresInSeconds
   ) {
     $this->client_repository = $client_repo;
     $this->session_repository = $session_repo;
     $this->user_repository = $user_repo;
     $this->secrets_service = $secrets_service;
     $this->token_service = $token_service;
+    $this->pendingSessionExpiresInSeconds =
+      $pendingSessionExpiresInSeconds;
+    $this->authenticatedSessionExpiresInSeconds =
+      $authenticatedSessionExpiresInSeconds;
   }
 
-  public function show_login_form(array $query)
+  public function show_login(array $query)
   {
     self::validate_query_params($query);
-    $client = $this->get_client($query['client_id']);
+
+    $client = $this->client_repository->findByClientId($query['client_id']);
+    if ($client === null) {
+      throw new InvalidInputException('invalid client id');
+    }
     self::validate_redirect_uri($client, $query['redirect_uri']);
     self::validate_client_scopes($client, $query['scope']);
     $session = $this->create_pending_session(
@@ -66,7 +80,10 @@ class AuthorizeService
         'title' => 'Login',
         'session_id' => $session->get_id(),
         'response_mode' => $query['response_mode'],
-        'scopes' => $query['scope']
+        'scopes' => $query['scope'],
+        'email' => '',
+        'password' => '',
+        'error' => false
       ]
     );
   }
@@ -78,41 +95,25 @@ class AuthorizeService
     string $scopes,
     string $response_mode
   ): string {
-    $user = $this->user_repository->findByEmail($email);
-    $error = null;
-    if ($user == null) {
-      $error = 'email not found';
-    } else {
-      $valid_pwd = $this->secrets_service->validate_password(
-        $password,
-        $user->get_password()
-      );
-      if (!$valid_pwd) $error = 'invalid password';
-    }
 
-    if ($error) {
-      Utils::show_view(
-        'login_form',
-        [
-          'title' => 'Login',
-          'session_id' => $sessionId,
-          'scopes' => $scopes,
-          'password' => $password,
-          'email' => $email,
-          'error' => $error
-        ]
-      );
-      die();
-    }
+    $user = $this->ensure_valid_credentials(
+      $email,
+      $password,
+      $scopes,
+      $sessionId
+    );
 
-    $valid_user_scopes = self::validate_user_scopes($user, $scopes);
-    if (!$valid_user_scopes)
-      throw new CriticalLoginErrorException('invalid user scopes');
+    self::validate_user_scopes($user, $scopes);
 
     $session = $this->session_repository->findById($sessionId);
     if ($session == null || $session->get_status() != 'PENDING') {
       throw new CriticalLoginErrorException('invalid session');
     }
+
+    $this->check_session_expiration(
+      $session,
+      $this->pendingSessionExpiresInSeconds
+    );
 
     $ok = $this->session_repository->setAuthenticated(
       $sessionId,
@@ -122,39 +123,59 @@ class AuthorizeService
     if (!$ok) {
       throw new StorageErrorException('unable to update session');
     }
+
     $updated = $this->session_repository->findById($sessionId);
     if (!$updated) {
       throw new StorageErrorException('unable to find updated session');
     }
-
     return self::get_redirect_uri($updated, $response_mode);
   }
 
-  public function issueTokensBundle(array $post): array
+  public function get_tokens(array $params): array
   {
-    self::validate_token_params($post);
-    extract($post);
+    self::validate_token_params($params);
+    extract($params);
 
-    return $grant_type === 'authorization_code' ?
-      $this->issueTokensBundleByCode(
-        $code,
-        $client_id,
-        $redirect_uri,
-        $client_secret
-      ) :
-      $this->issueTokensBundleByRefreshToken(
-        $refresh_token,
-        $client_id,
-        $redirect_uri,
-        $client_secret
-      );
+    $client = $this->client_repository->findByClientId($client_id);
+    if ($client === null) {
+      throw new InvalidInputException('invalid client_id');
+    }
+
+    $this->validate_client_secret($client, $client_secret);
+    self::validate_redirect_uri($client, $redirect_uri);
+
+    $tokens = null;
+    switch ($grant_type) {
+      case 'authorization_code':
+        $tokens = $this->get_tokens_by_code(
+          $code,
+          $client
+        );
+        break;
+      case 'refresh_token':
+        $tokens = $this->get_tokens_by_refresh_token(
+          $refresh_token,
+          $client
+        );
+      default:
+        throw new InvalidInputException('unsupported flow');
+    }
+
+    return $tokens;
   }
 
-  private function issueTokensBundleByCode(
+  public function get_client_uri(string $client_id)
+  {
+    $client = $this->client_repository->findByClientId($client_id);
+    if ($client === null) {
+      throw new InvalidInputException('invalid client_id');
+    }
+    return $client->get_uri();
+  }
+
+  private function get_tokens_by_code(
     string $code,
-    string $client_id,
-    string $redirect_uri,
-    ?string $client_secret
+    Client $client
   ): array {
     $session = $this->session_repository->findByCode($code);
     if ($session === null) {
@@ -163,22 +184,24 @@ class AuthorizeService
     if ($session->get_status() != 'AUTHENTICATED') {
       throw new InvalidInputException('code is expired');
     }
-    $client = $this->client_repository->findByClientId($client_id);
-    if ($client === null) {
-      throw new InvalidInputException('invalid client');
-    }
-    $this->validate_client_secret($client, $client_secret);
-    self::validate_redirect_uri($client, $redirect_uri);
+
+    $this->check_session_expiration(
+      $session,
+      $this->authenticatedSessionExpiresInSeconds
+    );
+
     $user = $this->user_repository->findById($session->get_user_id());
     if ($user == null) {
       throw new StorageErrorException('invalid session');
     }
+
     $token_bundle = $this->token_service->createTokenBundle(
       $session,
       $client,
       $user,
       '1'
     );
+
     $updated_session = $this->session_repository->setActive(
       $session->get_id(),
       $token_bundle['refresh_token']
@@ -186,17 +209,13 @@ class AuthorizeService
     if (!$updated_session) {
       throw new StorageErrorException('error updating session');
     }
-    return [
-      'tokens' => $token_bundle,
-      'origin' => $client->get_uri()
-    ];
+
+    return $token_bundle;
   }
 
-  private function issueTokensBundleByRefreshToken(
+  private function get_tokens_by_refresh_token(
     string $refresh_token,
-    string $client_id,
-    string $redirect_uri,
-    ?string $client_secret
+    Client $client
   ): array {
     $session = $this->session_repository->findByRefreshToken($refresh_token);
     if ($session === null) {
@@ -211,12 +230,6 @@ class AuthorizeService
     if ($session->get_status() != 'ACTIVE') {
       throw new InvalidInputException('invalid session status');
     }
-    $client = $this->client_repository->findByClientId($client_id);
-    if ($client === null) {
-      throw new InvalidInputException('invalid client');
-    }
-    $this->validate_client_secret($client, $client_secret);
-    self::validate_redirect_uri($client, $redirect_uri);
     $user = $this->user_repository->findById($session->get_user_id());
     if ($user == null) {
       throw new StorageErrorException('invalid session');
@@ -234,10 +247,7 @@ class AuthorizeService
     if (!$updated_session) {
       throw new StorageErrorException('error updating session');
     }
-    return [
-      'tokens' => $token_bundle,
-      'origin' => $client->get_uri()
-    ];
+    return $token_bundle;
   }
 
   private function create_pending_session(
@@ -258,15 +268,71 @@ class AuthorizeService
     return $session;
   }
 
-  private function get_client(string $client_id): Client
-  {
-    $client = $this->client_repository->findByClientId($client_id);
-    if ($client === null) {
-      throw new InvalidInputException('invalid client id');
+  private function check_session_expiration(
+    Session $session,
+    int $exp_in_s,
+    ?string $msg = 'session expired'
+  ): void {
+    $interval = "PT$exp_in_s";
+    if (
+      $session->get_created_at()->add(
+        new \DateInterval($interval)
+      ) > new DateTime()
+    ) {
+      $ok = $this->session_repository->setExpired($session->get_id());
+      if (!$ok) throw new StorageErrorException('unable to set session to expired');
+      throw new InvalidInputException($msg);
     }
-    return $client;
   }
 
+  private function ensure_valid_credentials(
+    string $email,
+    string $password,
+    string $scopes,
+    string $sessionId
+  ): User {
+    $error = false;
+    $user = $this->user_repository->findByEmail($email);
+    if ($user == null) {
+      $error = 'email not found';
+    } else {
+      $valid_pwd = $this->secrets_service->validate_password(
+        $password,
+        $user->get_password()
+      );
+      if (!$valid_pwd) $error = 'invalid password';
+    }
+
+    if ($error) {
+      Utils::show_view(
+        'login_form',
+        [
+          'title' => 'Login',
+          'session_id' => $sessionId,
+          'scopes' => $scopes,
+          'email' => $email,
+          'password' => $password,
+          'error' => $error
+        ]
+      );
+      die();
+    }
+
+    return $user;
+  }
+
+  private static function validate_client_scopes(Client $client, string $scopes)
+  {
+    if (!self::validate_scopes($client->get_scopes(), $scopes)) {
+      throw new InvalidInputException('scopes not allowed for client');
+    }
+  }
+  private static function validate_user_scopes(User $user, string $scopes): void
+  {
+    $valid = self::validate_scopes($user->get_scopes(), $scopes);
+    if (!$valid)
+      throw new CriticalLoginErrorException('invalid user scopes');
+  }
   private static function validate_scopes(
     array $allowed_scopes,
     string $requested_scopes
@@ -282,19 +348,11 @@ class AuthorizeService
     }
     return $valid;
   }
-  private static function validate_client_scopes(Client $client, string $scopes)
-  {
-    if (!self::validate_scopes($client->get_scopes(), $scopes)) {
-      throw new InvalidInputException('scopes not allowed for client');
-    }
-  }
-  private static function validate_user_scopes(User $user, string $scopes): bool
-  {
-    return self::validate_scopes($user->get_scopes(), $scopes);
-  }
 
-  private static function validate_redirect_uri(Client $client, string $redirect_uri)
-  {
+  private static function validate_redirect_uri(
+    Client $client,
+    string $redirect_uri
+  ) {
     $_redirect_uri = rtrim($redirect_uri, '/');
     $_client_uri = rtrim($client->get_uri(), '/');
 
@@ -304,15 +362,6 @@ class AuthorizeService
     ) {
       throw new InvalidInputException('invalid redirect_uri');
     }
-  }
-
-  private static function str_starts_with(string $haystack, string $needle): bool
-  {
-    return substr($haystack, 0, strlen($needle)) === $needle;
-  }
-  private static function is_empty(?string $param)
-  {
-    return !isset($param) || $param == ' ';
   }
 
   private static function validate_query_params(array $query)
@@ -328,10 +377,6 @@ class AuthorizeService
     ];
 
     self::validate_params($query, $required_fields);
-
-    if ($query['response_type'] !== 'code') {
-      throw new InvalidInputException('unsupported flow');
-    }
 
     if (!in_array($query['response_mode'], ['fragment', 'query'])) {
       throw new InvalidInputException('invalid response mode');
@@ -386,14 +431,15 @@ class AuthorizeService
     Client $client,
     ?string $client_secret
   ) {
-    $stored_client_secret = $client->get_client_secret();
+    $hashed_secret = $client->get_client_secret();
+    if ($hashed_secret == null) return;
+
     if (
-      $stored_client_secret != null &&
-      ($client_secret == null ||
-        !$this->secrets_service->validate_password(
-          $client_secret,
-          $stored_client_secret
-        ))
+      $client_secret == null ||
+      !$this->secrets_service->validate_password(
+        $client_secret,
+        $hashed_secret
+      )
     ) {
       throw new InvalidInputException('invalid client secret');
     }
@@ -423,5 +469,14 @@ class AuthorizeService
       '&state=' . $session->get_state() .
       '&session_state=' . $session->get_session_state() .
       $append;
+  }
+
+  private static function str_starts_with(string $haystack, string $needle): bool
+  {
+    return substr($haystack, 0, strlen($needle)) === $needle;
+  }
+  private static function is_empty(?string $param)
+  {
+    return !isset($param) || $param == ' ';
   }
 }

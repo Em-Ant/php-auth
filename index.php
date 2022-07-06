@@ -26,22 +26,23 @@ require_once 'src/services/secrets_service.php';
 require_once 'src/services/token_service.php';
 
 $env = Utils::read_env('server.env');
-$sub_path = $env['ENV_BASE_PATH'];
+$sub_path = $env['BASE_PATH'];
 $pub = file_get_contents('keys/public_key.pem');
 $pri = file_get_contents('keys/private_key.pem');
-
 
 $client_repo = new ClientRepository(DataSource::getInstance());
 $session_repo = new SessionRepository(DataSource::getInstance());
 $user_repo = new UserRepository(DataSource::getInstance());
+
 $secrets_service = new SecretsService();
+
 $token_service = new TokenService(
   $pub,
   $pri,
   '1',
   'emant/auth',
-  $env['ENV_REFRESH_TOKEN_EXPIRES_IN'],
-  $env['ENV_ACCESS_TOKEN_EXPIRES_IN'],
+  $env['REFRESH_TOKEN_EXPIRES_IN'],
+  $env['ACCESS_TOKEN_EXPIRES_IN'],
 );
 
 $auth_service = new AuthorizeService(
@@ -49,14 +50,15 @@ $auth_service = new AuthorizeService(
   $session_repo,
   $user_repo,
   $secrets_service,
-  $token_service
+  $token_service,
+  $env['PENDING_SESSION_EXPIRES_IN'],
+  $env['AUTHENTICATED_SESSION_EXPIRES_IN']
 );
+
 $auth_controller = new Controllers\Authorize($auth_service);
 
-$env = Utils::read_env('server.env');
-$sub_path = $env['ENV_BASE_PATH'];
 
-$app = new Router('/auth');
+$app = new Router();
 
 $app->use([Lib\Utils::class, 'enable_cors']);
 $app->use([Lib\Utils::class, 'parse_json_body']);
