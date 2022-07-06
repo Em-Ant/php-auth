@@ -80,4 +80,12 @@ class Authorize
       'error' => $message
     ]);
   }
+
+  public function logout()
+  {
+    $redirect = $_GET['post_logout_redirect_uri'];
+    $id_token = $_GET['id_token_hint'];
+    $this->auth_service->logout($id_token);
+    header("location: $redirect", true, 302);
+  }
 }

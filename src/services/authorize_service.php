@@ -133,6 +133,7 @@ class AuthorizeService
 
   public function get_tokens(array $params): array
   {
+
     self::validate_token_params($params);
     extract($params);
 
@@ -141,7 +142,11 @@ class AuthorizeService
       throw new InvalidInputException('invalid client_id');
     }
 
-    $this->validate_client_secret($client, $client_secret);
+    $hashed_secret = $client->get_client_secret();
+    if ($hashed_secret) {
+      $this->validate_client_secret($hashed_secret, $client_secret);
+    }
+
     self::validate_redirect_uri($client, $redirect_uri);
 
     $tokens = null;
@@ -171,6 +176,22 @@ class AuthorizeService
       throw new InvalidInputException('invalid client_id');
     }
     return $client->get_uri();
+  }
+
+  public function logout(
+    string $id_token
+  ): bool {
+    $token_valid = $this->token_service->validateToken($id_token);
+    if (!$token_valid) {
+      throw new InvalidInputException('invalid id_token');
+    }
+    $token_parsed = $this->token_service->decodeTokenPayload($id_token);
+    $session_id = $token_parsed['sid'];
+    $ok = $this->session_repository->setExpired($session_id);
+    if (!$ok) {
+      throw new StorageErrorException('unable to update session');
+    }
+    return $ok;
   }
 
   private function get_tokens_by_code(
@@ -273,7 +294,7 @@ class AuthorizeService
     int $exp_in_s,
     ?string $msg = 'session expired'
   ): void {
-    $interval = "PT$exp_in_s";
+    $interval = "PT{$exp_in_s}S";
     if (
       $session->get_created_at()->add(
         new \DateInterval($interval)
@@ -428,12 +449,9 @@ class AuthorizeService
   }
 
   private function validate_client_secret(
-    Client $client,
-    ?string $client_secret
+    string $hashed_secret,
+    string $client_secret
   ) {
-    $hashed_secret = $client->get_client_secret();
-    if ($hashed_secret == null) return;
-
     if (
       $client_secret == null ||
       !$this->secrets_service->validate_password(

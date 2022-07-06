@@ -107,7 +107,7 @@ class TokenService
   {
     $b64 = str_replace(['-', '_'], ['+', '/'], $data);
 
-    while ($b64 % 4 != 0) {
+    while (strlen($b64) % 4 != 0) {
       $b64 = $b64 . '=';
     }
 
