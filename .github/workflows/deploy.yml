@@ -21,4 +21,4 @@ jobs:
           user: ${{ secrets.FTP_USER }}
           password: ${{ secrets.FTP_PWD }}
           localDir: ./dist
-          remoteDir: auth
+          remoteDir: id
