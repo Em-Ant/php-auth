@@ -87,5 +87,6 @@ class Authorize
     $id_token = $_GET['id_token_hint'];
     $this->auth_service->logout($id_token);
     header("location: $redirect", true, 302);
+    die();
   }
 }

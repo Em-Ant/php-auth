@@ -14,7 +14,6 @@ use AuthServer\Lib\Utils;
 use AuthServer\Models\Client;
 use AuthServer\Models\Session;
 use AuthServer\Models\User;
-use DateInterval;
 use DateTime;
 
 require_once 'src/exceptions/invalid_input_exception.php';
@@ -86,6 +85,7 @@ class AuthorizeService
         'error' => false
       ]
     );
+    die();
   }
 
   public function authenticate(

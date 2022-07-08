@@ -41,25 +41,37 @@ class Router
   {
     $this->route('ALL', null, $handler);
   }
+  public function router(string $route, callable $handler)
+  {
+    $this->route('ROUTER', $route, $handler);
+  }
   public function all(string $route, callable $handler)
   {
     $this->route('ALL', $route, $handler);
   }
 
-  public function run()
+  public function run(?array $context = [])
   {
     try {
       $params = array();
       foreach ($this->_routes as $r) {
         extract($r);
+        $mount_path = isset($context['mount_path']) ? $context['mount_path'] : '';
+        $_ctx = [];
+        $_ctx['mount_path'] = $route;
+        if ($method == 'ROUTER') {
+          $handler($_ctx);
+          continue;
+        }
         if ($method == $_SERVER['REQUEST_METHOD'] || $method == "ALL") {
           if (is_null($route)) {
-            $handler();
+            $handler($_ctx);
             continue;
           }
-          $m = $this->matchHelper($route, $params);
+          $m = $this->matchHelper($route, $mount_path, $params);
           if ($m) {
-            return $handler($params);
+            $_ctx['params'] = $params;
+            return $handler($_ctx);
           }
         }
       }
@@ -80,11 +92,14 @@ class Router
       )
     );
   }
-  private function matchHelper(string $route, array &$params)
-  {
-    preg_match_all("/\{(.+)\}/U", $route, $params_keys);
+  private function matchHelper(
+    string $route,
+    string $mount_path,
+    array &$params
+  ) {
+    preg_match_all("/\{(.+)\}/U", $mount_path . $route, $params_keys);
     $params_keys = $params_keys[1];
-    $r = "#" . $route . "\/$#";
+    $r = "#" . $mount_path . $route . "\/$#";
     $route_regex = preg_replace("/\{.+\}/U", "(.+)", $r);
     $m = preg_match($route_regex, $this->_path, $params_values);
     if ($m) {

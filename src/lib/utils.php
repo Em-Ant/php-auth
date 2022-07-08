@@ -15,6 +15,7 @@ class Utils
       header('Content-type: application/json');
       echo json_encode($data, JSON_UNESCAPED_SLASHES);
     }
+    die();
   }
 
   public static function server_error(
@@ -84,6 +85,7 @@ class Utils
     extract($params);
     $view = 'src/views/' . $view . '.php';
     include 'src/views/template.php';
+    die();
   }
 
   public static function get_guid($data = null): string

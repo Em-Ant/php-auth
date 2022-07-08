@@ -57,20 +57,21 @@ $auth_service = new AuthorizeService(
 
 $auth_controller = new Controllers\Authorize($auth_service);
 
-$b = '/realms/test/protocol/openid-connect';
+
+$routes = new Router();
+
+$routes->get('/auth', [$auth_controller, 'authorize']);
+$routes->post('/token', [$auth_controller, 'token']);
+$routes->get('/logout', [$auth_controller, 'logout']);
+$routes->get('/error', [$auth_controller, 'error']);
 
 $app = new Router();
-
 $app->use([Lib\Utils::class, 'enable_cors']);
 $app->use([Lib\Utils::class, 'parse_json_body']);
-
-$app->get('/auth', [$auth_controller, 'authorize']);
-$app->post('/token', [$auth_controller, 'token']);
-$app->get('/logout', [$auth_controller, 'logout']);
-$app->get('/error', [$auth_controller, 'error']);
+$app->router('/realms/{realm}/protocol/openid-connect', [$routes, 'run']);
 $app->post('/login-actions/authenticate', [$auth_controller, 'login']);
 
-$app->all('/', [Lib\Utils::class, 'not_found']);
+// $app->all('/', [Lib\Utils::class, 'not_found']);
 $app->all('/{unknown}', [Lib\Utils::class, 'not_found']);
 
 $app->run();
