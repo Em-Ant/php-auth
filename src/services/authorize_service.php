@@ -144,7 +144,7 @@ class AuthorizeService
 
     $hashed_secret = $client->get_client_secret();
     if ($hashed_secret) {
-      $this->validate_client_secret($hashed_secret, $client_secret);
+      $this->validate_client_secret($hashed_secret, $client_secret ?: '');
     }
 
     self::validate_redirect_uri($client, $redirect_uri);
