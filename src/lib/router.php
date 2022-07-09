@@ -4,74 +4,78 @@ declare(strict_types=1);
 
 namespace AuthServer\Lib;
 
-use AuthServer\Lib\Utils;
 
 class Router
 {
   private $_routes = array();
-  private $_path = '';
 
-  public function __construct()
+  public function get(string $path, ...$args)
   {
-    $path = ($_SERVER['PATH_INFO'] ?: "");
-    $this->_path = '/' . trim($path, '/') . "/";
+    $this->_route('GET', $path, ...$args);
   }
-
-  public function get(string $route, callable $handler)
+  public function post(string $path, ...$args)
   {
-    $this->route('GET', $route, $handler);
+    $this->_route('POST', $path, ...$args);
   }
-  public function post(string $route, callable $handler)
+  public function patch(string $path, ...$args)
   {
-    $this->route('POST', $route, $handler);
+    $this->_route('PATCH', $path, $args);
   }
-  public function patch(string $route, callable $handler)
+  public function put(string $path, ...$args)
   {
-    $this->route('PATCH', $route, $handler);
+    $this->_route('PUT', $path, ...$args);
   }
-  public function put(string $route, callable $handler)
+  public function delete(string $path, ...$args)
   {
-    $this->route('PUT', $route, $handler);
+    $this->_route('DELETE', $path, ...$args);
   }
-  public function delete(string $route, callable $handler)
+  public function use(...$args)
   {
-    $this->route('DELETE', $route, $handler);
+    $this->_route('USE', ...$args);
   }
-  public function use(callable $handler)
+  public function all(string $path, ...$args)
   {
-    $this->route('ALL', null, $handler);
-  }
-  public function router(string $route, callable $handler)
-  {
-    $this->route('ROUTER', $route, $handler);
-  }
-  public function all(string $route, callable $handler)
-  {
-    $this->route('ALL', $route, $handler);
+    $this->_route('ALL', $path, ...$args);
   }
 
   public function run(?array $context = [])
   {
     try {
-      $params = array();
       foreach ($this->_routes as $r) {
         extract($r);
-        $mount_path = isset($context['mount_path']) ? $context['mount_path'] : '';
+
+        $mount_path = (isset($context['mount_path']) ?
+          $context['mount_path'] :
+          ''
+        ) . $route ?: '';
+
+        $server_path = self::get_path_info();
+
         $_ctx = [];
-        $_ctx['mount_path'] = $route;
-        if ($method == 'ROUTER') {
-          $handler($_ctx);
-          continue;
-        }
-        if ($method == $_SERVER['REQUEST_METHOD'] || $method == "ALL") {
-          if (is_null($route)) {
-            $handler($_ctx);
-            continue;
-          }
-          $m = $this->matchHelper($route, $mount_path, $params);
-          if ($m) {
+        $_ctx['method'] = $_SERVER['REQUEST_METHOD'];
+        $_ctx['path'] = $server_path;
+        $_ctx['mount_path'] = $mount_path;
+        $_ctx['query'] = $_GET;
+        $_ctx['params'] = [];
+        $_ctx['body'] = $_POST;
+
+        if (
+          $method == $_SERVER['REQUEST_METHOD'] ||
+          $method == "ALL" || $method == 'USE'
+        ) {
+
+          $params = [];
+          $match = self::match_helper(
+            $mount_path,
+            $server_path,
+            $method != 'USE',
+            $params
+          );
+
+          if ($match) {
             $_ctx['params'] = $params;
-            return $handler($_ctx);
+            self::call_handlers($_ctx, $handlers);
+            continue;
           }
         }
       }
@@ -81,32 +85,65 @@ class Router
     }
   }
 
-  private function route(string $method, ?string $route, callable $handler)
+  private function _route($method, ...$args)
   {
+    $route = is_string($args[0]) ?
+      array_splice($args, 0, 1)[0] :
+      null;
+
+    if (count($args) == 0) {
+      throw new \BadMethodCallException(
+        "at least one callable handler must be provided"
+      );
+    }
+
     array_push(
       $this->_routes,
       array(
         'method' => $method,
         'route' => $route,
-        'handler' => $handler
+        'handlers' => $args
       )
     );
   }
-  private function matchHelper(
-    string $route,
-    string $mount_path,
+
+  private static function match_helper(
+    string $path,
+    string $server_path,
+    bool $match_path_end,
     array &$params
   ) {
-    preg_match_all("/\{(.+)\}/U", $mount_path . $route, $params_keys);
-    $params_keys = $params_keys[1];
-    $r = "#" . $mount_path . $route . "\/$#";
+    $end_delimiter = $match_path_end ? '$' : '';
+    $r = "#^" . $path . "$end_delimiter#";
     $route_regex = preg_replace("/\{.+\}/U", "(.+)", $r);
-    $m = preg_match($route_regex, $this->_path, $params_values);
-    if ($m) {
-      // extract and remove the matching string
-      $match = array_splice($params_values, 0, 1)[0];
-      $params = array_combine($params_keys, $params_values);
+
+    $m = preg_match(
+      $route_regex,
+      $server_path,
+      $params_values
+    );
+
+    if (!$m) return false;
+
+    preg_match_all("/\{(.+)\}/U", $path, $params_keys);
+    $params_keys = $params_keys[1];
+
+    array_splice($params_values, 0, 1);
+    $params = array_combine($params_keys, $params_values);
+
+    return true;
+  }
+
+  private static function call_handlers(array $ctx, array $handlers): void
+  {
+    foreach ($handlers as $h) {
+      $h($ctx);
     }
-    return $m;
+  }
+
+  private static function get_path_info()
+  {
+    if (!isset($_SERVER['PATH_INFO'])) return '/';
+    return '/' . trim($_SERVER['PATH_INFO'], '/');
   }
 }

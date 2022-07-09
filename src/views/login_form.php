@@ -1,6 +1,9 @@
 <h1>Login</h1>
-<?php $query = "?q=$session_id&s=$scopes&m=$response_mode" ?>
-<form method="POST" action="<?= $sub_path ?>/login-actions/authenticate<?= $query ?>">
+<?php
+$query = "q=$session_id&s=$scopes&m=$response_mode";
+$action = "$sub_path/realms/$realm/protocol/openid-connect/login-actions/authenticate?$query"
+?>
+<form method="POST" action="<?= $action ?>">
   <label>
     email
     <input type="email" name="email" value="<?= $email ?>" />

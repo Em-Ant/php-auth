@@ -78,6 +78,7 @@ class AuthorizeService
       [
         'title' => 'Login',
         'session_id' => $session->get_id(),
+        'realm' => 'web',
         'response_mode' => $query['response_mode'],
         'scopes' => $query['scope'],
         'email' => '',
@@ -330,6 +331,7 @@ class AuthorizeService
         [
           'title' => 'Login',
           'session_id' => $sessionId,
+          'realm' => 'web',
           'scopes' => $scopes,
           'email' => $email,
           'password' => $password,
