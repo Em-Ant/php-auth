@@ -7,6 +7,7 @@ use AuthServer\Exceptions\StorageErrorException;
 use AuthServer\Exceptions\CriticalLoginErrorException;
 
 use AuthServer\Interfaces\ClientRepository as IClientRepo;
+use AuthServer\Interfaces\Logger;
 use AuthServer\Interfaces\SessionRepository as ISessionRepo;
 use AuthServer\Interfaces\UserRepository as IUserRepo;
 
@@ -23,9 +24,10 @@ require_once 'src/exceptions/critical_login_error_exception.php';
 require_once 'src/interfaces/client_repository.php';
 require_once 'src/interfaces/session_repository.php';
 require_once 'src/interfaces/user_repository.php';
+require_once 'src/interfaces/logger.php';
 
 require_once 'src/services/secrets_service.php';
-
+require_once 'src/services/secrets_service.php';
 
 class AuthorizeService
 {
@@ -36,6 +38,7 @@ class AuthorizeService
   private TokenService $token_service;
   private int $pendingSessionExpiresInSeconds;
   private int $authenticatedSessionExpiresInSeconds;
+  private Logger $logger;
 
   public function __construct(
     IClientRepo $client_repo,
@@ -44,7 +47,8 @@ class AuthorizeService
     SecretsService $secrets_service,
     TokenService $token_service,
     int $pendingSessionExpiresInSeconds,
-    int $authenticatedSessionExpiresInSeconds
+    int $authenticatedSessionExpiresInSeconds,
+    Logger $logger
   ) {
     $this->client_repository = $client_repo;
     $this->session_repository = $session_repo;
@@ -55,29 +59,38 @@ class AuthorizeService
       $pendingSessionExpiresInSeconds;
     $this->authenticatedSessionExpiresInSeconds =
       $authenticatedSessionExpiresInSeconds;
+    $this->logger = $logger;
   }
 
   public function show_login(array $query)
   {
+    $client_id = $query['client_id'];
+    $this->logger->info("logging in for client $client_id");
+
     self::validate_query_params($query);
 
-    $client = $this->client_repository->findByClientId($query['client_id']);
+    $client = $this->client_repository->findByClientId($client_id);
     if ($client === null) {
+      $this->logger->error("client matching $client_id not found for realm");
       throw new InvalidInputException('invalid client id');
     }
     self::validate_redirect_uri($client, $query['redirect_uri']);
     self::validate_client_scopes($client, $query['scope']);
+
     $session = $this->create_pending_session(
       $client->get_id(),
       $query['state'],
       $query['nonce'],
       $query['redirect_uri']
     );
+
+    $session_id = $session->get_id();
+    $this->logger->info("showing login form for session $session_id ");
     Utils::show_view(
       'login_form',
       [
         'title' => 'Login',
-        'session_id' => $session->get_id(),
+        'session_id' => $session_id,
         'realm' => 'web',
         'response_mode' => $query['response_mode'],
         'scopes' => $query['scope'],
@@ -108,6 +121,7 @@ class AuthorizeService
 
     $session = $this->session_repository->findById($sessionId);
     if ($session == null || $session->get_status() != 'PENDING') {
+      $this->logger->error("could not find a session in PENDING status for $sessionId");
       throw new CriticalLoginErrorException('invalid session');
     }
 
@@ -122,13 +136,18 @@ class AuthorizeService
       $this->secrets_service->generate_code()
     );
     if (!$ok) {
+      $this->logger->error("unable to transition $sessionId to authenticated");
       throw new StorageErrorException('unable to update session');
     }
 
+    $this->logger->info("loading updated AUTHENTICATED session  $sessionId");
     $updated = $this->session_repository->findById($sessionId);
     if (!$updated) {
+      $this->logger->error("unable to find $sessionId after transitioning to authenticated");
       throw new StorageErrorException('unable to find updated session');
     }
+
+    $this->logger->info("session $sessionId: returning redirect uri mode: $response_mode");
     return self::get_redirect_uri($updated, $response_mode);
   }
 
@@ -145,6 +164,7 @@ class AuthorizeService
 
     $hashed_secret = $client->get_client_secret();
     if ($hashed_secret) {
+      $this->logger->info("$client_id requires secret validation");
       $this->validate_client_secret($hashed_secret, $client_secret ?: '');
     }
 
@@ -153,17 +173,20 @@ class AuthorizeService
     $tokens = null;
     switch ($grant_type) {
       case 'authorization_code':
+        $this->logger->info("generating tokens from authorization code");
         $tokens = $this->get_tokens_by_code(
           $code,
           $client
         );
         break;
       case 'refresh_token':
+        $this->logger->info("generating tokens from refresh token");
         $tokens = $this->get_tokens_by_refresh_token(
           $refresh_token,
           $client
         );
       default:
+        $this->logger->error("unsupported token flow $grant_type");
         throw new InvalidInputException('unsupported flow');
     }
 
@@ -172,8 +195,10 @@ class AuthorizeService
 
   public function get_client_uri(string $client_id)
   {
+    $this->logger->info("getting client uri for client $client_id to enable cors for origin");
     $client = $this->client_repository->findByClientId($client_id);
     if ($client === null) {
+      $this->logger->error("client $client_id not found");
       throw new InvalidInputException('invalid client_id');
     }
     return $client->get_uri();
@@ -182,16 +207,22 @@ class AuthorizeService
   public function logout(
     string $id_token
   ): bool {
+    $this->logger->info("logging out for id token");
     $token_valid = $this->token_service->validateToken($id_token);
     if (!$token_valid) {
       throw new InvalidInputException('invalid id_token');
     }
     $token_parsed = $this->token_service->decodeTokenPayload($id_token);
     $session_id = $token_parsed['sid'];
+
+    $this->logger->info("token contains session id $session_id");
+
     $ok = $this->session_repository->setExpired($session_id);
     if (!$ok) {
+      $this->logger->error("unable to transition $session_id to expired");
       throw new StorageErrorException('unable to update session');
     }
+    $this->logger->info("session $session_id set to expired - logout ok");
     return $ok;
   }
 

@@ -4,6 +4,7 @@ namespace AuthServer;
 
 use AuthServer\Controllers;
 use AuthServer\Lib;
+use AuthServer\Lib\Logger;
 use AuthServer\Lib\Router;
 use AuthServer\Lib\Utils;
 use AuthServer\Repositories\DataSource;
@@ -16,6 +17,7 @@ use AuthServer\Services\TokenService;
 
 require_once 'src/lib/router.php';
 require_once 'src/lib/utils.php';
+require_once 'src/lib/logger.php';
 require_once 'src/controllers/authorize.php';
 require_once 'src/repositories/datasource.php';
 require_once 'src/repositories/client_repository.php';
@@ -33,7 +35,7 @@ $pri = file_get_contents('keys/private_key.pem');
 $client_repo = new ClientRepository(DataSource::getInstance());
 $session_repo = new SessionRepository(DataSource::getInstance());
 $user_repo = new UserRepository(DataSource::getInstance());
-
+$logger = new Logger();
 $secrets_service = new SecretsService();
 
 $token_service = new TokenService(
@@ -52,7 +54,8 @@ $auth_service = new AuthorizeService(
   $secrets_service,
   $token_service,
   $env['PENDING_SESSION_EXPIRES_IN'],
-  $env['AUTHENTICATED_SESSION_EXPIRES_IN']
+  $env['AUTHENTICATED_SESSION_EXPIRES_IN'],
+  $logger
 );
 
 $auth_controller = new Controllers\Authorize($auth_service);
