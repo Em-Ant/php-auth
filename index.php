@@ -68,9 +68,10 @@ $auth->post('/login-actions/authenticate', [$auth_controller, 'login']);
 
 $app = new Router();
 
-$app->use([Lib\Utils::class, 'parse_json_body']);
+$app->use([Router::class, 'parse_json_body']);
 $app->use('/realms/web/protocol/openid-connect', [$auth, 'run']);
 $app->all('/', [Lib\Utils::class, 'not_found']);
+$app->post('/test', [$auth_controller, 'test']);
 $app->all('/{unknown}', [Lib\Utils::class, 'not_found']);
 
 $app->run();

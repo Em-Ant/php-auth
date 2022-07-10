@@ -34,26 +34,6 @@ class Utils
     self::server_error('internal server error', 'unknown error', 500);
   }
 
-  public static function enable_cors()
-  {
-    header('Access-Control-Allow-Origin: *');
-    header('Access-Control-Allow-Credentials: true');
-    header('Access-Control-Allow-Headers:content-type,accept,origin');
-    header('Access-Control-Allow-Methods:GET,POST,OPTIONS');
-  }
-
-  public static function parse_json_body()
-  {
-    if (
-      $_SERVER['REQUEST_METHOD'] == 'POST' &&
-      isset($_SERVER['HTTP_CONTENT_TYPE']) &&
-      $_SERVER['HTTP_CONTENT_TYPE'] == 'application/json'
-    ) {
-      $raw_body = file_get_contents('php://input');
-      $_POST = json_decode($raw_body, true);
-    }
-  }
-
   public static function not_found($params)
   {
     self::server_error('not found', 'resource not found', 404);

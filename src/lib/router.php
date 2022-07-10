@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AuthServer\Lib;
 
+use ArrayObject;
 
 class Router
 {
@@ -40,6 +41,7 @@ class Router
 
   public function run(?array $context = [])
   {
+    $shared_ctx = $context;
     try {
       foreach ($this->_routes as $r) {
         extract($r);
@@ -51,13 +53,19 @@ class Router
 
         $server_path = self::get_path_info();
 
-        $_ctx = [];
-        $_ctx['method'] = $_SERVER['REQUEST_METHOD'];
-        $_ctx['path'] = $server_path;
+        $_ctx = $shared_ctx;
+        $is_root_middlware = $method == 'USE' && is_null($route);
+        if ($is_root_middlware) $_ctx = &$shared_ctx;
+
+        if (!$_ctx) {
+          $_ctx['method'] = $_SERVER['REQUEST_METHOD'];
+          $_ctx['path'] = $server_path;
+          $_ctx['query'] = $_GET;
+          $_ctx['params'] = [];
+          $_ctx['body'] = $_POST;
+          $_ctx['headers'] = getallheaders();
+        }
         $_ctx['mount_path'] = $mount_path;
-        $_ctx['query'] = $_GET;
-        $_ctx['params'] = [];
-        $_ctx['body'] = $_POST;
 
         if (
           $method == $_SERVER['REQUEST_METHOD'] ||
@@ -113,6 +121,7 @@ class Router
     bool $match_path_end,
     array &$params
   ) {
+
     $end_delimiter = $match_path_end ? '$' : '';
     $r = "#^" . $path . "$end_delimiter#";
     $route_regex = preg_replace("/\{.+\}/U", "(.+)", $r);
@@ -134,7 +143,7 @@ class Router
     return true;
   }
 
-  private static function call_handlers(array $ctx, array $handlers): void
+  private static function call_handlers(array &$ctx, array $handlers): void
   {
     foreach ($handlers as $h) {
       $h($ctx);
@@ -145,5 +154,26 @@ class Router
   {
     if (!isset($_SERVER['PATH_INFO'])) return '/';
     return '/' . trim($_SERVER['PATH_INFO'], '/');
+  }
+
+  public static function parse_json_body(array &$ctx)
+  {
+    if (
+      $_SERVER['REQUEST_METHOD'] == 'POST' &&
+      isset($_SERVER['HTTP_CONTENT_TYPE']) &&
+      $_SERVER['HTTP_CONTENT_TYPE'] == 'application/json'
+    ) {
+      $raw_body = file_get_contents('php://input');
+      $ctx['body'] = json_decode($raw_body, true);
+      error_log(print_r($ctx['body'], true));
+    }
+  }
+
+  public static function enable_cors()
+  {
+    header('Access-Control-Allow-Origin: *');
+    header('Access-Control-Allow-Credentials: true');
+    header('Access-Control-Allow-Headers:content-type,accept,origin');
+    header('Access-Control-Allow-Methods:GET,POST,OPTIONS');
   }
 }
