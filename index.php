@@ -61,17 +61,21 @@ $auth_controller = new Controllers\Authorize($auth_service);
 $auth = new Router();
 
 $auth->get('/auth', [$auth_controller, 'authorize']);
-$auth->post('/token', [$auth_controller, 'token']);
+$auth->post(
+  '/token',
+  [Router::class, 'parse_basic_auth'],
+  [$auth_controller, 'token']
+);
 $auth->get('/logout', [$auth_controller, 'logout']);
 $auth->get('/error', [$auth_controller, 'error']);
 $auth->post('/login-actions/authenticate', [$auth_controller, 'login']);
+
 
 $app = new Router();
 
 $app->use([Router::class, 'parse_json_body']);
 $app->use('/realms/web/protocol/openid-connect', [$auth, 'run']);
 $app->all('/', [Lib\Utils::class, 'not_found']);
-$app->post('/test', [$auth_controller, 'test']);
 $app->all('/{unknown}', [Lib\Utils::class, 'not_found']);
 
 $app->run();

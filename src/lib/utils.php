@@ -79,4 +79,12 @@ class Utils
 
     return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
   }
+
+  public static function enable_cors(?string $origin = '*')
+  {
+    header("Access-Control-Allow-Origin: $origin");
+    header('Access-Control-Allow-Credentials: true');
+    header('Access-Control-Allow-Headers:content-type,accept,origin');
+    header('Access-Control-Allow-Methods:GET,POST,OPTIONS');
+  }
 }

@@ -23,22 +23,25 @@ class Authorize
     $this->auth_service = $service;
   }
 
-  public function authorize()
+  public function authorize(array $ctx)
   {
     try {
-      $this->auth_service->show_login($_GET);
+      $this->auth_service->show_login($ctx['query']);
     } catch (InvalidInputException $e) {
       Utils::server_error('invalid request', $e->getMessage(), 400);
     }
   }
 
-  public function login()
+  public function login(array $ctx)
   {
-    $sessionId = $_GET['q'];
-    $scopes = $_GET['s'];
-    $response_mode = $_GET['m'];
-    $email = $_POST['email'];
-    $password = $_POST['password'];
+    $query = $ctx['query'];
+    $body = $ctx['body'];
+
+    $sessionId = $query['q'];
+    $scopes = $query['s'];
+    $response_mode = $query['m'];
+    $email = $body['email'];
+    $password = $body['password'];
 
     try {
       $location = $this->auth_service->authenticate(
@@ -57,34 +60,44 @@ class Authorize
     }
   }
 
-  public function token()
+  public function token(array $ctx)
   {
-    try {
-      $origin = $this->auth_service->get_client_uri($_POST['client_id']);
-      header("Access-Control-Allow-Origin: $origin");
-      header('Access-Control-Allow-Credentials: true');
-      header('Access-Control-Allow-Headers:content-type,accept,origin');
-      header('Access-Control-Allow-Methods:GET,POST,OPTIONS');
+    $body = $ctx['body'];
+    if (!isset($body['client_id'])) {
+      $body['clent_id'] = isset($ctx['basic_auth_user'])
+        ? $ctx['basic_auth_user']
+        : null;
+    }
 
-      Utils::send_json($this->auth_service->get_tokens($_POST));
+    if (!isset($body['client_secret'])) {
+      $body['clent_secret'] = isset($ctx['basic_auth_pwd'])
+        ? $ctx['basic_auth_pwd']
+        : null;
+    }
+
+    try {
+      $origin = $this->auth_service->get_client_uri($body['client_id']);
+      Utils::enable_cors($origin);
+      Utils::send_json($this->auth_service->get_tokens($body));
     } catch (InvalidInputException $e) {
       Utils::server_error('invalid request', $e->getMessage(), 400);
     }
   }
 
-  public function error(array $params)
+  public function error(array $ctx)
   {
-    $message = $_GET['e'];
+    $message = $ctx['query']['e'];
     Utils::show_view('error', [
       'title' => 'Error',
       'error' => $message
     ]);
   }
 
-  public function logout()
+  public function logout(array $ctx)
   {
-    $redirect = $_GET['post_logout_redirect_uri'];
-    $id_token = $_GET['id_token_hint'];
+    $query = $ctx['query'];
+    $redirect = $query['post_logout_redirect_uri'];
+    $id_token = $query['id_token_hint'];
     $this->auth_service->logout($id_token);
     header("location: $redirect", true, 302);
     die();

@@ -63,8 +63,14 @@ class Router
           $_ctx['query'] = $_GET;
           $_ctx['params'] = [];
           $_ctx['body'] = $_POST;
-          $_ctx['headers'] = getallheaders();
+
+          $headers = [];
+          foreach ((getallheaders() ?: []) as $key => $value) {
+            $headers[strtolower($key)] = $value;
+          }
+          $_ctx['headers'] = $headers;
         }
+
         $_ctx['mount_path'] = $mount_path;
 
         if (
@@ -169,11 +175,16 @@ class Router
     }
   }
 
-  public static function enable_cors()
+  public static function parse_basic_auth(array &$ctx)
   {
-    header('Access-Control-Allow-Origin: *');
-    header('Access-Control-Allow-Credentials: true');
-    header('Access-Control-Allow-Headers:content-type,accept,origin');
-    header('Access-Control-Allow-Methods:GET,POST,OPTIONS');
+    $headers = $ctx['headers'];
+    if (!isset($headers['authorization'])) return;
+
+    $h = explode(' ', $headers['authorization']);
+    if ($h[0] != 'Basic') return;
+
+    $cred = explode(':', base64_decode($h[1]));
+    $ctx['basic_auth_user'] = $cred[0];
+    $ctx['basic_auth_pwd'] = $cred[1];
   }
 }
