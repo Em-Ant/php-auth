@@ -1,0 +1,54 @@
+@code=a5875cc9-1f7d-4f02-a3db-cf5ec281231e.8512df97-541f-4a11-9c13-afd73490cc08.cc1a6b15-639d-46d1-b014-54cccef2b90e
+@refresh_token=eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImtpZCI6IjEifQ.eyJleHAiOjE2NTY4OTI2NDcsImlhdCI6MTY1Njg5MDg0NywianRpIjoiODM5NWM1MDktZGQ4MS00MjAwLTgzNDgtMzUxMjg4YTYzNjkxIiwiaXNzIjoiZW1hbnRcL2F1dGgiLCJhdWQiOiJlbWFudFwvYXV0aCIsInN1YiI6IjU4NmQ3YmIzLWQzODYtNGI1Ny05ZTk5LWIyYTQ2MGYyMGI0NyIsInR5cCI6IlJlZnJlc2giLCJhenAiOiJ0ZXN0Iiwibm9uY2UiOiJ4YmN2Iiwic2Vzc2lvbl9zdGF0ZSI6Ijc2NTQiLCJzY29wZSI6ImFkbWluIHVzZXIiLCJzaWQiOiI4YjJmYWVjZS1iYmE0LTQ5MDYtYTE3YS1hZTJlMjJlNDdjZGYifQ.kwoXkuJm1V3E7h36-ugdMxacD5CYhOZvKyefI7w0fIDxnd0qGaJeAfscri-RnMVbA_nC214u43oBFbpLVF_pJ5y5gA32OXkHDrrUqD0IoLLarrpevMOkEnece7zch_QUegqG3t-zdsH2nldkHSuVg7bJrZjXB_TC8wyMxcpQ2IVSZ8MGxjcszlysDToxgw-1guZ7Zef3RUD8NUqVdx_hb6IZmHhFmoI_yUWyg26m8nbYEcIb8B1ofjGeSN3a6aDqsrfhkvkVLL2AmvyNq-6fkOK8vbz9yeCIUWenL7KYXYcPPP0tvCSxaudxUSDvGXqB9dRNFAReh-r7hCtwoQwrNA
+
+POST https://emant.altervista.org/id/token 
+Content-Type: application/x-www-form-urlencoded
+
+code={{code}}&grant_type=authorization_code&client_id=test&redirect_uri=http://localhost:4200&client_secret=c_id
+
+###
+
+POST https://emant.altervista.org/id/token 
+Content-Type: application/x-www-form-urlencoded
+
+refresh_token={{{refresh_token}}}&grant_type=refresh_token&client_id=test&redirect_uri=http://localhost:4200&client_secret=c_id
+
+###
+
+POST http://localhost:8000/token 
+Content-Type: application/x-www-form-urlencoded
+
+code={{code}}&grant_type=authorization_code&client_id=test&redirect_uri=http://localhost:4200&client_secret=c_id
+
+###
+
+POST http://localhost:8000/token 
+Content-Type: application/x-www-form-urlencoded
+
+refresh_token={{refresh_token}}&grant_type=refresh_token&client_id=test&redirect_uri=http://localhost:4200&client_secret=c_id
+
+###
+
+GET https://emant.altervista.org/id/auth?client_id=test&scope=openid user&redirect_uri=http://localhost:4200/&response_type=code&state=234&nonce=7654&response_mode=fragment
+
+###
+
+GET http://localhost:8000/auth?client_id=test&scope=openid user&redirect_uri=http://localhost:4200/&response_type=code&state=234&nonce=7654&response_mode=fragment
+
+###
+
+POST http://localhost:8000/test
+Content-Type: application/json
+
+{
+  "sex": "M"
+}
+
+###
+
+
+POST http://localhost:8000/test 
+Content-Type: application/x-www-form-urlencoded
+Authorization: Basic ZW1hbnQ6eHV5dGRmeTY3NjV4
+
+grant_type=refresh_token&client_id=test
