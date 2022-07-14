@@ -65,7 +65,7 @@ class SessionRepository implements IRepo
     }
   }
 
-  public function ffind_by_refresh_token(string $token): ?Session
+  public function find_by_refresh_token(string $token): ?Session
   {
     try {
       $statement = $this->db->prepare(

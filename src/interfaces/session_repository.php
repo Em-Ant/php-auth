@@ -10,7 +10,7 @@ interface SessionRepository
 {
   public function find_by_id(string $id): ?Session;
   public function find_by_code(string $code): ?Session;
-  public function ffind_by_refresh_token(string $token): ?Session;
+  public function find_by_refresh_token(string $token): ?Session;
 
   public function createPending(
     string $client_id,

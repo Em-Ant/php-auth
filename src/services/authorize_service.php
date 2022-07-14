@@ -65,7 +65,7 @@ class AuthorizeService
   public function create_session(array $query): string
   {
     $client_id = $query['client_id'];
-    $this->logger->info("logging in for client $client_id");
+    $this->logger->info("start initializing session for client $client_id");
 
     self::validate_query_params($query);
 
@@ -93,6 +93,8 @@ class AuthorizeService
     string $email,
     string $password
   ): array {
+    $this->logger->info("validating user credentials for $email");
+
     $error = false;
     $user = $this->user_repository->find_by_email($email);
     if ($user == null) {
@@ -106,12 +108,14 @@ class AuthorizeService
     }
 
     if ($error) {
+      $this->logger->info("invalid credentials for $email");
       return [
         'user' => null,
         'error' => $error
       ];
     }
 
+    $this->logger->info("valid credentials for $email");
     return [
       'user' => $user,
       'error' => false
@@ -124,6 +128,7 @@ class AuthorizeService
     string $scopes,
     string $response_mode
   ): string {
+    $this->logger->info("authenticating user for session $session_id");
 
     self::validate_user_scopes($user, $scopes);
 
@@ -149,25 +154,25 @@ class AuthorizeService
       throw new StorageErrorException('unable to update session');
     }
 
-    $this->logger->info("loading updated AUTHENTICATED session  $session_id");
     $updated = $this->session_repository->find_by_id($session_id);
     if (!$updated) {
       $this->logger->error("unable to find $session_id after transitioning to authenticated");
       throw new StorageErrorException('unable to find updated session');
     }
 
-    $this->logger->info("session $session_id: returning redirect uri mode: $response_mode");
     return self::get_redirect_uri($updated, $response_mode);
   }
 
   public function get_tokens(array $params): array
   {
+    $this->logger->info("generating tokens...");
 
     self::validate_token_params($params);
     extract($params);
 
     $client = $this->client_repository->find_by_client_id($client_id);
     if ($client === null) {
+      $this->logger->error("$client_id for generating tokens not found");
       throw new InvalidInputException('invalid client_id');
     }
 
@@ -182,7 +187,6 @@ class AuthorizeService
     $tokens = null;
     switch ($grant_type) {
       case 'authorization_code':
-        $this->logger->info("generating tokens from authorization code");
         $tokens = $this->get_tokens_by_code(
           $code,
           $client
@@ -204,7 +208,7 @@ class AuthorizeService
 
   public function get_client_uri(string $client_id)
   {
-    $this->logger->info("getting client uri for client $client_id to enable cors for origin");
+    $this->logger->info("getting uri for client $client_id to enable cors on origin");
     $client = $this->client_repository->find_by_client_id($client_id);
     if ($client === null) {
       $this->logger->error("client $client_id not found");
@@ -239,11 +243,14 @@ class AuthorizeService
     string $code,
     Client $client
   ): array {
+    $this->logger->info("generating tokens from authorization code $code");
     $session = $this->session_repository->find_by_code($code);
     if ($session === null) {
+      $this->logger->error("invalid authorization code");
       throw new InvalidInputException('invalid code');
     }
     if ($session->get_status() != 'AUTHENTICATED') {
+      $this->logger->error("code $code is expired");
       throw new InvalidInputException('code is expired');
     }
 
@@ -279,21 +286,32 @@ class AuthorizeService
     string $refresh_token,
     Client $client
   ): array {
-    $session = $this->session_repository->ffind_by_refresh_token($refresh_token);
+    $this->logger->info("generating tokens from refresh token");
+
+    $session = $this->session_repository->find_by_refresh_token($refresh_token);
+
     if ($session === null) {
       throw new InvalidInputException('invalid refresh_token');
     }
+    $session_id = $session->get_id();
+    $this->logger->info("session $session_id found for refresh token");
+
     $expired = $this->token_service->tokenIsExpired($refresh_token);
     if ($expired) {
-      $ok = $this->session_repository->setExpired($session->get_id());
-      if (!$ok) throw new StorageErrorException('unable to set session to expired');
+      $ok = $this->session_repository->setExpired($session_id);
+      if (!$ok) {
+        $this->logger->error("unable to set session $session_id to expired");
+        throw new StorageErrorException('unable to set session to expired');
+      }
       throw new InvalidInputException('refresh_token is expired');
     }
     if ($session->get_status() != 'ACTIVE') {
+      $this->logger->error("invalid status for session $session_id - not active");
       throw new InvalidInputException('invalid session status');
     }
     $user = $this->user_repository->find_by_id($session->get_user_id());
     if ($user == null) {
+      $this->logger->error("active $session_id not found");
       throw new StorageErrorException('invalid session');
     }
     $token_bundle = $this->token_service->createTokenBundle(
@@ -303,10 +321,11 @@ class AuthorizeService
       '1'
     );
     $updated_session = $this->session_repository->updateRefreshToken(
-      $session->get_id(),
+      $session_id,
       $token_bundle['refresh_token']
     );
     if (!$updated_session) {
+      $this->logger->error("could not update session $session_id with refresh token");
       throw new StorageErrorException('error updating session');
     }
     return $token_bundle;
@@ -318,6 +337,7 @@ class AuthorizeService
     string $nonce,
     string $redirect_uri
   ): Session {
+    $this->logger->info("creating pending session for client $client_id");
     $session = $this->session_repository->createPending(
       $client_id,
       $state,
@@ -325,8 +345,10 @@ class AuthorizeService
       $redirect_uri
     );
     if ($session === null) {
+      $this->logger->error("unable to create pending session for client $client_id");
       throw new StorageErrorException('unable to create session');
     }
+    $this->logger->info("pending session created");
     return $session;
   }
 
@@ -335,16 +357,21 @@ class AuthorizeService
     int $exp_in_s,
     ?string $msg = 'session expired'
   ): void {
+    $session_id = $session->get_id();
+    $this->logger->info("checking expiration fpr $session_id (valid: $exp_in_s s)");
+
     $interval = "PT{$exp_in_s}S";
     if (
       $session->get_created_at()->add(
         new \DateInterval($interval)
       ) > new DateTime()
     ) {
-      $ok = $this->session_repository->setExpired($session->get_id());
+      $this->logger->info("session $session_id expired");
+      $ok = $this->session_repository->setExpired($session_id);
       if (!$ok) throw new StorageErrorException('unable to set session to expired');
       throw new InvalidInputException($msg);
     }
+    $this->logger->info("session $session_id not expired");
   }
 
   private static function validate_client_scopes(Client $client, string $scopes)
