@@ -8,9 +8,9 @@ require_once 'src/models/session.php';
 
 interface SessionRepository
 {
-  public function findById(string $id): ?Session;
-  public function findByCode(string $code): ?Session;
-  public function findByRefreshToken(string $token): ?Session;
+  public function find_by_id(string $id): ?Session;
+  public function find_by_code(string $code): ?Session;
+  public function ffind_by_refresh_token(string $token): ?Session;
 
   public function createPending(
     string $client_id,

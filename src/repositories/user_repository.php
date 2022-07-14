@@ -20,7 +20,7 @@ class UserRepository implements IUser
     $this->db = $datasource->getDb();
   }
 
-  public function findById(string $id): ?User
+  public function find_by_id(string $id): ?User
   {
     try {
       $statement = $this->db->prepare(
@@ -48,7 +48,7 @@ class UserRepository implements IUser
     }
   }
 
-  public function findByEmail(string $email): ?User
+  public function find_by_email(string $email): ?User
   {
     try {
       $statement = $this->db->prepare(

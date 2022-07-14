@@ -23,7 +23,7 @@ class SessionRepository implements IRepo
     $this->db = $datasource->getDb();
   }
 
-  public function findById(string $id): ?Session
+  public function find_by_id(string $id): ?Session
   {
     try {
       $statement = $this->db->prepare(
@@ -44,7 +44,7 @@ class SessionRepository implements IRepo
     }
   }
 
-  public function findByCode(string $code): ?Session
+  public function find_by_code(string $code): ?Session
   {
     try {
       $statement = $this->db->prepare(
@@ -65,7 +65,7 @@ class SessionRepository implements IRepo
     }
   }
 
-  public function findByRefreshToken(string $token): ?Session
+  public function ffind_by_refresh_token(string $token): ?Session
   {
     try {
       $statement = $this->db->prepare(
@@ -110,7 +110,7 @@ class SessionRepository implements IRepo
 
       $q->execute();
 
-      return $this->findById($uid);
+      return $this->find_by_id($uid);
     } catch (\PDOException $e) {
       error_log($e->getMessage());
       return null;

@@ -8,6 +8,6 @@ require_once 'src/models/user.php';
 
 interface UserRepository
 {
-  public function findById(string $id): ?User;
-  public function findByEmail(string $email): ?User;
+  public function find_by_id(string $id): ?User;
+  public function find_by_email(string $email): ?User;
 }

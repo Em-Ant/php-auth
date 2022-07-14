@@ -21,7 +21,7 @@ class ClientRepository implements IRepo
     $this->db = $datasource->getDb();
   }
 
-  public function findById(string $id): ?Client
+  public function find_by_id(string $id): ?Client
   {
     try {
       $statement = $this->db->prepare(
@@ -49,7 +49,7 @@ class ClientRepository implements IRepo
     }
   }
 
-  public function findByClientId(string $client_id): ?Client
+  public function find_by_client_id(string $client_id): ?Client
   {
     try {
 

@@ -26,7 +26,23 @@ class Authorize
   public function authorize(array $ctx)
   {
     try {
-      $this->auth_service->show_login($ctx['query']);
+      $query = $ctx['query'];
+      $session_id = $this->auth_service->create_session($query);
+
+      Utils::show_view(
+        'login_form',
+        [
+          'title' => 'Login',
+          'session_id' => $session_id,
+          'realm' => 'web',
+          'response_mode' => $query['response_mode'],
+          'scopes' => $query['scope'],
+          'email' => '',
+          'password' => '',
+          'error' => false
+        ]
+      );
+      die();
     } catch (InvalidInputException $e) {
       Utils::server_error('invalid request', $e->getMessage(), 400);
     }
@@ -43,15 +59,36 @@ class Authorize
     $email = $body['email'];
     $password = $body['password'];
 
+    $result = $this->auth_service->ensure_valid_user_credentials(
+      $email,
+      $password,
+    );
+    if ($result['error']) {
+      Utils::show_view(
+        'login_form',
+        [
+          'title' => 'Login',
+          'session_id' => $sessionId,
+          'realm' => 'web',
+          'scopes' => $scopes,
+          'email' => $email,
+          'password' => $password,
+          'error' => $result['error']
+        ]
+      );
+      die();
+    }
+
     try {
-      $location = $this->auth_service->authenticate(
-        $email,
-        $password,
+      $redirect_uri = $this->auth_service->authenticate(
+        $result['user'],
         $sessionId,
         $scopes,
         $response_mode
       );
-      header("location: $location", true, 302);
+
+
+      header("location: $redirect_uri", true, 302);
       die();
     } catch (CriticalLoginErrorException $e) {
       $message = $e->getMessage();
