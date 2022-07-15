@@ -36,8 +36,11 @@ class AuthorizeService
   private IUserRepo $user_repository;
   private SecretsService $secrets_service;
   private TokenService $token_service;
-  private int $pendingSessionExpiresInSeconds;
-  private int $authenticatedSessionExpiresInSeconds;
+
+  private int $pending_session_expires_in_seconds;
+  private int $authenticated_session_expires_in_seconds;
+  private int $access_token_expires_in_seconds;
+  private int $refresh_token_expires_in_seconds;
   private Logger $logger;
 
   public function __construct(
@@ -46,8 +49,7 @@ class AuthorizeService
     IUserRepo $user_repo,
     SecretsService $secrets_service,
     TokenService $token_service,
-    int $pendingSessionExpiresInSeconds,
-    int $authenticatedSessionExpiresInSeconds,
+    array $expiration_config,
     Logger $logger
   ) {
     $this->client_repository = $client_repo;
@@ -55,10 +57,14 @@ class AuthorizeService
     $this->user_repository = $user_repo;
     $this->secrets_service = $secrets_service;
     $this->token_service = $token_service;
-    $this->pendingSessionExpiresInSeconds =
-      $pendingSessionExpiresInSeconds;
-    $this->authenticatedSessionExpiresInSeconds =
-      $authenticatedSessionExpiresInSeconds;
+    $this->pending_session_expires_in_seconds =
+      $expiration_config['pending_session_expires_in_seconds'];
+    $this->authenticated_session_expires_in_seconds =
+      $expiration_config['authenticated_session_expires_in_seconds'];
+    $this->access_token_expires_in_seconds =
+      $expiration_config['access_token_expires_in_seconds'];
+    $this->refresh_token_expires_in_seconds =
+      $expiration_config['refresh_token_expires_in_seconds'];
     $this->logger = $logger;
   }
 
@@ -75,7 +81,10 @@ class AuthorizeService
       throw new InvalidInputException('invalid client id');
     }
     self::validate_redirect_uri($client, $query['redirect_uri']);
-    self::validate_client_scopes($client, $query['scope']);
+
+    if (!self::validate_scopes($client->get_scopes(), $query['scope'])) {
+      throw new InvalidInputException('scopes not allowed for client');
+    }
 
     $session = $this->create_pending_session(
       $client->get_id(),
@@ -84,9 +93,7 @@ class AuthorizeService
       $query['redirect_uri']
     );
 
-    $session_id = $session->get_id();
-
-    return $session_id;
+    return $session->get_id();
   }
 
   public function ensure_valid_user_credentials(
@@ -104,7 +111,9 @@ class AuthorizeService
         $password,
         $user->get_password()
       );
-      if (!$valid_pwd) $error = 'invalid password';
+      if (!$valid_pwd) {
+        $error = 'invalid password';
+      }
     }
 
     if ($error) {
@@ -130,18 +139,19 @@ class AuthorizeService
   ): string {
     $this->logger->info("authenticating user for session $session_id");
 
-    self::validate_user_scopes($user, $scopes);
-
+    if (!self::validate_scopes($user->get_scopes(), $scopes)) {
+      throw new CriticalLoginErrorException('invalid user scopes');
+    }
     $session = $this->session_repository->find_by_id($session_id);
 
     if ($session == null || $session->get_status() != 'PENDING') {
       $this->logger->error("could not find a session in PENDING status for $session_id");
-      throw new CriticalLoginErrorException('invalid session');
+      throw new CriticalLoginErrorException('invalid session - not in PENDING status');
     }
 
     $this->check_session_expiration(
       $session,
-      $this->pendingSessionExpiresInSeconds
+      $this->pending_session_expires_in_seconds
     );
 
     $ok = $this->session_repository->setAuthenticated(
@@ -184,17 +194,15 @@ class AuthorizeService
 
     self::validate_redirect_uri($client, $redirect_uri);
 
-    $tokens = null;
     switch ($grant_type) {
       case 'authorization_code':
-        $tokens = $this->get_tokens_by_code(
+        return $this->get_tokens_by_code(
           $code,
           $client
         );
-        break;
       case 'refresh_token':
         $this->logger->info("generating tokens from refresh token");
-        $tokens = $this->get_tokens_by_refresh_token(
+        return $this->get_tokens_by_refresh_token(
           $refresh_token,
           $client
         );
@@ -202,8 +210,6 @@ class AuthorizeService
         $this->logger->error("unsupported token flow $grant_type");
         throw new InvalidInputException('unsupported flow');
     }
-
-    return $tokens;
   }
 
   public function get_client_uri(string $client_id)
@@ -256,7 +262,7 @@ class AuthorizeService
 
     $this->check_session_expiration(
       $session,
-      $this->authenticatedSessionExpiresInSeconds
+      $this->authenticated_session_expires_in_seconds
     );
 
     $user = $this->user_repository->find_by_id($session->get_user_id());
@@ -268,6 +274,8 @@ class AuthorizeService
       $session,
       $client,
       $user,
+      $this->access_token_expires_in_seconds,
+      $this->refresh_token_expires_in_seconds,
       '1'
     );
 
@@ -318,6 +326,8 @@ class AuthorizeService
       $session,
       $client,
       $user,
+      $this->access_token_expires_in_seconds,
+      $this->refresh_token_expires_in_seconds,
       '1'
     );
     $updated_session = $this->session_repository->updateRefreshToken(
@@ -368,24 +378,14 @@ class AuthorizeService
     ) {
       $this->logger->info("session $session_id expired");
       $ok = $this->session_repository->setExpired($session_id);
-      if (!$ok) throw new StorageErrorException('unable to set session to expired');
+      if (!$ok) {
+        throw new StorageErrorException('unable to set session to expired');
+      }
       throw new InvalidInputException($msg);
     }
     $this->logger->info("session $session_id not expired");
   }
 
-  private static function validate_client_scopes(Client $client, string $scopes)
-  {
-    if (!self::validate_scopes($client->get_scopes(), $scopes)) {
-      throw new InvalidInputException('scopes not allowed for client');
-    }
-  }
-  private static function validate_user_scopes(User $user, string $scopes): void
-  {
-    $valid = self::validate_scopes($user->get_scopes(), $scopes);
-    if (!$valid)
-      throw new CriticalLoginErrorException('invalid user scopes');
-  }
   private static function validate_scopes(
     array $allowed_scopes,
     string $requested_scopes
@@ -393,7 +393,9 @@ class AuthorizeService
     $input_scopes_array = explode(' ', $requested_scopes);
     $valid = TRUE;
     foreach ($input_scopes_array as $s) {
-      if ($s == 'openid') continue;
+      if ($s == 'openid') {
+        continue;
+      }
       if (!in_array($s, $allowed_scopes)) {
         $valid = FALSE;
         break;
@@ -506,7 +508,7 @@ class AuthorizeService
 
     if ($response_mode == 'query') {
       $char = strpos($redirect_uri, '?') ? '&' : '?';
-      if ($hash_pos != false) {
+      if ($hash_pos) {
         $append = substr($redirect_uri, $hash_pos);
         $redirect_uri = substr($redirect_uri, 0, $hash_pos);
       }

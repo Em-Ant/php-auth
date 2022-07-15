@@ -15,9 +15,9 @@ class UserRepository implements IUser
 {
   private \PDO $db;
 
-  public function __construct(Datasource $datasource)
+  public function __construct(DataSource $data_source)
   {
-    $this->db = $datasource->getDb();
+    $this->db = $data_source->getDb();
   }
 
   public function find_by_id(string $id): ?User
@@ -32,7 +32,9 @@ class UserRepository implements IUser
 
       $r = $statement->fetch();
 
-      if (!$r) return null;
+      if (!$r) {
+        return null;
+      }
 
       return new User(
         $r['id'],
@@ -60,7 +62,9 @@ class UserRepository implements IUser
 
       $r = $statement->fetch();
 
-      if (!$r) return null;
+      if (!$r) {
+        return null;
+      }
 
       return new User(
         $r['id'],

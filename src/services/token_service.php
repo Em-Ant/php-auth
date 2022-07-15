@@ -21,24 +21,18 @@ class TokenService
   private string $public_key;
   private string $private_key;
   private string $keys_id;
-  private int $refresh_token_validity_seconds;
-  private int $access_token_validity_seconds;
   private string $issuer;
 
   function __construct(
     string $pub,
     string $pri,
     string $kid,
-    string $issuer,
-    int $refresh_token_validity_seconds,
-    int $access_token_validity_seconds
+    string $issuer
   ) {
     $this->public_key = $pub;
     $this->private_key = $pri;
     $this->keys_id = $kid;
     $this->issuer = $issuer;
-    $this->refresh_token_validity_seconds = $refresh_token_validity_seconds;
-    $this->access_token_validity_seconds = $access_token_validity_seconds;
   }
 
   function validateToken(string $token): int
@@ -46,7 +40,9 @@ class TokenService
     $t = explode('.', $token);
     $header = json_decode(self::b64UrlDecode($t[0]), true);
 
-    if ($header['alg'] != 'RS256') return 0;
+    if ($header['alg'] != 'RS256') {
+      return 0;
+    }
 
     $data = "$t[0].$t[1]";
     $signature = self::b64UrlDecode($t[2]);
@@ -136,11 +132,14 @@ class TokenService
     Session $session,
     Client $client,
     User $user,
+    int $access_token_validity_seconds,
+    int $refresh_token_validity_seconds,
     ?string $acr = '1'
   ): array {
     $now = time();
     $access_token = $this->createAccessToken(
       $now,
+      $access_token_validity_seconds,
       $session,
       $client,
       $user,
@@ -148,6 +147,7 @@ class TokenService
     );
     $id_token = $this->createIdToken(
       $now,
+      $access_token_validity_seconds,
       $session,
       $client,
       $user,
@@ -156,6 +156,7 @@ class TokenService
     );
     $refresh_token = $this->createRefreshToken(
       $now,
+      $refresh_token_validity_seconds,
       $session,
       $client,
       $user
@@ -163,8 +164,8 @@ class TokenService
 
     return [
       "access_token" => $access_token,
-      "expires_in" => $this->access_token_validity_seconds,
-      "refresh_expires_in" => $this->refresh_token_validity_seconds,
+      "expires_in" => $access_token_validity_seconds,
+      "refresh_expires_in" => $refresh_token_validity_seconds,
       "refresh_token" => $refresh_token,
       "token_type" => "Bearer",
       "id_token" => $id_token,
@@ -176,11 +177,12 @@ class TokenService
 
   private function createRefreshToken(
     int $now,
+    int $validity,
     Session $session,
     Client $client,
     User $user
   ): string {
-    $exp = $now + $this->refresh_token_validity_seconds;
+    $exp = $now + $validity;
     return $this->createToken([
       "exp" => $exp,
       "iat" => $now,
@@ -199,12 +201,13 @@ class TokenService
 
   private function createAccessToken(
     int $now,
+    int $validity,
     Session $session,
     Client $client,
     User $user,
     ?string $acr = '1'
   ): string {
-    $exp = $now + $this->access_token_validity_seconds;
+    $exp = $now + $validity;
     return $this->createToken([
       "exp" => $exp,
       "iat" => $now,
@@ -229,13 +232,14 @@ class TokenService
 
   private function createIdToken(
     int $now,
+    int $validity,
     Session $session,
     Client $client,
     User $user,
     string $access_token,
     ?string $acr = '1'
   ): string {
-    $exp = $now + $this->access_token_validity_seconds;
+    $exp = $now + $validity;
     return $this->createToken([
       "exp" => $exp,
       "iat" => $now,

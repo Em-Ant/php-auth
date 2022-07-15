@@ -92,7 +92,7 @@ class Logger implements ILogger
 
     if (count($this->output_streams) > 0) {
       $output_line = self::format_log_entry($log_entry) . PHP_EOL;
-      foreach ($this->output_streams as $key => $stream) {
+      foreach ($this->output_streams as $stream) {
         fputs($stream, $output_line);
       }
     }
@@ -100,7 +100,6 @@ class Logger implements ILogger
 
   private static function format_log_entry(array $log_entry): string
   {
-
     $log_line = "";
 
     if (!empty($log_entry)) {

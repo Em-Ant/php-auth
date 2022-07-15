@@ -19,7 +19,7 @@ require_once 'src/lib/router.php';
 require_once 'src/lib/utils.php';
 require_once 'src/lib/logger.php';
 require_once 'src/controllers/authorize.php';
-require_once 'src/repositories/datasource.php';
+require_once 'src/repositories/data_source.php';
 require_once 'src/repositories/client_repository.php';
 require_once 'src/repositories/session_repository.php';
 require_once 'src/repositories/user_repository.php';
@@ -42,10 +42,15 @@ $token_service = new TokenService(
   $pub,
   $pri,
   '1',
-  'emant/auth',
-  $env['REFRESH_TOKEN_EXPIRES_IN'],
-  $env['ACCESS_TOKEN_EXPIRES_IN'],
+  'em_ant/auth'
 );
+
+$expiration_config = [
+  'pending_session_expires_in_seconds' => $env['PENDING_SESSION_EXPIRES_IN'],
+  'authenticated_session_expires_in_seconds' => $env['AUTHENTICATED_SESSION_EXPIRES_IN'],
+  'access_token_expires_in_seconds' => $env['ACCESS_TOKEN_EXPIRES_IN'],
+  'refresh_token_expires_in_seconds' => $env['REFRESH_TOKEN_EXPIRES_IN']
+];
 
 $auth_service = new AuthorizeService(
   $client_repo,
@@ -53,8 +58,7 @@ $auth_service = new AuthorizeService(
   $user_repo,
   $secrets_service,
   $token_service,
-  $env['PENDING_SESSION_EXPIRES_IN'],
-  $env['AUTHENTICATED_SESSION_EXPIRES_IN'],
+  $expiration_config,
   $logger
 );
 

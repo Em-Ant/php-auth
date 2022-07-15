@@ -18,9 +18,9 @@ class SessionRepository implements IRepo
 {
   private \PDO $db;
 
-  public function __construct(Datasource $datasource)
+  public function __construct(DataSource $data_source)
   {
-    $this->db = $datasource->getDb();
+    $this->db = $data_source->getDb();
   }
 
   public function find_by_id(string $id): ?Session
@@ -35,7 +35,9 @@ class SessionRepository implements IRepo
 
       $r = $statement->fetch();
 
-      if (!$r) return null;
+      if (!$r) {
+        return null;
+      }
 
       return self::build_from_data($r);
     } catch (\PDOException $e) {
@@ -56,7 +58,9 @@ class SessionRepository implements IRepo
 
       $r = $statement->fetch();
 
-      if (!$r) return null;
+      if (!$r) {
+        return null;
+      }
 
       return self::build_from_data($r);
     } catch (\PDOException $e) {
@@ -77,7 +81,9 @@ class SessionRepository implements IRepo
 
       $r = $statement->fetch();
 
-      if (!$r) return null;
+      if (!$r) {
+        return null;
+      }
 
       return self::build_from_data($r);
     } catch (\PDOException $e) {

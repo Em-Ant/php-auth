@@ -34,7 +34,7 @@ class Utils
     self::server_error('internal server error', 'unknown error', 500);
   }
 
-  public static function not_found($params)
+  public static function not_found()
   {
     self::server_error('not found', 'resource not found', 404);
   }

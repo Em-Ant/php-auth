@@ -16,9 +16,9 @@ class ClientRepository implements IRepo
 {
   private \PDO $db;
 
-  public function __construct(Datasource $datasource)
+  public function __construct(DataSource $data_source)
   {
-    $this->db = $datasource->getDb();
+    $this->db = $data_source->getDb();
   }
 
   public function find_by_id(string $id): ?Client
@@ -33,7 +33,9 @@ class ClientRepository implements IRepo
 
       $r = $statement->fetch();
 
-      if (!$r) return null;
+      if (!$r) {
+        return null;
+      }
 
       return new Client(
         $r['id'],
@@ -62,7 +64,9 @@ class ClientRepository implements IRepo
 
       $r = $statement->fetch();
 
-      if (!$r) return null;
+      if (!$r) {
+        return null;
+      }
 
       return new Client(
         $r['id'],

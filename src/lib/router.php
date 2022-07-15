@@ -45,16 +45,16 @@ class Router
       foreach ($this->_routes as $r) {
         extract($r);
 
-        $mount_path = (isset($context['mount_path']) ?
-          $context['mount_path'] :
-          ''
-        ) . $route ?: '';
-
+        $mount_path = self::get_mount_path($context, $route);
         $server_path = self::get_path_info();
 
-        $_ctx = $shared_ctx;
-        $is_root_middlware = $method == 'USE' && is_null($route);
-        if ($is_root_middlware) $_ctx = &$shared_ctx;
+        $_ctx;
+        $is_root_middleware = $method == 'USE' && is_null($route);
+        if ($is_root_middleware) {
+          $_ctx = &$shared_ctx;
+        } else {
+          $_ctx = $shared_ctx;
+        }
 
         if (!$_ctx) {
           $_ctx['method'] = $_SERVER['REQUEST_METHOD'];
@@ -62,21 +62,15 @@ class Router
           $_ctx['query'] = $_GET;
           $_ctx['params'] = [];
           $_ctx['body'] = $_POST;
-
-          $headers = [];
-          foreach ((getallheaders() ?: []) as $key => $value) {
-            $headers[strtolower($key)] = $value;
-          }
-          $_ctx['headers'] = $headers;
+          $_ctx['headers'] = self::get_request_headers();
         }
-
         $_ctx['mount_path'] = $mount_path;
 
-        if (
+        $should_check_route_matching =
           $method == $_SERVER['REQUEST_METHOD'] ||
-          $method == "ALL" || $method == 'USE'
-        ) {
+          $method == "ALL" || $method == 'USE';
 
+        if ($should_check_route_matching) {
           $params = [];
           $match = self::match_helper(
             $mount_path,
@@ -104,7 +98,7 @@ class Router
       array_splice($args, 0, 1)[0] :
       null;
 
-    if (count($args) == 0) {
+    if (empty($args)) {
       throw new \BadMethodCallException(
         "at least one callable handler must be provided"
       );
@@ -137,7 +131,9 @@ class Router
       $params_values
     );
 
-    if (!$m) return false;
+    if (!$m) {
+      return false;
+    }
 
     preg_match_all("/\{(.+)\}/U", $path, $params_keys);
     $params_keys = $params_keys[1];
@@ -157,7 +153,9 @@ class Router
 
   private static function get_path_info()
   {
-    if (!isset($_SERVER['PATH_INFO'])) return '/';
+    if (!isset($_SERVER['PATH_INFO'])) {
+      return '/';
+    }
     return '/' . trim($_SERVER['PATH_INFO'], '/');
   }
 
@@ -174,13 +172,34 @@ class Router
     }
   }
 
+  private static function get_request_headers(): array
+  {
+    $headers = [];
+    foreach ((getallheaders() ?: []) as $key => $value) {
+      $headers[strtolower($key)] = $value;
+    }
+    return $headers;
+  }
+
+  private static function get_mount_path(array $context, $route): string
+  {
+    $previous_mount_path = isset($context['mount_path']) ?
+      $context['mount_path'] :
+      '';
+    return $previous_mount_path . ($route ?: '');
+  }
+
   public static function parse_basic_auth(array &$ctx)
   {
     $headers = $ctx['headers'];
-    if (!isset($headers['authorization'])) return;
+    if (!isset($headers['authorization'])) {
+      return;
+    }
 
     $h = explode(' ', $headers['authorization']);
-    if ($h[0] != 'Basic') return;
+    if ($h[0] != 'Basic') {
+      return;
+    }
 
     $cred = explode(':', base64_decode($h[1]));
     $ctx['basic_auth_user'] = $cred[0];

@@ -101,13 +101,13 @@ class Authorize
   {
     $body = $ctx['body'];
     if (!isset($body['client_id'])) {
-      $body['clent_id'] = isset($ctx['basic_auth_user'])
+      $body['client_id'] = isset($ctx['basic_auth_user'])
         ? $ctx['basic_auth_user']
         : null;
     }
 
     if (!isset($body['client_secret'])) {
-      $body['clent_secret'] = isset($ctx['basic_auth_pwd'])
+      $body['client_secret'] = isset($ctx['basic_auth_pwd'])
         ? $ctx['basic_auth_pwd']
         : null;
     }
