@@ -16,6 +16,8 @@ server.env
 
 # public and private keys
 *.pem
+**/keys.json
+**/keys.sh
 
 # dev tools
 tools/

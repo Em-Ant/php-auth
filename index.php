@@ -76,7 +76,7 @@ $auth->post(
 $auth->get('/logout', [$auth_controller, 'logout']);
 $auth->get('/error', [$auth_controller, 'error']);
 $auth->post('/login-actions/authenticate', [$auth_controller, 'login']);
-
+$auth->get('/certs', [$auth_controller, 'send_keys']);
 
 $app = new Router();
 

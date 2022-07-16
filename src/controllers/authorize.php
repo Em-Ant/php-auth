@@ -139,4 +139,12 @@ class Authorize
     header("location: $redirect", true, 302);
     die();
   }
+
+  public function send_keys()
+  {
+    $keys = file_get_contents('keys/keys.json', true);
+    header('Content-Type: application/json; charset=utf-8');
+    echo $keys;
+    die();
+  }
 }
