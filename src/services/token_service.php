@@ -78,8 +78,6 @@ class TokenService
       'sha256WithRSAEncryption'
     );
 
-    error_log(print_r($signature, true));
-
     $base64UrlSignature = self::b64UrlEncode($signature);
     return $base64UrlHeader . "." . $base64UrlPayload . "." . $base64UrlSignature;
   }

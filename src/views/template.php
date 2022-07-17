@@ -4,7 +4,7 @@ $title = $title ?: 'Auth';
 ?>
 
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
   <title><?= $title ?></title>
@@ -17,14 +17,6 @@ $title = $title ?: 'Auth';
   <?php
   include $view;
   ?>
-  <div class="footer">
-    <p>
-      by <a href="http://www.emant.altervista.org">em-ant</a> |
-      <a href="https://github.com/Em-Ant">github</a> |
-      <a href="http://codepen.io/Em-Ant/">codepen</a> |
-      <a href="http://www.freecodecamp.com/em-ant">freeCodeCamp</a>
-    </p>
-  </div>
 </body>
 
 </html>

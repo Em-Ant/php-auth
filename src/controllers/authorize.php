@@ -17,6 +17,8 @@ class Authorize
 {
   private AuthorizeService $auth_service;
 
+  const INVALID_REQUEST = 'Invalid request';
+
   public function __construct(
     AuthorizeService $service
   ) {
@@ -44,7 +46,7 @@ class Authorize
       );
       die();
     } catch (InvalidInputException $e) {
-      Utils::server_error('invalid request', $e->getMessage(), 400);
+      Utils::server_error(self::INVALID_REQUEST, $e->getMessage(), 400);
     }
   }
 
@@ -117,7 +119,7 @@ class Authorize
       Utils::enable_cors($origin);
       Utils::send_json($this->auth_service->get_tokens($body));
     } catch (InvalidInputException $e) {
-      Utils::server_error('invalid request', $e->getMessage(), 400);
+      Utils::server_error(self::INVALID_REQUEST, $e->getMessage(), 400);
     }
   }
 
@@ -140,7 +142,7 @@ class Authorize
       header("location: $redirect", true, 302);
       die();
     } catch (InvalidInputException $e) {
-      Utils::server_error('invalid request', $e->getMessage(), 400);
+      Utils::server_error(self::INVALID_REQUEST, $e->getMessage(), 400);
     }
   }
 
@@ -158,7 +160,7 @@ class Authorize
   public static function send_config(string $issuer)
   {
     return function () use ($issuer) {
-      $data = file_get_contents('well-known.json', true);
+      $data = file_get_contents('./static/well-known.json', true);
       header('Content-Type: application/json; charset=utf-8');
       Utils::enable_cors();
       echo str_replace('<<ISSUER>>', $issuer, $data);
