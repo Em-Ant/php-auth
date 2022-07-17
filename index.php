@@ -29,8 +29,7 @@ require_once 'src/services/token_service.php';
 
 $env = Utils::read_env('server.env');
 $sub_path = $env['BASE_PATH'];
-$pub = file_get_contents('keys/public_key.pem');
-$pri = file_get_contents('keys/private_key.pem');
+$keys_id = $env['KEYS_ID'];
 
 $client_repo = new ClientRepository(DataSource::getInstance());
 $session_repo = new SessionRepository(DataSource::getInstance());
@@ -39,9 +38,7 @@ $logger = new Logger();
 $secrets_service = new SecretsService();
 
 $token_service = new TokenService(
-  $pub,
-  $pri,
-  '1',
+  $keys_id,
   'em_ant/auth'
 );
 
@@ -76,7 +73,7 @@ $auth->post(
 $auth->get('/logout', [$auth_controller, 'logout']);
 $auth->get('/error', [$auth_controller, 'error']);
 $auth->post('/login-actions/authenticate', [$auth_controller, 'login']);
-$auth->get('/certs', [$auth_controller, 'send_keys']);
+$auth->get('/certs', $auth_controller::send_keys($keys_id));
 
 $app = new Router();
 

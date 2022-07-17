@@ -24,13 +24,11 @@ class TokenService
   private string $issuer;
 
   function __construct(
-    string $pub,
-    string $pri,
     string $kid,
     string $issuer
   ) {
-    $this->public_key = $pub;
-    $this->private_key = $pri;
+    $this->public_key = file_get_contents("keys/$kid/public_key.pem");
+    $this->private_key = file_get_contents("keys/$kid/private_key.pem");
     $this->keys_id = $kid;
     $this->issuer = $issuer;
   }
@@ -110,22 +108,65 @@ class TokenService
     return base64_decode($b64);
   }
 
-  function createKeyPair(): array
+  public static function createKeys(?array $dn = [], ?int $cert_duration = 365): void
   {
-
-    $new_key_pair = openssl_pkey_new(array(
+    $config = array(
       "private_key_bits" => 2048,
       "private_key_type" => OPENSSL_KEYTYPE_RSA,
-    ));
+    );
+
+    $dn = array_merge(array(
+      "countryName"               => "IT",
+      "stateOrProvinceName"       => "TR",
+      "localityName"              => "Terni",
+      "organizationName"          => "localhost",
+      "organizationalUnitName"    => "auth",
+      "commonName"                => "auth_server",
+      "emailAddress"              => "test@example.com"
+    ), $dn);
+
+    $new_key_pair = openssl_pkey_new($config);
+
+    $csr = openssl_csr_new($dn, $new_key_pair, $config);
+    $cert = openssl_csr_sign(
+      $csr,
+      null,
+      $new_key_pair,
+      $cert_duration,
+      $config,
+      0
+    );
+
+    openssl_x509_export($cert, $x509);
     openssl_pkey_export($new_key_pair, $private_key_pem);
 
     $details = openssl_pkey_get_details($new_key_pair);
     $public_key_pem = $details['key'];
-
-    return [
-      "public" => $public_key_pem,
-      "private" => $private_key_pem
+    $kid = bin2hex(random_bytes(6));
+    $keys = [
+      "kid" => $kid,
+      "kty" => "RSA",
+      "alg" => "RS256",
+      "use" => "sig",
+      "n" => base64_encode($details['rsa']['n']),
+      "e" => base64_encode($details['rsa']['e']),
+      "x5c" => [
+        str_replace([
+          '-----END CERTIFICATE-----',
+          '-----BEGIN CERTIFICATE-----', ' ', "\n"
+        ], '', $x509)
+      ],
+      "x5t" => base64_encode(openssl_x509_fingerprint($x509)),
+      "x5t#sha256" => base64_encode(openssl_x509_fingerprint($x509, 'sha256')),
     ];
+
+    $dir = "keys/$kid";
+    mkdir($dir);
+
+    file_put_contents("$dir/public_key.pem", $public_key_pem);
+    file_put_contents("$dir/private_key.pem", $private_key_pem);
+    file_put_contents("$dir/cert.pem", $x509);
+    file_put_contents("$dir/keys.json", json_encode($keys, JSON_PRETTY_PRINT));
   }
 
   public function createTokenBundle(

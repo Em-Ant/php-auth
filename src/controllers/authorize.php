@@ -140,11 +140,13 @@ class Authorize
     die();
   }
 
-  public function send_keys()
+  public static function send_keys(string $kid)
   {
-    $keys = file_get_contents('keys/keys.json', true);
-    header('Content-Type: application/json; charset=utf-8');
-    echo $keys;
-    die();
+    return function () use ($kid) {
+      $keys = file_get_contents("keys/$kid/keys.json", true);
+      header('Content-Type: application/json; charset=utf-8');
+      echo $keys;
+      die();
+    };
   }
 }

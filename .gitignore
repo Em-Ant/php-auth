@@ -15,9 +15,9 @@ server.env
 .vscode/
 
 # public and private keys
+keys/*
 *.pem
 **/keys.json
-**/keys.sh
 
 # dev tools
 tools/
