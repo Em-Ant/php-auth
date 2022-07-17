@@ -153,10 +153,14 @@ class Router
 
   private static function get_path_info()
   {
-    if (!isset($_SERVER['PATH_INFO'])) {
+    $php_self = isset($_SERVER['PHP_SELF'])  ?  $_SERVER['PHP_SELF'] : '';
+    $path_info = isset($_SERVER['PATH_INFO']) ? $_SERVER['PATH_INFO'] :
+      str_replace('/index.php', '', $php_self);
+
+    if (!$path_info) {
       return '/';
     }
-    return '/' . trim($_SERVER['PATH_INFO'], '/');
+    return '/' . trim($path_info, '/');
   }
 
   public static function parse_json_body(array &$ctx)

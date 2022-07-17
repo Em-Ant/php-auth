@@ -135,9 +135,13 @@ class Authorize
     $query = $ctx['query'];
     $redirect = $query['post_logout_redirect_uri'];
     $id_token = $query['id_token_hint'];
-    $this->auth_service->logout($id_token);
-    header("location: $redirect", true, 302);
-    die();
+    try {
+      $this->auth_service->logout($id_token);
+      header("location: $redirect", true, 302);
+      die();
+    } catch (InvalidInputException $e) {
+      Utils::server_error('invalid request', $e->getMessage(), 400);
+    }
   }
 
   public static function send_keys(string $kid)
@@ -145,7 +149,19 @@ class Authorize
     return function () use ($kid) {
       $keys = file_get_contents("keys/$kid/keys.json", true);
       header('Content-Type: application/json; charset=utf-8');
+      Utils::enable_cors();
       echo $keys;
+      die();
+    };
+  }
+
+  public static function send_config(string $issuer)
+  {
+    return function () use ($issuer) {
+      $data = file_get_contents('well-known.json', true);
+      header('Content-Type: application/json; charset=utf-8');
+      Utils::enable_cors();
+      echo str_replace('<<ISSUER>>', $issuer, $data);
       die();
     };
   }

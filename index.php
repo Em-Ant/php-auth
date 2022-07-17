@@ -3,6 +3,7 @@
 namespace AuthServer;
 
 use AuthServer\Controllers;
+use AuthServer\Controllers\Authorize;
 use AuthServer\Lib;
 use AuthServer\Lib\Logger;
 use AuthServer\Lib\Router;
@@ -37,9 +38,11 @@ $user_repo = new UserRepository(DataSource::getInstance());
 $logger = new Logger();
 $secrets_service = new SecretsService();
 
+$issuer = $env['ISSUER'] . '/realms/web';
+
 $token_service = new TokenService(
   $keys_id,
-  'em_ant/auth'
+  $issuer
 );
 
 $expiration_config = [
@@ -73,12 +76,16 @@ $auth->post(
 $auth->get('/logout', [$auth_controller, 'logout']);
 $auth->get('/error', [$auth_controller, 'error']);
 $auth->post('/login-actions/authenticate', [$auth_controller, 'login']);
-$auth->get('/certs', $auth_controller::send_keys($keys_id));
+$auth->get('/certs', Authorize::send_keys($keys_id));
 
 $app = new Router();
 
 $app->use([Router::class, 'parse_json_body']);
 $app->use('/realms/web/protocol/openid-connect', [$auth, 'run']);
+$app->get(
+  '/realms/web/.well-known/openid-configuration',
+  Authorize::send_config($issuer)
+);
 $app->all('/', [Lib\Utils::class, 'not_found']);
 $app->all('/{unknown}', [Lib\Utils::class, 'not_found']);
 

@@ -75,8 +75,10 @@ class TokenService
       $base64UrlHeader . "." . $base64UrlPayload,
       $signature,
       $this->private_key,
-      OPENSSL_ALGO_SHA256
+      'sha256WithRSAEncryption'
     );
+
+    error_log(print_r($signature, true));
 
     $base64UrlSignature = self::b64UrlEncode($signature);
     return $base64UrlHeader . "." . $base64UrlPayload . "." . $base64UrlSignature;
@@ -144,20 +146,21 @@ class TokenService
     $public_key_pem = $details['key'];
     $kid = bin2hex(random_bytes(6));
     $keys = [
-      "kid" => $kid,
-      "kty" => "RSA",
-      "alg" => "RS256",
-      "use" => "sig",
-      "n" => base64_encode($details['rsa']['n']),
-      "e" => base64_encode($details['rsa']['e']),
-      "x5c" => [
-        str_replace([
-          '-----END CERTIFICATE-----',
-          '-----BEGIN CERTIFICATE-----', ' ', "\n"
-        ], '', $x509)
-      ],
-      "x5t" => base64_encode(openssl_x509_fingerprint($x509)),
-      "x5t#sha256" => base64_encode(openssl_x509_fingerprint($x509, 'sha256')),
+      "keys" => [
+        [
+          "kid" => $kid,
+          "kty" => "RSA",
+          "alg" => "RS256",
+          "use" => "sig",
+          "n" => self::b64UrlEncode($details['rsa']['n']),
+          "e" => self::b64UrlEncode($details['rsa']['e']),
+          "x5c" => [
+            self::remove_begin_end($x509)
+          ],
+          "x5t" => self::b64UrlEncode(openssl_x509_fingerprint($x509)),
+          "x5t#sha256" => self::b64UrlEncode(openssl_x509_fingerprint($x509, 'sha256')),
+        ]
+      ]
     ];
 
     $dir = "keys/$kid";
@@ -166,7 +169,7 @@ class TokenService
     file_put_contents("$dir/public_key.pem", $public_key_pem);
     file_put_contents("$dir/private_key.pem", $private_key_pem);
     file_put_contents("$dir/cert.pem", $x509);
-    file_put_contents("$dir/keys.json", json_encode($keys, JSON_PRETTY_PRINT));
+    file_put_contents("$dir/keys.json", json_encode($keys, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
   }
 
   public function createTokenBundle(
@@ -298,5 +301,14 @@ class TokenService
       "sid" => $session->get_id(),
       "preferred_username" => $user->get_email()
     ]);
+  }
+
+  private static function remove_begin_end(string $pem): string
+  {
+    $pem = preg_replace("/-----BEGIN (.*)-----/", "", $pem);
+    $pem = preg_replace("/-----END (.*)-----/", "", $pem);
+    $pem = str_replace("\r\n", "", $pem);
+    $pem = str_replace("\n", "", $pem);
+    return trim($pem);
   }
 }
