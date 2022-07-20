@@ -68,7 +68,9 @@ class Session implements \JsonSerializable
   {
     $data = get_object_vars($this);
     $data['created_at'] = $data['created_at']->format('Y-m-d H:i:s');
-    $data['updated_at'] = $data['updated_at']->format('Y-m-d H:i:s');
+    $data['updated_at'] = isset($data['updated_at']) ?
+      $data['updated_at']->format('Y-m-d H:i:s') :
+      null;
 
     return $data;
   }

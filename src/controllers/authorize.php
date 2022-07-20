@@ -29,22 +29,38 @@ class Authorize
 
   public function authorize(array $ctx)
   {
+    /** @var Realm */
     $realm = $ctx['realm'];
+
     $realm_name = $realm->get_name();
     $current_session_id =
       self::get_session_id_from_cookie($realm_name);
 
-    // login
     try {
       $query = $ctx['query'];
+      $scope = $query['scope'];
+
+      $this->auth_service::validate_required_login_scopes(
+        $realm->get_scopes(),
+        $scope
+      );
+
       if ($current_session_id) {
         self::set_session_cookie($realm, $current_session_id, 'localhost');
 
-        $redirect_uri = /* authorize_login($realm, $current_session_id, $query); */ '';
+        $redirect_uri = $this->auth_service->authorize_login(
+          $current_session_id,
+          $query,
+          $realm->get_session_expires_in(),
+          $realm->get_idle_session_expires_in()
+        );
+
         header("location: $redirect_uri", true, 302);
         die();
       } else {
-        $pending_login_id = /* init_login($query); */ '';
+        $pending_login_id = $this->auth_service->initialize_login(
+          $query
+        );
         Utils::show_view(
           'login_form',
           [
@@ -68,40 +84,16 @@ class Authorize
   }
 
   /*
-  public function authorize(array $ctx)
-  {
-    try {
-      $query = $ctx['query'];
-      $session_id = $this->auth_service->create_session($query);
-      Utils::show_view(
-        'login_form',
-        [
-          'title' => 'Login',
-          'session_id' => $session_id,
-          'realm' => 'web',
-          'response_mode' => $query['response_mode'],
-          'scopes' => $query['scope'],
-          'email' => '',
-          'password' => '',
-          'error' => false
-        ]
-      );
-      die();
-    } catch (InvalidInputException $e) {
-      Utils::server_error(self::INVALID_REQUEST, $e->getMessage(), 400);
-    }
-  }
-
   public function login(array $ctx)
   {
     $query = $ctx['query'];
     $body = $ctx['body'];
+    $realm = $ctx['realm'];
+    if (!$realm instanceof Realm) {
+      throw new \Exception('bad casting');
+    }
 
-    $sessionId = $query['q'];
-    $scopes = $query['s'];
-    $response_mode = $query['m'];
-    $email = $body['email'];
-    $password = $body['password'];
+    $login_id = $query['q'];
 
     $result = $this->auth_service->ensure_valid_user_credentials(
       $email,
@@ -112,9 +104,8 @@ class Authorize
         'login_form',
         [
           'title' => 'Login',
-          'session_id' => $sessionId,
-          'realm' => 'web',
-          'scopes' => $scopes,
+          'login_id' => $login_id,
+          'realm' => $realm->get_name(),
           'email' => $email,
           'password' => $password,
           'error' => $result['error']
@@ -130,14 +121,7 @@ class Authorize
         $scopes,
         $response_mode
       );
-      setcookie('AUTH_SESSION', $sessionId, [
-        'expires' => time() + 86400,
-        'path' => '/realms/web',
-        'domain' => 'localhost',
-        'httponly' => true,
-        'secure' => true,
-        'samesite' => 'None',
-      ]);
+      self::set_session_cookie($realm, $current_session_id, 'localhost');
       header("location: $redirect_uri", true, 302);
       die();
     } catch (CriticalLoginErrorException $e) {
@@ -195,9 +179,12 @@ class Authorize
   }
 
   */
+
   public static function send_keys(array $ctx)
   {
-    $kid = $ctx['realm']->get_keys_id();
+    /** @var Realm */
+    $realm = $ctx['realm'];
+    $kid = $realm->get_keys_id();
     $keys = file_get_contents("keys/$kid/keys.json", true);
     header('Content-Type: application/json; charset=utf-8');
     Utils::enable_cors();

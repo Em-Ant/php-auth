@@ -79,6 +79,8 @@ $auth = new Router();
 
 $auth->use([$realm_provider, 'provide_realm']);
 $auth->get('/auth', [$auth_controller, 'authorize']);
+$auth->post('/login-actions/authenticate', [$auth_controller, 'login']);
+
 /*
 $auth->post(
   '/token',
@@ -87,7 +89,6 @@ $auth->post(
 );
 $auth->get('/logout', [$auth_controller, 'logout']);
 $auth->get('/error', [$auth_controller, 'error']);
-$auth->post('/login-actions/authenticate', [$auth_controller, 'login']);
 */
 $auth->get('/certs', [Authorize::class, 'send_keys']);
 
