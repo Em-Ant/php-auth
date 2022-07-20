@@ -30,7 +30,6 @@ require_once 'src/repositories/realm_repository.php';
 require_once 'src/services/authorize_service.php';
 require_once 'src/services/secrets_service.php';
 require_once 'src/services/token_service.php';
-require_once 'src/middleware/session_provider.php';
 require_once 'src/middleware/realm_provider.php';
 
 
@@ -44,7 +43,6 @@ $session_repo = new SessionRepository(DataSource::getInstance());
 $user_repo = new UserRepository(DataSource::getInstance());
 $realm_repo = new RealmRepository(DataSource::getInstance());
 $realm_provider = new RealmProvider($realm_repo);
-$session_provider = new SessionProvider($session_repo);
 
 /*
 $logger = new Logger();
@@ -80,11 +78,7 @@ $auth_controller = new Controllers\Authorize($auth_service);
 $auth = new Router();
 
 $auth->use([$realm_provider, 'provide_realm']);
-$auth->get(
-  '/auth',
-  [$session_provider, 'provide_session'],
-  [$auth_controller, 'test']
-);
+$auth->get('/auth', [$auth_controller, 'authorize']);
 /*
 $auth->post(
   '/token',

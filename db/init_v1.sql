@@ -59,6 +59,7 @@ CREATE TABLE IF NOT EXISTS 'logins' (
   'nonce' varchar(256) NOT NULL,
   'scopes' varchar(100) NOT NULL,
   'redirect_uri' varchar(256) NOT NULL,
+  'response_mode' varchar(16) NOT NULL,
   'code' varchar(512),
   'refresh_token' varchar(2048),
   'created_at' TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
