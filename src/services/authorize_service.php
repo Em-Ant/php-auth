@@ -11,7 +11,6 @@ use AuthServer\Interfaces\Logger;
 use AuthServer\Interfaces\SessionRepository as ISessionRepo;
 use AuthServer\Interfaces\UserRepository as IUserRepo;
 
-use AuthServer\Lib\Utils;
 use AuthServer\Models\Client;
 use AuthServer\Models\Session;
 use AuthServer\Models\User;
@@ -31,6 +30,7 @@ require_once 'src/services/secrets_service.php';
 
 class AuthorizeService
 {
+  /*
   private IClientRepo $client_repository;
   private ISessionRepo $session_repository;
   private IUserRepo $user_repository;
@@ -236,7 +236,7 @@ class AuthorizeService
 
     $this->logger->info("token contains session id $session_id");
 
-    $ok = $this->session_repository->setExpired($session_id);
+    $ok = $this->session_repository->set_expired($session_id);
     if (!$ok) {
       $this->logger->error("unable to transition $session_id to expired");
       throw new StorageErrorException('unable to update session');
@@ -306,7 +306,7 @@ class AuthorizeService
 
     $expired = $this->token_service->tokenIsExpired($refresh_token);
     if ($expired) {
-      $ok = $this->session_repository->setExpired($session_id);
+      $ok = $this->session_repository->set_expired($session_id);
       if (!$ok) {
         $this->logger->error("unable to set session $session_id to expired");
         throw new StorageErrorException('unable to set session to expired');
@@ -377,7 +377,7 @@ class AuthorizeService
       ) > new DateTime()
     ) {
       $this->logger->info("session $session_id expired");
-      $ok = $this->session_repository->setExpired($session_id);
+      $ok = $this->session_repository->set_expired($session_id);
       if (!$ok) {
         throw new StorageErrorException('unable to set session to expired');
       }
@@ -531,4 +531,5 @@ class AuthorizeService
   {
     return !isset($param) || $param == ' ';
   }
+  */
 }

@@ -38,6 +38,8 @@ class UserRepository implements IUser
 
       return new User(
         $r['id'],
+        $r['realm_id'],
+        $r['name'],
         $r['email'],
         $r['password'],
         $r['scopes'],
@@ -68,6 +70,8 @@ class UserRepository implements IUser
 
       return new User(
         $r['id'],
+        $r['realm_id'],
+        $r['name'],
         $r['email'],
         $r['password'],
         $r['scopes'],

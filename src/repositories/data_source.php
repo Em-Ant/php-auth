@@ -12,7 +12,7 @@ class DataSource
 
   private function __construct()
   {
-    $this->db = new \PDO('sqlite:db/data.db', '', '', array(
+    $this->db = new \PDO('sqlite:db/data2.db', '', '', array(
       \PDO::ATTR_EMULATE_PREPARES => false,
       \PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION,
       \PDO::ATTR_DEFAULT_FETCH_MODE => \PDO::FETCH_ASSOC

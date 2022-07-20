@@ -5,26 +5,29 @@ namespace AuthServer\Models;
 class Client implements \JsonSerializable
 {
   private string $id;
-  private string $client_id;
+  private string $name;
+  private string $realm_id;
   private ?string $client_secret;
-  private array $scopes;
   private string $uri;
+  private bool $require_auth;
   private \DateTime $created_at;
 
 
   public function __construct(
     string $id,
-    string $client_id,
+    string $name,
+    string $realm_id,
     ?string $client_secret,
-    string $scopes,
     string $uri,
+    bool $require_auth,
     string $created_at
   ) {
     $this->id = $id;
-    $this->client_id = $client_id;
+    $this->name = $name;
+    $this->realm_id = $realm_id;
     $this->uri = $uri;
-    $this->scopes = explode(' ', $scopes);
     $this->client_secret = $client_secret;
+    $this->require_auth = $require_auth;
     $this->created_at =
       \DateTime::createFromFormat('Y-m-d H:i:s', $created_at);
   }
@@ -33,9 +36,13 @@ class Client implements \JsonSerializable
   {
     return $this->id;
   }
-  public function get_client_id()
+  public function get_name()
   {
-    return $this->client_id;
+    return $this->name;
+  }
+  public function get_realm_id()
+  {
+    return $this->realm_id;
   }
   public function get_uri()
   {
@@ -45,9 +52,9 @@ class Client implements \JsonSerializable
   {
     return $this->client_secret;
   }
-  public function get_scopes()
+  public function get_require_auth()
   {
-    return $this->scopes;
+    return $this->require_auth;
   }
   public function get_created_at(): \DateTime
   {

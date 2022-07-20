@@ -7,76 +7,45 @@ use DateTime;
 class Session implements \JsonSerializable
 {
   private string $id;
-  private string $client_id;
-  private string $state;
-  private string $nonce;
-  private ?string $session_state;
-  private string $redirect_uri;
-  private ?string $refresh_token = null;
-  private ?string $user_id = null;
-  private ?string $code = null;
+  private string $realm_id;
+  private string $acr;
+  private string $user_id;
   private DateTime $created_at;
-  private ?DateTime $authenticated_at;
+  private ?DateTime $updated_at;
   private string $status;
 
   public function __construct(
     string $id,
-    string $client_id,
-    string $state,
-    string $nonce,
-    string $session_state,
-    string $redirect_uri,
-    ?string $refresh_token = null,
-    ?string $user_id = null,
-    ?string $code = null,
+    string $realm_id,
+    string $user_id,
+    string $acr,
     ?string $created_at = null,
-    ?string $authenticated_at = null,
-    ?string $status = 'PENDING'
+    ?string $updated_at = null,
+    ?string $status = 'ACTIVE'
   ) {
     $this->id = $id;
-    $this->client_id = $client_id;
-    $this->state = $state;
-    $this->nonce = $nonce;
-    $this->session_state = $session_state;
-    $this->redirect_uri = $redirect_uri;
-    $this->refresh_token = $refresh_token;
+    $this->realm_id = $realm_id;
+    $this->acr = $acr;
     $this->user_id = $user_id;
-    $this->code = $code;
     $this->created_at = is_null($created_at) ?
       date_create() :
       \DateTime::createFromFormat('Y-m-d H:i:s', $created_at);
-    $this->authenticated_at =
-      \DateTime::createFromFormat('Y-m-d H:i:s', $authenticated_at) ?: null;
-    $this->status = is_null($status) ? 'PENDING' : $status;
+    $this->updated_at =
+      \DateTime::createFromFormat('Y-m-d H:i:s', $updated_at) ?: null;
+    $this->status = is_null($status) ? 'ACTIVE' : $status;
   }
 
   public function get_id(): string
   {
     return $this->id;
   }
-  public function get_client_id(): string
+  public function get_realm_id(): string
   {
-    return $this->client_id;
+    return $this->realm_id;
   }
-  public function get_uri(): string
+  public function get_acr(): string
   {
-    return $this->uri;
-  }
-  public function get_state(): string
-  {
-    return $this->state;
-  }
-  public function get_nonce(): string
-  {
-    return $this->nonce;
-  }
-  public function get_session_state(): string
-  {
-    return $this->session_state;
-  }
-  public function get_refresh_token(): string
-  {
-    return $this->refresh_token;
+    return $this->acr;
   }
   public function get_user_id(): string
   {
@@ -86,27 +55,21 @@ class Session implements \JsonSerializable
   {
     return $this->created_at;
   }
-  public function get_authenticated_at(): ?\DateTime
+  public function get_updated_at(): ?\DateTime
   {
-    return $this->authenticated_at;
+    return $this->updated_at;
   }
   public function get_status(): string
   {
     return $this->status;
-  }
-  public function get_code(): string
-  {
-    return $this->code;
-  }
-  public function get_redirect_uri(): string
-  {
-    return $this->redirect_uri;
   }
 
   public function jsonSerialize()
   {
     $data = get_object_vars($this);
     $data['created_at'] = $data['created_at']->format('Y-m-d H:i:s');
+    $data['updated_at'] = $data['updated_at']->format('Y-m-d H:i:s');
+
     return $data;
   }
 }

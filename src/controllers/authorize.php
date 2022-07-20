@@ -20,17 +20,22 @@ class Authorize
   const INVALID_REQUEST = 'Invalid request';
 
   public function __construct(
-    AuthorizeService $service
-  ) {
-    $this->auth_service = $service;
+    // AuthorizeService $service
+  )
+  {
+    //$this->auth_service = $service;
   }
 
+  public function test(array $ctx)
+  {
+    Utils::send_json($ctx);
+  }
+  /*
   public function authorize(array $ctx)
   {
     try {
       $query = $ctx['query'];
       $session_id = $this->auth_service->create_session($query);
-
       Utils::show_view(
         'login_form',
         [
@@ -88,8 +93,14 @@ class Authorize
         $scopes,
         $response_mode
       );
-
-
+      setcookie('AUTH_SESSION', $sessionId, [
+        'expires' => time() + 86400,
+        'path' => '/realms/web',
+        'domain' => 'localhost',
+        'httponly' => true,
+        'secure' => true,
+        'samesite' => 'None',
+      ]);
       header("location: $redirect_uri", true, 302);
       die();
     } catch (CriticalLoginErrorException $e) {
@@ -146,15 +157,15 @@ class Authorize
     }
   }
 
-  public static function send_keys(string $kid)
+  */
+  public static function send_keys(array $ctx)
   {
-    return function () use ($kid) {
-      $keys = file_get_contents("keys/$kid/keys.json", true);
-      header('Content-Type: application/json; charset=utf-8');
-      Utils::enable_cors();
-      echo $keys;
-      die();
-    };
+    $kid = $ctx['realm']['keys_id'];
+    $keys = file_get_contents("keys/$kid/keys.json", true);
+    header('Content-Type: application/json; charset=utf-8');
+    Utils::enable_cors();
+    echo $keys;
+    die();
   }
 
   public static function send_config(string $issuer)
