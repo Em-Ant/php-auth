@@ -7,6 +7,7 @@ namespace AuthServer\Controllers;
 use AuthServer\Exceptions\CriticalLoginErrorException;
 use AuthServer\Lib\Utils;
 use AuthServer\Exceptions\InvalidInputException;
+use AuthServer\Models\Login;
 use AuthServer\Models\Realm;
 use AuthServer\Services\AuthorizeService;
 
@@ -48,7 +49,7 @@ class Authorize
       if ($current_session_id) {
         self::set_session_cookie($realm, $current_session_id, 'localhost');
 
-        $redirect_uri = $this->auth_service->authorize_login(
+        $redirect_uri = $this->auth_service->create_authorized_login(
           $current_session_id,
           $query,
           $realm->get_session_expires_in(),
@@ -83,15 +84,16 @@ class Authorize
     }
   }
 
-  /*
   public function login(array $ctx)
   {
     $query = $ctx['query'];
     $body = $ctx['body'];
+
+    /** @var Realm */
     $realm = $ctx['realm'];
-    if (!$realm instanceof Realm) {
-      throw new \Exception('bad casting');
-    }
+
+    $email = $body['email'];
+    $password = $body['password'];
 
     $login_id = $query['q'];
 
@@ -115,13 +117,19 @@ class Authorize
     }
 
     try {
-      $redirect_uri = $this->auth_service->authenticate(
+      $data = $this->auth_service->authenticate_login(
         $result['user'],
-        $sessionId,
-        $scopes,
-        $response_mode
+        $login_id,
+        $realm->get_id()
       );
-      self::set_session_cookie($realm, $current_session_id, 'localhost');
+
+      $session_id = (string) $data['session']->get_id();
+      /** @var Login */
+      $login = $data['login'];
+      $redirect_uri = self::get_redirect_uri($login, $session_id);
+
+      self::set_session_cookie($realm, $session_id, 'localhost');
+
       header("location: $redirect_uri", true, 302);
       die();
     } catch (CriticalLoginErrorException $e) {
@@ -177,8 +185,6 @@ class Authorize
       Utils::server_error(self::INVALID_REQUEST, $e->getMessage(), 400);
     }
   }
-
-  */
 
   public static function send_keys(array $ctx)
   {
@@ -237,5 +243,32 @@ class Authorize
       'secure' => true,
       'samesite' => 'None',
     ]);
+  }
+
+  private static function get_redirect_uri(
+    Login $login,
+    string $session_id
+  ): string {
+    $redirect_uri = $login->get_redirect_uri();
+    $response_mode = $login->get_response_mode();
+    $append = '';
+    $char = '';
+    $hash_pos = strpos($redirect_uri, '#');
+
+    if ($response_mode == 'query') {
+      $char = strpos($redirect_uri, '?') ? '&' : '?';
+      if ($hash_pos) {
+        $append = substr($redirect_uri, $hash_pos);
+        $redirect_uri = substr($redirect_uri, 0, $hash_pos);
+      }
+    } else {
+      $char = $hash_pos ? '&' : '#';
+    }
+
+    return $redirect_uri . $char .
+      'code=' . $login->get_code() .
+      '&state=' . $login->get_state() .
+      '&session_state=' . $session_id .
+      $append;
   }
 }

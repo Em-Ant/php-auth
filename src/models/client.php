@@ -52,7 +52,7 @@ class Client implements \JsonSerializable
   {
     return $this->client_secret;
   }
-  public function get_require_auth()
+  public function requires_auth(): bool
   {
     return $this->require_auth;
   }

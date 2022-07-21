@@ -74,18 +74,12 @@ class AuthorizeService
   public function initialize_login(
     array $query
   ): string {
-
-    $client_id = $query['client_id'];
-    $this->logger->info("initializing login for client $client_id");
+    $client_name = $query['client_id'];
+    $this->logger->info("initializing login for client $client_name");
 
     self::validate_query_params($query);
 
-    $client = $this->client_repository->find_by_name($client_id);
-    if ($client === null) {
-      $this->logger->error("client matching $client_id not found for realm");
-      throw new InvalidInputException('invalid client id');
-    }
-    self::validate_redirect_uri($client, $query['redirect_uri']);
+    $client = $this->ensure_valid_client($client_name, $query['redirect_uri']);
 
     $login = $this->login_repository->create_pending(
       $client->get_id(),
@@ -98,7 +92,7 @@ class AuthorizeService
 
     if ($login === null) {
       throw new StorageErrorException(
-        "unable to create pending login for $client_id"
+        "unable to create pending login for $client_name"
       );
     }
 
@@ -107,24 +101,18 @@ class AuthorizeService
     return $login->get_id();
   }
 
-  public function authorize_login(
+  public function create_authorized_login(
     string $session_id,
     array $query,
     int $session_expires_in,
     int $idle_session_expires_in
-  ): string {
-
-    $client_id = $query['client_id'];
-    $this->logger->info("initializing login for client $client_id");
+  ): array {
+    $client_name = $query['client_id'];
+    $this->logger->info("initializing login for client $client_name");
 
     self::validate_query_params($query);
 
-    $client = $this->client_repository->find_by_name($client_id);
-    if ($client === null) {
-      $this->logger->error("client matching $client_id not found for realm");
-      throw new InvalidInputException('invalid client id');
-    }
-    self::validate_redirect_uri($client, $query['redirect_uri']);
+    $client = $this->ensure_valid_client($client_name, $query['redirect_uri']);
 
     $session = $this->session_repository->find_by_id($session_id);
     if ($session == null || $session->get_status() != 'ACTIVE') {
@@ -170,11 +158,10 @@ class AuthorizeService
 
     $this->logger->info("authenticated login created");
 
-    return self::get_redirect_uri(
-      $login,
-      $session_id,
-      $query['response_mode']
-    );
+    return [
+      'login' => $login,
+      'session' => $session
+    ];
   }
 
   public function ensure_valid_user_credentials(
@@ -212,48 +199,52 @@ class AuthorizeService
     ];
   }
 
-  /*
-  public function authenticate(
-    User $user,
-    string $session_id,
-    string $scopes,
-    string $response_mode
-  ): string {
-    $this->logger->info("authenticating user for session $session_id");
 
+  public function authenticate_login(
+    User $user,
+    string $login_id,
+    string $realm_id
+  ): array {
+    $this->logger->info("authenticating user for login $login_id");
+
+    $login = $this->login_repository->find_by_id($login_id);
+    if (!$login) {
+      throw new StorageErrorException("unable to find login $login_id");
+    }
+
+    $scopes = $login->get_scopes();
     if (!self::validate_scopes($user->get_scopes(), $scopes)) {
       throw new CriticalLoginErrorException('invalid user scopes');
     }
-    $session = $this->session_repository->find_by_id($session_id);
 
-    if ($session == null || $session->get_status() != 'ACTIVE') {
-      throw new CriticalLoginErrorException(
-        "invalid session $session_id - not in ACTIVE status"
+    $session = $this->session_repository->create(
+      $realm_id,
+      $user->get_id(),
+      '0'
+    );
+    if (!$session) {
+      throw new StorageErrorException(
+        "unable to create new session for login $login_id"
       );
     }
 
-    $this->check_session_expiration(
-      $session,
-      $this->pending_session_expires_in_seconds
-    );
-
-    $ok = $this->session_repository->setAuthenticated(
+    $session_id = $session->get_id();
+    $code = $this->secrets_service->generate_code();
+    $ok = $this->login_repository->set_authenticated(
+      $login_id,
       $session_id,
-      $user->get_id(),
-      $this->secrets_service->generate_code()
+      $code
     );
     if (!$ok) {
-      $this->logger->error("unable to transition $session_id to authenticated");
-      throw new StorageErrorException('unable to update session');
+      throw new StorageErrorException(
+        "unable to authenticate login $login_id"
+      );
     }
 
-    $updated = $this->session_repository->find_by_id($session_id);
-    if (!$updated) {
-      $this->logger->error("unable to find $session_id after transitioning to authenticated");
-      throw new StorageErrorException('unable to find updated session');
-    }
-
-    return self::get_redirect_uri($updated, $response_mode);
+    return [
+      'login' => $login,
+      'session' => $session
+    ];
   }
 
   public function get_tokens(array $params): array
@@ -263,14 +254,13 @@ class AuthorizeService
     self::validate_token_params($params);
     extract($params);
 
-    $client = $this->client_repository->find_by_client_id($client_id);
+    $client = $this->client_repository->find_by_name($client_id);
     if ($client === null) {
-      $this->logger->error("$client_id for generating tokens not found");
-      throw new InvalidInputException('invalid client_id');
+      throw new InvalidInputException("client $client_id not found while generating tokens");
     }
 
-    $hashed_secret = $client->get_client_secret();
-    if ($hashed_secret) {
+    if ($client->requires_auth()) {
+      $hashed_secret = $client->get_client_secret();
       $this->logger->info("$client_id requires secret validation");
       $this->validate_client_secret($hashed_secret, $client_secret ?: '');
     }
@@ -295,17 +285,6 @@ class AuthorizeService
     }
   }
 
-  public function get_client_uri(string $client_id)
-  {
-    $this->logger->info("getting uri for client $client_id to enable cors on origin");
-    $client = $this->client_repository->find_by_client_id($client_id);
-    if ($client === null) {
-      $this->logger->error("client $client_id not found");
-      throw new InvalidInputException('invalid client_id');
-    }
-    return $client->get_uri();
-  }
-
   public function logout(
     string $id_token
   ): bool {
@@ -328,10 +307,22 @@ class AuthorizeService
     return $ok;
   }
 
+  public function get_client_uri(string $client_id)
+  {
+    $this->logger->info("getting uri for client $client_id to enable cors on origin");
+    $client = $this->client_repository->find_by_name($client_id);
+    if ($client === null) {
+      $this->logger->error("client $client_id not found");
+      throw new InvalidInputException('invalid client_id');
+    }
+    return $client->get_uri();
+  }
+
   private function get_tokens_by_code(
     string $code,
     Client $client
   ): array {
+    /*
     $this->logger->info("generating tokens from authorization code $code");
     $session = $this->session_repository->find_by_code($code);
     if ($session === null) {
@@ -371,12 +362,15 @@ class AuthorizeService
     }
 
     return $token_bundle;
+    */
+    return [];
   }
 
   private function get_tokens_by_refresh_token(
     string $refresh_token,
     Client $client
   ): array {
+    /*
     $this->logger->info("generating tokens from refresh token");
 
     $session = $this->session_repository->find_by_refresh_token($refresh_token);
@@ -422,10 +416,23 @@ class AuthorizeService
       throw new StorageErrorException('error updating session');
     }
     return $token_bundle;
+    */
+    return [];
   }
 
-  */
+  private function ensure_valid_client(
+    string $client_name,
+    string $redirect_uri
+  ) {
+    $client = $this->client_repository->find_by_name($client_name);
+    if ($client === null) {
+      $this->logger->error("client matching $client_name not found for realm");
+      throw new InvalidInputException('invalid client id');
+    }
+    self::validate_redirect_uri($client, $redirect_uri);
 
+    return $client;
+  }
 
   private function check_session_expiration(
     Session $session,
@@ -568,33 +575,6 @@ class AuthorizeService
     ) {
       throw new InvalidInputException('invalid client secret');
     }
-  }
-
-  private static function get_redirect_uri(
-    Login $login,
-    string $session_id,
-    string $response_mode
-  ): string {
-    $redirect_uri = $login->get_redirect_uri();
-    $append = '';
-    $char = '';
-    $hash_pos = strpos($redirect_uri, '#');
-
-    if ($response_mode == 'query') {
-      $char = strpos($redirect_uri, '?') ? '&' : '?';
-      if ($hash_pos) {
-        $append = substr($redirect_uri, $hash_pos);
-        $redirect_uri = substr($redirect_uri, 0, $hash_pos);
-      }
-    } else {
-      $char = $hash_pos ? '&' : '#';
-    }
-
-    return $redirect_uri . $char .
-      'code=' . $login->get_code() .
-      '&state=' . $login->get_state() .
-      '&session_state=' . $session_id .
-      $append;
   }
 
   private static function str_starts_with(string $haystack, string $needle): bool

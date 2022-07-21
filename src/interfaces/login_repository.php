@@ -34,6 +34,7 @@ interface LoginRepository
 
   public function set_authenticated(
     string $id,
+    string $session_id,
     string $code
   ): bool;
 

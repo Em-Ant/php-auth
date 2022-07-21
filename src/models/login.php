@@ -11,7 +11,7 @@ class Login implements \JsonSerializable
   private string $client_id;
   private string $state;
   private string $nonce;
-  private array $scopes;
+  private string $scopes;
   private string $redirect_uri;
   private string $response_mode;
   private DateTime $created_at;
@@ -42,7 +42,7 @@ class Login implements \JsonSerializable
     $this->client_id = $client_id;
     $this->state = $state;
     $this->nonce = $nonce;
-    $this->scopes = explode(' ', $scopes);
+    $this->scopes = $scopes;
     $this->redirect_uri = $redirect_uri;
     $this->response_mode = $response_mode;
     $this->code = $code;
@@ -77,7 +77,7 @@ class Login implements \JsonSerializable
   {
     return $this->nonce;
   }
-  public function get_scopes(): array
+  public function get_scopes(): string
   {
     return $this->scopes;
   }
