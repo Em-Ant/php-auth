@@ -58,8 +58,9 @@ class TokenService
     return $decoded['exp'] < time();
   }
 
-  function createToken(array $payload, $private_key): string
+  function createToken(array $payload, $keys_id): string
   {
+    $private_key = file_get_contents("keys/$keys_id/private_key.pem");
 
     $header = json_encode([
       'typ' => 'JWT',
@@ -178,8 +179,6 @@ class TokenService
   ): array {
     $now = time();
     $kid = $realm->get_keys_id();
-    $private_key = file_get_contents("keys/$kid/private_key.pem");
-
     $access_token = $this->createAccessToken(
       $now,
       $realm->get_access_token_expires_in(),
@@ -188,7 +187,7 @@ class TokenService
       $session,
       $client,
       $user,
-      $private_key
+      $kid
     );
     $id_token = $this->createIdToken(
       $now,
@@ -199,7 +198,7 @@ class TokenService
       $client,
       $user,
       $access_token,
-      $private_key
+      $kid
     );
     $refresh_token = $this->createRefreshToken(
       $now,
@@ -209,7 +208,7 @@ class TokenService
       $session,
       $client,
       $user,
-      $private_key
+      $kid
     );
 
     return [
@@ -233,7 +232,7 @@ class TokenService
     Session $session,
     Client $client,
     User $user,
-    string $private_key
+    string $keys_id
   ): string {
     $exp = $now + $validity;
     return $this->createToken(
@@ -251,7 +250,7 @@ class TokenService
         "scope" => join(" ", $user->get_scope()),
         "sid" => $session->get_id()
       ],
-      $private_key
+      $keys_id
     );
   }
 
@@ -263,7 +262,7 @@ class TokenService
     Session $session,
     Client $client,
     User $user,
-    string $private_key
+    string $keys_id
   ): string {
     $exp = $now + $validity;
     return $this->createToken(
@@ -287,7 +286,7 @@ class TokenService
         "sid" => $session->get_id(),
         "preferred_username" => $user->get_name()
       ],
-      $private_key
+      $keys_id
     );
   }
 
@@ -300,7 +299,7 @@ class TokenService
     Client $client,
     User $user,
     string $access_token,
-    string $private_key
+    string $keys_id
   ): string {
     $exp = $now + $validity;
     return $this->createToken(
@@ -321,7 +320,7 @@ class TokenService
         "sid" => $session->get_id(),
         "preferred_username" => $user->get_email()
       ],
-      $private_key
+      $keys_id
     );
   }
 

@@ -53,8 +53,6 @@ class Authorize
 
       if ($current_session_id) {
 
-        // self::set_session_cookie($realm, $current_session_id, 'localhost');
-
         $result = $this->auth_service->create_authorized_login(
           $current_session_id,
           $query,
@@ -69,6 +67,7 @@ class Authorize
 
         $redirect_uri = self::get_redirect_uri($login, $session->get_id());
 
+        self::set_session_cookie($realm, $current_session_id, 'localhost');
         header("location: $redirect_uri", true, 302);
         die();
       } else {
@@ -91,15 +90,7 @@ class Authorize
     } catch (InvalidInputException $e) {
       Utils::server_error(self::INVALID_REQUEST, $e->getMessage(), 400);
     } catch (CriticalLoginErrorException $e) {
-      $message = $e->getMessage();
-      $sub = $this->mount_path ?: '';
-      $realm_name = $realm->get_name();
-      header(
-        "location: $sub/realms/$realm_name/protocol/openid-connect/error?e=$message",
-        true,
-        302
-      );
-      die();
+      $this->redirect_to_error($e->message, $realm->get_name);
     }
   }
 
@@ -147,14 +138,12 @@ class Authorize
       $login = $data['login'];
       $redirect_uri = self::get_redirect_uri($login, $session_id);
 
-      // self::set_session_cookie($realm, $session_id, 'localhost');
+      self::set_session_cookie($realm, $session_id, 'localhost');
 
       header("location: $redirect_uri", true, 302);
       die();
     } catch (CriticalLoginErrorException $e) {
-      $message = $e->getMessage();
-      $sub = $GLOBALS['sub_path'] ?: '';
-      header("location: $sub/realms//error?e=$message", true, 302);
+      $this->redirect_to_error($e->message, $realm->get_name);
     }
   }
 
@@ -290,5 +279,16 @@ class Authorize
       '&state=' . $login->get_state() .
       '&session_state=' . $session_id .
       $append;
+  }
+
+  private function redirect_to_error($realm_name, $message)
+  {
+    $sub = $this->mount_path ?: '';
+    header(
+      "location: $sub/realms/$realm_name/protocol/openid-connect/error?e=$message",
+      true,
+      302
+    );
+    die();
   }
 }
