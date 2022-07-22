@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS 'realms' (
   'authenticated_login_expires_in' integer NOT NULL,
   'session_expires_in' integer NOT NULL,
   'idle_session_expires_in' integer NOT NULL,
-  'scopes' varchar(100) NOT NULL,
+  'scope' varchar(100) NOT NULL,
   'created_at' TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 CREATE UNIQUE INDEX 'name_ind' ON 'realms' ('name');
@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS 'users' (
   'name' varchar(64),
   'email' varchar(64) UNIQUE NOT NULL,
   'password' varchar(128) NOT NULL,
-  'scopes' varchar(100) NOT NULL,
+  'scope' varchar(100) NOT NULL,
   'created_at' TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
   'valid' integer DEFAULT "TRUE",
   FOREIGN KEY ('realm_id') REFERENCES realms('id')
@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS 'clients' (
   'client_secret' varchar(64),
   'uri' varchar(256) NOT NULL,
   'created_at' TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
-  'require_auth' integereger DEFAULT "FALSE",
+  'require_auth' boolean DEFAULT 0,
   FOREIGN KEY ('realm_id') REFERENCES realms('id'),
   UNIQUE ('name', 'uri')
 );
@@ -57,7 +57,7 @@ CREATE TABLE IF NOT EXISTS 'logins' (
   'client_id' varchar(36) NOT NULL,
   'state' varchar(256) NOT NULL,
   'nonce' varchar(256) NOT NULL,
-  'scopes' varchar(100) NOT NULL,
+  'scope' varchar(100) NOT NULL,
   'redirect_uri' varchar(256) NOT NULL,
   'response_mode' varchar(16) NOT NULL,
   'code' varchar(512),

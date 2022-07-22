@@ -28,8 +28,9 @@ class Client implements \JsonSerializable
     $this->uri = $uri;
     $this->client_secret = $client_secret;
     $this->require_auth = $require_auth;
+    $utc = new \DateTimeZone('UTC');
     $this->created_at =
-      \DateTime::createFromFormat('Y-m-d H:i:s', $created_at);
+      \DateTime::createFromFormat('Y-m-d H:i:s', $created_at, $utc);
   }
 
   public function get_id()

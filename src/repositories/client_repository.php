@@ -52,14 +52,14 @@ class ClientRepository implements IRepo
     }
   }
 
-  public function find_by_name(string $client_id): ?Client
+  public function find_by_name(string $name): ?Client
   {
     try {
 
       $statement = $this->db->prepare(
-        "SELECT * FROM clients WHERE client_id = :id"
+        "SELECT * FROM clients WHERE name = :name"
       );
-      $statement->bindValue(':id', $client_id);
+      $statement->bindValue(':name', $name);
 
       $statement->execute();
 
@@ -75,7 +75,7 @@ class ClientRepository implements IRepo
         $r['realm_id'],
         $r['client_secret'],
         $r['uri'],
-        $r['require_auth'],
+        (bool) $r['require_auth'],
         $r['created_at']
       );
     } catch (\PDOException $e) {

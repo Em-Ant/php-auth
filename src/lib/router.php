@@ -172,7 +172,6 @@ class Router
     ) {
       $raw_body = file_get_contents('php://input');
       $ctx['body'] = json_decode($raw_body, true);
-      error_log(print_r($ctx['body'], true));
     }
   }
 

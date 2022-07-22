@@ -83,7 +83,7 @@ class SessionRepository implements IRepo
       SET updated_at=:updated_at
       WHERE id=:id"
       );
-      $q->bindValue(':updated_at', date_create()->format('Y-m-d H:i:s'));
+      $q->bindValue(':updated_at', gmdate('Y-m-d H:i:s'));
       $q->bindValue(':id', $id);
 
       return $q->execute();
@@ -116,8 +116,8 @@ class SessionRepository implements IRepo
     return new Session(
       $r['id'],
       $r['realm_id'],
-      $r['acr'],
       $r['user_id'],
+      $r['acr'],
       $r['created_at'],
       $r['updated_at'],
       $r['status']

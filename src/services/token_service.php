@@ -221,7 +221,7 @@ class TokenService
       "id_token" => $id_token,
       "not-before-policy" => 0,
       "session_state" => $session->get_id(),
-      "scope" => join(" ", $user->get_scopes()),
+      "scope" => join(" ", $user->get_scope()),
     ];
   }
 
@@ -248,7 +248,7 @@ class TokenService
         "azp" => $client->get_name(),
         "nonce" => $login->get_nonce(),
         "session_state" => $session->get_id(),
-        "scope" => join(" ", $user->get_scopes()),
+        "scope" => join(" ", $user->get_scope()),
         "sid" => $session->get_id()
       ],
       $private_key
@@ -283,7 +283,7 @@ class TokenService
         "allowed-origins" => [
           $client->get_uri()
         ],
-        "scope" => join(" ", $user->get_scopes()),
+        "scope" => join(" ", $user->get_scope()),
         "sid" => $session->get_id(),
         "preferred_username" => $user->get_name()
       ],

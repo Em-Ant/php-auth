@@ -62,12 +62,15 @@ class AuthorizeService
     $this->logger = $logger;
   }
 
-  public static function validate_required_login_scopes(
-    array $realm_allowed_scopes,
-    string $required_scopes
+  public function validate_required_login_scope(
+    array $realm_allowed_scope,
+    string $required_scope
   ) {
-    if (!self::validate_scopes($realm_allowed_scopes, $required_scopes)) {
-      throw new InvalidInputException('scopes not allowed for realm');
+    if (!self::validate_scope($realm_allowed_scope, $required_scope)) {
+      $this->logger->info(
+        "scope $required_scope not allowed for realm"
+      );
+      throw new InvalidInputException('scope not allowed for realm');
     }
   }
 
@@ -133,8 +136,8 @@ class AuthorizeService
         "invalid user $user_id for session $session_id "
       );
     }
-    if (!self::validate_scopes($user->get_scopes(), $query['scope'])) {
-      throw new CriticalLoginErrorException('invalid user scopes');
+    if (!self::validate_scope($user->get_scope(), $query['scope'])) {
+      throw new CriticalLoginErrorException('invalid user scope');
     }
 
     $code = $this->secrets_service->generate_code();
@@ -214,9 +217,9 @@ class AuthorizeService
 
     $this->check_login_expiration($login, $realm);
 
-    $scopes = $login->get_scopes();
-    if (!self::validate_scopes($user->get_scopes(), $scopes)) {
-      throw new CriticalLoginErrorException('invalid user scopes');
+    $scope = $login->get_scope();
+    if (!self::validate_scope($user->get_scope(), $scope)) {
+      throw new CriticalLoginErrorException('invalid user scope');
     }
 
     $session = $this->session_repository->create(
@@ -243,13 +246,15 @@ class AuthorizeService
       );
     }
 
+    $updated = $this->login_repository->find_by_id($login_id);
+
     return [
-      'login' => $login,
+      'login' => $updated,
       'session' => $session
     ];
   }
 
-  public function get_tokens(array $params): array
+  public function get_tokens(array $params, Realm $realm): array
   {
     $this->logger->info("generating tokens...");
 
@@ -258,7 +263,10 @@ class AuthorizeService
 
     $client = $this->client_repository->find_by_name($client_id);
     if ($client === null) {
-      throw new InvalidInputException("client $client_id not found while generating tokens");
+      $this->logger->info(
+        "client $client_id not found while generating tokens"
+      );
+      throw new InvalidInputException('invalid client');
     }
 
     if ($client->requires_auth()) {
@@ -397,12 +405,12 @@ class AuthorizeService
 
     $login = $this->login_repository->find_by_refresh_token($refresh_token);
     if ($login === null) {
-      $this->logger->error("invalid authorization code");
-      throw new InvalidInputException('invalid code');
+      $this->logger->error("invalid refresh token");
+      throw new InvalidInputException('invalid refresh token');
     }
     if ($login->get_status() != 'ACTIVE') {
       $this->logger->error("login is in invalid status");
-      throw new InvalidInputException('code is expired');
+      throw new InvalidInputException('login is expired');
     }
     $login_id = $login->get_id();
 
@@ -493,28 +501,29 @@ class AuthorizeService
       "checking expiration for login $login_id in status $status"
     );
 
-    $is_expired = true;
+    $now = new DateTime();
     switch ($login->get_status()) {
       case 'PENDING':
         $interval = $realm->get_pending_login_expires_in();
         $is_expired = $login->get_created_at()->add(
           new \DateInterval("PT{$interval}S")
-        ) > new DateTime();
+        ) < $now;
         break;
       case 'AUTHENTICATED':
         $interval = $realm->get_authenticated_login_expires_in();
         $is_expired = $login->get_authenticated_at()->add(
           new \DateInterval("PT{$interval}S")
-        ) > new DateTime();
+        ) < $now;
         break;
       case 'ACTIVE':
         $interval = $realm->get_refresh_token_expires_in();
         $is_expired = $login->get_updated_at()->add(
           new \DateInterval("PT{$interval}S")
-        ) > new DateTime();
+        ) < $now;
         break;
       default:
         $is_expired = true;
+        break;
     }
 
     if ($is_expired) {
@@ -540,13 +549,14 @@ class AuthorizeService
     $session_id = $session->get_id();
     $this->logger->info("checking expiration for $session_id (valid: $exp_in_s s)");
 
+    $now = new DateTime('now', new \DateTimeZone('UTC'));
     $is_expired = $session->get_created_at()->add(
       new \DateInterval("PT{$exp_in_s}S")
-    ) > new DateTime();
+    ) < $now;
 
     $is_idle_for_too_long = $session->get_created_at()->add(
       new \DateInterval("PT{$idle_exp_in_s}S")
-    ) > new DateTime();
+    ) < $now;
 
     if (
       $is_expired || $is_idle_for_too_long
@@ -563,17 +573,17 @@ class AuthorizeService
     $this->logger->info("session $session_id not expired");
   }
 
-  private static function validate_scopes(
-    array $allowed_scopes,
-    string $requested_scopes
+  private static function validate_scope(
+    array $allowed_scope,
+    string $requested_scope
   ): bool {
-    $input_scopes_array = explode(' ', $requested_scopes);
+    $input_scope_array = explode(' ', $requested_scope);
     $valid = TRUE;
-    foreach ($input_scopes_array as $s) {
+    foreach ($input_scope_array as $s) {
       if ($s == 'openid') {
         continue;
       }
-      if (!in_array($s, $allowed_scopes)) {
+      if (!in_array($s, $allowed_scope)) {
         $valid = FALSE;
         break;
       }

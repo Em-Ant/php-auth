@@ -3,6 +3,7 @@
 namespace AuthServer\Models;
 
 use DateTime;
+use DateTimeZone;
 
 class Login implements \JsonSerializable
 {
@@ -11,7 +12,7 @@ class Login implements \JsonSerializable
   private string $client_id;
   private string $state;
   private string $nonce;
-  private string $scopes;
+  private string $scope;
   private string $redirect_uri;
   private string $response_mode;
   private DateTime $created_at;
@@ -26,11 +27,11 @@ class Login implements \JsonSerializable
     string $client_id,
     string $state,
     string $nonce,
-    string $scopes,
+    string $scope,
     string $redirect_uri,
     string $response_mode,
-    ?string $session_id,
     ?string $created_at,
+    ?string $session_id,
     ?string $authenticated_at,
     ?string $code,
     ?string $updated_at,
@@ -42,18 +43,19 @@ class Login implements \JsonSerializable
     $this->client_id = $client_id;
     $this->state = $state;
     $this->nonce = $nonce;
-    $this->scopes = $scopes;
+    $this->scope = $scope;
     $this->redirect_uri = $redirect_uri;
     $this->response_mode = $response_mode;
     $this->code = $code;
     $this->refresh_token = $refresh_token;
+    $utc = new DateTimeZone('UTC');
     $this->created_at = is_null($created_at) ?
       date_create() :
-      \DateTime::createFromFormat('Y-m-d H:i:s', $created_at);
+      \DateTime::createFromFormat('Y-m-d H:i:s', $created_at, $utc);
     $this->updated_at =
-      \DateTime::createFromFormat('Y-m-d H:i:s', $updated_at) ?: null;
+      \DateTime::createFromFormat('Y-m-d H:i:s', $updated_at, $utc) ?: null;
     $this->authenticated_at =
-      \DateTime::createFromFormat('Y-m-d H:i:s', $authenticated_at) ?: null;
+      \DateTime::createFromFormat('Y-m-d H:i:s', $authenticated_at, $utc) ?: null;
     $this->status = is_null($status) ? '' : $status;
   }
 
@@ -77,9 +79,9 @@ class Login implements \JsonSerializable
   {
     return $this->nonce;
   }
-  public function get_scopes(): string
+  public function get_scope(): string
   {
-    return $this->scopes;
+    return $this->scope;
   }
   public function get_redirect_uri(): string
   {
@@ -89,11 +91,11 @@ class Login implements \JsonSerializable
   {
     return $this->response_mode;
   }
-  public function get_code(): string
+  public function get_code(): ?string
   {
     return $this->code;
   }
-  public function get_refresh_token(): string
+  public function get_refresh_token(): ?string
   {
     return $this->refresh_token;
   }

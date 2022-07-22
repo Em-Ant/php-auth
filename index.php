@@ -9,6 +9,7 @@ use AuthServer\Lib\Router;
 use AuthServer\Middleware\RealmProvider;
 use AuthServer\Repositories\DataSource;
 use AuthServer\Repositories\ClientRepository;
+use AuthServer\Repositories\LoginRepository;
 use AuthServer\Repositories\RealmRepository;
 use AuthServer\Repositories\SessionRepository;
 use AuthServer\Repositories\UserRepository;
@@ -23,6 +24,7 @@ require_once 'src/controllers/authorize.php';
 require_once 'src/repositories/data_source.php';
 require_once 'src/repositories/client_repository.php';
 require_once 'src/repositories/session_repository.php';
+require_once 'src/repositories/login_repository.php';
 require_once 'src/repositories/user_repository.php';
 require_once 'src/repositories/realm_repository.php';
 require_once 'src/services/authorize_service.php';
@@ -44,6 +46,7 @@ $secrets_service = new SecretsService();
 
 $client_repo = new ClientRepository(DataSource::getInstance());
 $session_repo = new SessionRepository(DataSource::getInstance());
+$login_repo = new LoginRepository(DataSource::getInstance());
 $user_repo = new UserRepository(DataSource::getInstance());
 $realm_repo = new RealmRepository(DataSource::getInstance());
 $realm_provider = new RealmProvider($realm_repo);
@@ -52,7 +55,7 @@ $auth_service = new AuthorizeService(
   $client_repo,
   $session_repo,
   $user_repo,
-  null,
+  $login_repo,
   $secrets_service,
   $token_service,
   $logger

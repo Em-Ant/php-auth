@@ -13,7 +13,7 @@ class Realm implements \JsonSerializable
   private int $authenticated_login_expires_in;
   private int $session_expires_in;
   private int $idle_session_expires_in;
-  private array $scopes;
+  private array $scope;
   private \DateTime $created_at;
 
 
@@ -27,21 +27,22 @@ class Realm implements \JsonSerializable
     int $authenticated_login_expires_in,
     int $session_expires_in,
     int $idle_session_expires_in,
-    string $scopes,
+    string $scope,
     string $created_at
   ) {
     $this->id = $id;
     $this->name = $name;
-    $this->keys = $keys_id;
+    $this->keys_id = $keys_id;
     $this->refresh_token_expires_in = $refresh_token_expires_in;
     $this->access_token_expires_in = $access_token_expires_in;
     $this->pending_login_expires_in = $pending_login_expires_in;
     $this->authenticated_login_expires_in = $authenticated_login_expires_in;
     $this->session_expires_in = $session_expires_in;
     $this->idle_session_expires_in = $idle_session_expires_in;
-    $this->scopes = explode(' ', $scopes);
+    $this->scope = explode(' ', $scope);
+    $utc = new \DateTimeZone('UTC');
     $this->created_at =
-      \DateTime::createFromFormat('Y-m-d H:i:s', $created_at);
+      \DateTime::createFromFormat('Y-m-d H:i:s', $created_at, $utc);
   }
 
   public function get_id()
@@ -80,9 +81,9 @@ class Realm implements \JsonSerializable
   {
     return $this->idle_session_expires_in;
   }
-  public function get_scopes(): array
+  public function get_scope(): array
   {
-    return $this->scopes;
+    return $this->scope;
   }
   public function get_created_at(): \DateTime
   {

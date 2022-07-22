@@ -48,7 +48,7 @@ class RealmRepository implements IRepo
         (int) $r['authenticated_login_expires_in'],
         (int) $r['session_expires_in'],
         (int) $r['idle_session_expires_in'],
-        $r['scopes'],
+        $r['scope'],
         $r['created_at']
       );
     } catch (\PDOException $e) {
@@ -84,7 +84,7 @@ class RealmRepository implements IRepo
         (int) $r['authenticated_login_expires_in'],
         (int) $r['session_expires_in'],
         (int) $r['idle_session_expires_in'],
-        $r['scopes'],
+        $r['scope'],
         $r['created_at']
       );
     } catch (\PDOException $e) {

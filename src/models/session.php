@@ -27,11 +27,12 @@ class Session implements \JsonSerializable
     $this->realm_id = $realm_id;
     $this->acr = $acr;
     $this->user_id = $user_id;
+    $utc = new \DateTimeZone('UTC');
     $this->created_at = is_null($created_at) ?
       date_create() :
-      \DateTime::createFromFormat('Y-m-d H:i:s', $created_at);
+      \DateTime::createFromFormat('Y-m-d H:i:s', $created_at, $utc);
     $this->updated_at =
-      \DateTime::createFromFormat('Y-m-d H:i:s', $updated_at) ?: null;
+      \DateTime::createFromFormat('Y-m-d H:i:s', $updated_at, $utc) ?: null;
     $this->status = is_null($status) ? 'ACTIVE' : $status;
   }
 

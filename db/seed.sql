@@ -8,7 +8,7 @@ INSERT INTO realms (
     'authenticated_login_expires_in',
     'session_expires_in',
     'idle_session_expires_in',
-    'scopes'
+    'scope'
   )
 values(
     '84be68b8-7936-4422-bb4d-b741d2292a9f',
@@ -26,7 +26,7 @@ INSERT INTO users (
     'name',
     'email',
     'password',
-    'scopes',
+    'scope',
     'id',
     'realm_id'
   )
@@ -53,6 +53,6 @@ values(
     /* plain client_id = c_id */
     '$2y$10$jeRBi.jzl05D2bulVLI6zeY2BZYSGonKEY1UlEERVGpqT7peJAI.6',
     'http://localhost:4200',
-    'FALSE',
+    FALSE,
     '84be68b8-7936-4422-bb4d-b741d2292a9f'
   );
