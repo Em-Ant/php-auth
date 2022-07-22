@@ -190,6 +190,7 @@ class Authorize
     $id_token = $query['id_token_hint'];
     try {
       $this->auth_service->logout($id_token, $realm);
+      $this->delete_session_cookie($realm);
       header("location: $redirect", true, 302);
       die();
     } catch (InvalidInputException $e) {
@@ -247,6 +248,22 @@ class Authorize
 
     setcookie('AUTH_SESSION', "$realm_name\\$session_id", [
       'expires' => time() + $realm->get_session_expires_in(),
+      'path' => "$mount_path/realms/$realm_name",
+      'domain' => $_SERVER['SERVER_NAME'],
+      'httponly' => true,
+      'secure' => true,
+      'samesite' => 'None',
+    ]);
+  }
+
+
+  private function delete_session_cookie(Realm $realm)
+  {
+    $realm_name = $realm->get_name();
+    $mount_path = $this->mount_path ?: '';
+
+    setcookie('AUTH_SESSION', "", [
+      'expires' => 1,
       'path' => "$mount_path/realms/$realm_name",
       'domain' => $_SERVER['SERVER_NAME'],
       'httponly' => true,
