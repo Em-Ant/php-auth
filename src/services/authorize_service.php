@@ -201,9 +201,9 @@ class AuthorizeService
 
 
   public function authenticate_login(
-    User $user,
     string $login_id,
-    string $realm_id
+    User $user,
+    Realm $realm
   ): array {
     $this->logger->info("authenticating user for login $login_id");
 
@@ -212,13 +212,15 @@ class AuthorizeService
       throw new StorageErrorException("unable to find login $login_id");
     }
 
+    $this->check_login_expiration($login, $realm);
+
     $scopes = $login->get_scopes();
     if (!self::validate_scopes($user->get_scopes(), $scopes)) {
       throw new CriticalLoginErrorException('invalid user scopes');
     }
 
     $session = $this->session_repository->create(
-      $realm_id,
+      $realm->get_id(),
       $user->get_id(),
       '0'
     );
@@ -271,12 +273,14 @@ class AuthorizeService
       case 'authorization_code':
         return $this->get_tokens_by_code(
           $code,
+          $realm,
           $client
         );
       case 'refresh_token':
         $this->logger->info("generating tokens from refresh token");
         return $this->get_tokens_by_refresh_token(
           $refresh_token,
+          $realm,
           $client
         );
       default:
@@ -286,10 +290,11 @@ class AuthorizeService
   }
 
   public function logout(
-    string $id_token
+    string $id_token,
+    Realm $realm
   ): bool {
     $this->logger->info("logging out for id token");
-    $token_valid = $this->token_service->validateToken($id_token);
+    $token_valid = $this->token_service->validateToken($id_token, $realm);
     if (!$token_valid) {
       throw new InvalidInputException('invalid id_token');
     }
@@ -320,23 +325,32 @@ class AuthorizeService
 
   private function get_tokens_by_code(
     string $code,
+    Realm $realm,
     Client $client
   ): array {
-    /*
     $this->logger->info("generating tokens from authorization code $code");
-    $session = $this->session_repository->find_by_code($code);
-    if ($session === null) {
+    $login = $this->login_repository->find_by_code($code);
+    if ($login === null) {
       $this->logger->error("invalid authorization code");
       throw new InvalidInputException('invalid code');
     }
-    if ($session->get_status() != 'AUTHENTICATED') {
+    if ($login->get_status() != 'AUTHENTICATED') {
       $this->logger->error("code $code is expired");
       throw new InvalidInputException('code is expired');
     }
 
+    $this->check_login_expiration($login, $realm);
+
+    $session_id = $login->get_session_id();
+    $session = $this->session_repository->find_by_id($session_id);
+    if ($session == null) {
+      throw new StorageErrorException("invalid session $session_id");
+    }
+
     $this->check_session_expiration(
       $session,
-      $this->authenticated_session_expires_in_seconds
+      $realm->get_session_expires_in(),
+      $realm->get_idle_session_expires_in()
     );
 
     $user = $this->user_repository->find_by_id($session->get_user_id());
@@ -345,79 +359,114 @@ class AuthorizeService
     }
 
     $token_bundle = $this->token_service->createTokenBundle(
+      $realm,
       $session,
+      $login,
       $client,
-      $user,
-      $this->access_token_expires_in_seconds,
-      $this->refresh_token_expires_in_seconds,
-      '1'
+      $user
     );
 
-    $updated_session = $this->session_repository->setActive(
-      $session->get_id(),
+    $login_id = $login->get_id();
+    $ok = $this->login_repository->set_active(
+      $login_id,
       $token_bundle['refresh_token']
     );
-    if (!$updated_session) {
-      throw new StorageErrorException('error updating session');
+    if (!$ok) {
+      throw new StorageErrorException(
+        "error setting login $login_id to active"
+      );
+    }
+    $ok = $this->session_repository->refresh(
+      $session_id
+    );
+    if (!$ok) {
+      throw new StorageErrorException(
+        "error refreshing session $session_id"
+      );
     }
 
     return $token_bundle;
-    */
-    return [];
   }
 
   private function get_tokens_by_refresh_token(
     string $refresh_token,
+    Realm $realm,
     Client $client
   ): array {
-    /*
     $this->logger->info("generating tokens from refresh token");
 
-    $session = $this->session_repository->find_by_refresh_token($refresh_token);
-
-    if ($session === null) {
-      throw new InvalidInputException('invalid refresh_token');
+    $login = $this->login_repository->find_by_refresh_token($refresh_token);
+    if ($login === null) {
+      $this->logger->error("invalid authorization code");
+      throw new InvalidInputException('invalid code');
     }
-    $session_id = $session->get_id();
-    $this->logger->info("session $session_id found for refresh token");
+    if ($login->get_status() != 'ACTIVE') {
+      $this->logger->error("login is in invalid status");
+      throw new InvalidInputException('code is expired');
+    }
+    $login_id = $login->get_id();
+
+    $this->check_login_expiration($login, $realm);
 
     $expired = $this->token_service->tokenIsExpired($refresh_token);
     if ($expired) {
-      $ok = $this->session_repository->set_expired($session_id);
+      $ok = $this->login_repository->set_expired($login_id);
       if (!$ok) {
-        $this->logger->error("unable to set session $session_id to expired");
+        $this->logger->error("unable to set session $login_id to expired");
         throw new StorageErrorException('unable to set session to expired');
       }
       throw new InvalidInputException('refresh_token is expired');
+    }
+
+    $session_id = $login->get_session_id();
+    $session = $this->session_repository->find_by_id($session_id);
+    if ($session == null) {
+      throw new StorageErrorException("invalid session $session_id");
     }
     if ($session->get_status() != 'ACTIVE') {
       $this->logger->error("invalid status for session $session_id - not active");
       throw new InvalidInputException('invalid session status');
     }
+
+    $this->check_session_expiration(
+      $session,
+      $realm->get_session_expires_in(),
+      $realm->get_idle_session_expires_in()
+    );
+
     $user = $this->user_repository->find_by_id($session->get_user_id());
     if ($user == null) {
-      $this->logger->error("active $session_id not found");
+      $this->logger->error("invalid user for active session $session_id");
       throw new StorageErrorException('invalid session');
     }
+
     $token_bundle = $this->token_service->createTokenBundle(
+      $realm,
       $session,
+      $login,
       $client,
-      $user,
-      $this->access_token_expires_in_seconds,
-      $this->refresh_token_expires_in_seconds,
-      '1'
+      $user
     );
-    $updated_session = $this->session_repository->updateRefreshToken(
-      $session_id,
+
+    $ok = $this->login_repository->refresh(
+      $login_id,
       $token_bundle['refresh_token']
     );
-    if (!$updated_session) {
-      $this->logger->error("could not update session $session_id with refresh token");
-      throw new StorageErrorException('error updating session');
+    if (!$ok) {
+      throw new StorageErrorException(
+        "error refreshing login $login_id"
+      );
     }
+    $ok = $this->session_repository->refresh(
+      $session_id
+    );
+    if (!$ok) {
+      throw new StorageErrorException(
+        "error refreshing session $session_id"
+      );
+    }
+
     return $token_bundle;
-    */
-    return [];
   }
 
   private function ensure_valid_client(
@@ -434,6 +483,54 @@ class AuthorizeService
     return $client;
   }
 
+  private function check_login_expiration(
+    Login $login,
+    Realm $realm
+  ) {
+    $login_id = $login->get_id();
+    $status = $login->get_status();
+    $this->logger->info(
+      "checking expiration for login $login_id in status $status"
+    );
+
+    $is_expired = true;
+    switch ($login->get_status()) {
+      case 'PENDING':
+        $interval = $realm->get_pending_login_expires_in();
+        $is_expired = $login->get_created_at()->add(
+          new \DateInterval("PT{$interval}S")
+        ) > new DateTime();
+        break;
+      case 'AUTHENTICATED':
+        $interval = $realm->get_authenticated_login_expires_in();
+        $is_expired = $login->get_authenticated_at()->add(
+          new \DateInterval("PT{$interval}S")
+        ) > new DateTime();
+        break;
+      case 'ACTIVE':
+        $interval = $realm->get_refresh_token_expires_in();
+        $is_expired = $login->get_updated_at()->add(
+          new \DateInterval("PT{$interval}S")
+        ) > new DateTime();
+        break;
+      default:
+        $is_expired = true;
+    }
+
+    if ($is_expired) {
+      $this->logger->info(
+        "login $login_id in status $status expired"
+      );
+      $ok = $this->login_repository->set_expired($login_id);
+      if (!$ok) {
+        throw new StorageErrorException(
+          "unable to set login $login_id to expired"
+        );
+      }
+      throw new InvalidInputException("$status login expired");
+    }
+  }
+
   private function check_session_expiration(
     Session $session,
     int $exp_in_s,
@@ -441,7 +538,7 @@ class AuthorizeService
     ?string $msg = 'session expired'
   ): void {
     $session_id = $session->get_id();
-    $this->logger->info("checking expiration fpr $session_id (valid: $exp_in_s s)");
+    $this->logger->info("checking expiration for $session_id (valid: $exp_in_s s)");
 
     $is_expired = $session->get_created_at()->add(
       new \DateInterval("PT{$exp_in_s}S")

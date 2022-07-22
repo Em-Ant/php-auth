@@ -47,4 +47,8 @@ interface LoginRepository
     string $id,
     string $token
   ): bool;
+
+  public function set_expired(
+    string $id
+  ): bool;
 }

@@ -18,14 +18,19 @@ require_once 'src/exceptions/critical_login_error_exception.php';
 class Authorize
 {
   private AuthorizeService $auth_service;
+  private string $issuer;
+  private string $mount_path;
 
   const INVALID_REQUEST = 'Invalid request';
 
   public function __construct(
-    // AuthorizeService $service
-  )
-  {
-    //$this->auth_service = $service;
+    AuthorizeService $service,
+    string $issuer,
+    string $mount_path
+  ) {
+    $this->auth_service = $service;
+    $this->issuer = $issuer;
+    $this->mount_path = $mount_path;
   }
 
   public function authorize(array $ctx)
@@ -79,7 +84,7 @@ class Authorize
       Utils::server_error(self::INVALID_REQUEST, $e->getMessage(), 400);
     } catch (CriticalLoginErrorException $e) {
       $message = $e->getMessage();
-      $sub = $GLOBALS['sub_path'] ?: '';
+      $sub = $this->mount_path ?: '';
       header("location: $sub/error?e=$message", true, 302);
     }
   }
@@ -120,7 +125,7 @@ class Authorize
       $data = $this->auth_service->authenticate_login(
         $result['user'],
         $login_id,
-        $realm->get_id()
+        $realm
       );
 
       $session_id = (string) $data['session']->get_id();
@@ -174,11 +179,13 @@ class Authorize
 
   public function logout(array $ctx)
   {
+    /** @var Realm */
+    $realm = $ctx['realm'];
     $query = $ctx['query'];
     $redirect = $query['post_logout_redirect_uri'];
     $id_token = $query['id_token_hint'];
     try {
-      $this->auth_service->logout($id_token);
+      $this->auth_service->logout($id_token, $realm);
       header("location: $redirect", true, 302);
       die();
     } catch (InvalidInputException $e) {
@@ -186,7 +193,7 @@ class Authorize
     }
   }
 
-  public static function send_keys(array $ctx)
+  public function send_keys(array $ctx)
   {
     /** @var Realm */
     $realm = $ctx['realm'];
@@ -198,15 +205,13 @@ class Authorize
     die();
   }
 
-  public static function send_config(string $issuer)
+  public function send_config()
   {
-    return function () use ($issuer) {
-      $data = file_get_contents('./static/well-known.json', true);
-      header('Content-Type: application/json; charset=utf-8');
-      Utils::enable_cors();
-      echo str_replace('<<ISSUER>>', $issuer, $data);
-      die();
-    };
+    $data = file_get_contents('./static/well-known.json', true);
+    header('Content-Type: application/json; charset=utf-8');
+    Utils::enable_cors();
+    echo str_replace('<<ISSUER>>', $this->issuer, $data);
+    die();
   }
 
   private static function get_session_id_from_cookie(
