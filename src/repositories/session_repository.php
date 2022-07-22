@@ -46,7 +46,88 @@ class SessionRepository implements IRepo
     }
   }
 
-  public function find_by_code(string $code): ?Session
+  public function create(
+    string $realm_id,
+    string $user_id,
+    string $acr
+  ): ?Session {
+    try {
+      $uid = Utils::get_guid();
+
+      $q = $this->db->prepare(
+        "INSERT INTO sessions (
+          'id', 'realm_id', 'user_id', 'acr'
+        ) VALUES (:id, :realm_id, :user_id, :acr)"
+      );
+
+      $q->bindValue(':id', $uid);
+      $q->bindValue(':realm_id', $realm_id);
+      $q->bindValue(':user_id', $user_id);
+      $q->bindValue(':acr', $acr);
+
+      $q->execute();
+
+      return $this->find_by_id($uid);
+    } catch (\PDOException $e) {
+      error_log($e->getMessage());
+      return null;
+    }
+  }
+
+  public function refresh(
+    string $id
+  ): bool {
+    try {
+      $q = $this->db->prepare(
+        "UPDATE sessions 
+      SET updated_at=:updated_at
+      WHERE id=:id"
+      );
+      $q->bindValue(':updated_at', gmdate('Y-m-d H:i:s'));
+      $q->bindValue(':id', $id);
+
+      return $q->execute();
+    } catch (\PDOException $e) {
+      error_log($e->getMessage());
+      return false;
+    }
+  }
+
+  public function set_expired(
+    string $id
+  ): bool {
+    try {
+      $q = $this->db->prepare(
+        "UPDATE sessions 
+      SET status='EXPIRED' 
+      WHERE id = :id"
+      );
+      $q->bindValue(':id', $id);
+
+      return $q->execute();
+    } catch (\PDOException $e) {
+      error_log($e->getMessage());
+      return false;
+    }
+  }
+
+  private static function build_from_data(array $r): Session
+  {
+    return new Session(
+      $r['id'],
+      $r['realm_id'],
+      $r['user_id'],
+      $r['acr'],
+      $r['created_at'],
+      $r['updated_at'],
+      $r['status']
+    );
+  }
+}
+
+  /*
+
+    public function find_by_code(string $code): ?Session
   {
     try {
       $statement = $this->db->prepare(
@@ -92,60 +173,6 @@ class SessionRepository implements IRepo
     }
   }
 
-  public function createPending(
-    string $client_id,
-    string $state,
-    string $nonce,
-    string $redirect_uri
-  ): ?Session {
-    try {
-      $uid = Utils::get_guid();
-
-      $q = $this->db->prepare(
-        "INSERT INTO sessions (
-          'id', 'client_id', 'state', 'nonce', 'session_state','redirect_uri'
-        ) VALUES (:id, :client_id, :state, :nonce, :session_state, :redirect_uri)"
-      );
-
-      $q->bindValue(':id', $uid);
-      $q->bindValue(':client_id', $client_id);
-      $q->bindValue(':state', $state);
-      $q->bindValue(':nonce', $nonce);
-      $q->bindValue(':session_state', Utils::get_guid());
-      $q->bindValue(':redirect_uri', $redirect_uri);
-
-      $q->execute();
-
-      return $this->find_by_id($uid);
-    } catch (\PDOException $e) {
-      error_log($e->getMessage());
-      return null;
-    }
-  }
-
-  public function setAuthenticated(
-    string $id,
-    string $user_id,
-    string $code
-  ): bool {
-    try {
-      $q = $this->db->prepare(
-        "UPDATE sessions 
-      SET user_id=:user_id, code=:code, authenticated_at=:auth_time, status='AUTHENTICATED'
-      WHERE id=:id"
-      );
-      $q->bindValue(':user_id', $user_id);
-      $q->bindValue(':code', $code);
-      $q->bindValue(':auth_time', date_create()->format('Y-m-d H:i:s'));
-      $q->bindValue(':id', $id);
-
-      return $q->execute();
-    } catch (\PDOException $e) {
-      error_log($e->getMessage());
-      return false;
-    }
-  }
-
   public function setActive(
     string $id,
     string $refresh_token
@@ -157,24 +184,6 @@ class SessionRepository implements IRepo
       WHERE id = :id"
       );
       $q->bindValue(':refresh_token', $refresh_token);
-      $q->bindValue(':id', $id);
-
-      return $q->execute();
-    } catch (\PDOException $e) {
-      error_log($e->getMessage());
-      return false;
-    }
-  }
-
-  public function setExpired(
-    string $id
-  ): bool {
-    try {
-      $q = $this->db->prepare(
-        "UPDATE sessions 
-      SET status='EXPIRED' 
-      WHERE id = :id"
-      );
       $q->bindValue(':id', $id);
 
       return $q->execute();
@@ -203,22 +212,4 @@ class SessionRepository implements IRepo
       return false;
     }
   }
-
-  private static function build_from_data(array $r): Session
-  {
-    return new Session(
-      $r['id'],
-      $r['client_id'],
-      $r['state'],
-      $r['nonce'],
-      $r['session_state'],
-      $r['redirect_uri'],
-      $r['refresh_token'],
-      $r['user_id'],
-      $r['code'],
-      $r['created_at'],
-      $r['authenticated_at'],
-      $r['status'],
-    );
-  }
-}
+  */

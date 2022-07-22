@@ -72,7 +72,7 @@
     "normal"
   ],
   "claims_parameter_supported": false,
-  "scopes_supported": [
+  "scope_supported": [
     "openid",
     "profile",
     "user",

@@ -6,7 +6,7 @@
 *~
 
 # env file
-server.env
+config.ini
 
 # linter cache
 *.cache

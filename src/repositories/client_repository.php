@@ -39,10 +39,11 @@ class ClientRepository implements IRepo
 
       return new Client(
         $r['id'],
-        $r['client_id'],
+        $r['name'],
+        $r['realm_id'],
         $r['client_secret'],
-        $r['scopes'],
         $r['uri'],
+        $r['require_auth'],
         $r['created_at']
       );
     } catch (\PDOException $e) {
@@ -51,14 +52,14 @@ class ClientRepository implements IRepo
     }
   }
 
-  public function find_by_client_id(string $client_id): ?Client
+  public function find_by_name(string $name): ?Client
   {
     try {
 
       $statement = $this->db->prepare(
-        "SELECT * FROM clients WHERE client_id = :id"
+        "SELECT * FROM clients WHERE name = :name"
       );
-      $statement->bindValue(':id', $client_id);
+      $statement->bindValue(':name', $name);
 
       $statement->execute();
 
@@ -70,10 +71,11 @@ class ClientRepository implements IRepo
 
       return new Client(
         $r['id'],
-        $r['client_id'],
+        $r['name'],
+        $r['realm_id'],
         $r['client_secret'],
-        $r['scopes'],
         $r['uri'],
+        (bool) $r['require_auth'],
         $r['created_at']
       );
     } catch (\PDOException $e) {

@@ -38,9 +38,11 @@ class UserRepository implements IUser
 
       return new User(
         $r['id'],
+        $r['realm_id'],
+        $r['name'],
         $r['email'],
         $r['password'],
-        $r['scopes'],
+        $r['scope'],
         $r['created_at'],
         $r['valid'] == 'TRUE'
       );
@@ -68,9 +70,11 @@ class UserRepository implements IUser
 
       return new User(
         $r['id'],
+        $r['realm_id'],
+        $r['name'],
         $r['email'],
         $r['password'],
-        $r['scopes'],
+        $r['scope'],
         $r['created_at'],
         $r['valid'] == 'TRUE'
       );

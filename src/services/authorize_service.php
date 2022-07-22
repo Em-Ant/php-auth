@@ -7,12 +7,15 @@ use AuthServer\Exceptions\StorageErrorException;
 use AuthServer\Exceptions\CriticalLoginErrorException;
 
 use AuthServer\Interfaces\ClientRepository as IClientRepo;
-use AuthServer\Interfaces\Logger;
 use AuthServer\Interfaces\SessionRepository as ISessionRepo;
 use AuthServer\Interfaces\UserRepository as IUserRepo;
+use AuthServer\Interfaces\LoginRepository as ILoginRepo;
 
-use AuthServer\Lib\Utils;
+use AuthServer\Interfaces\Logger;
+
 use AuthServer\Models\Client;
+use AuthServer\Models\Login;
+use AuthServer\Models\Realm;
 use AuthServer\Models\Session;
 use AuthServer\Models\User;
 use DateTime;
@@ -24,6 +27,8 @@ require_once 'src/exceptions/critical_login_error_exception.php';
 require_once 'src/interfaces/client_repository.php';
 require_once 'src/interfaces/session_repository.php';
 require_once 'src/interfaces/user_repository.php';
+require_once 'src/interfaces/login_repository.php';
+
 require_once 'src/interfaces/logger.php';
 
 require_once 'src/services/secrets_service.php';
@@ -34,66 +39,134 @@ class AuthorizeService
   private IClientRepo $client_repository;
   private ISessionRepo $session_repository;
   private IUserRepo $user_repository;
+  private ILoginRepo $login_repository;
   private SecretsService $secrets_service;
   private TokenService $token_service;
-
-  private int $pending_session_expires_in_seconds;
-  private int $authenticated_session_expires_in_seconds;
-  private int $access_token_expires_in_seconds;
-  private int $refresh_token_expires_in_seconds;
   private Logger $logger;
 
   public function __construct(
     IClientRepo $client_repo,
     ISessionRepo $session_repo,
     IUserRepo $user_repo,
+    ILoginRepo $login_repo,
     SecretsService $secrets_service,
     TokenService $token_service,
-    array $expiration_config,
     Logger $logger
   ) {
     $this->client_repository = $client_repo;
     $this->session_repository = $session_repo;
     $this->user_repository = $user_repo;
+    $this->login_repository = $login_repo;
     $this->secrets_service = $secrets_service;
     $this->token_service = $token_service;
-    $this->pending_session_expires_in_seconds =
-      $expiration_config['pending_session_expires_in_seconds'];
-    $this->authenticated_session_expires_in_seconds =
-      $expiration_config['authenticated_session_expires_in_seconds'];
-    $this->access_token_expires_in_seconds =
-      $expiration_config['access_token_expires_in_seconds'];
-    $this->refresh_token_expires_in_seconds =
-      $expiration_config['refresh_token_expires_in_seconds'];
     $this->logger = $logger;
   }
 
-  public function create_session(array $query): string
-  {
-    $client_id = $query['client_id'];
-    $this->logger->info("start initializing session for client $client_id");
+  public function validate_required_login_scope(
+    array $realm_allowed_scope,
+    string $required_scope
+  ) {
+    if (!self::validate_scope($realm_allowed_scope, $required_scope)) {
+      $this->logger->info(
+        "scope $required_scope not allowed for realm"
+      );
+      throw new InvalidInputException('scope not allowed for realm');
+    }
+  }
+
+  public function initialize_login(
+    array $query
+  ): string {
+    $client_name = $query['client_id'];
+    $this->logger->info("initializing login for client $client_name");
 
     self::validate_query_params($query);
 
-    $client = $this->client_repository->find_by_client_id($client_id);
-    if ($client === null) {
-      $this->logger->error("client matching $client_id not found for realm");
-      throw new InvalidInputException('invalid client id');
-    }
-    self::validate_redirect_uri($client, $query['redirect_uri']);
+    $client = $this->ensure_valid_client($client_name, $query['redirect_uri']);
 
-    if (!self::validate_scopes($client->get_scopes(), $query['scope'])) {
-      throw new InvalidInputException('scopes not allowed for client');
-    }
-
-    $session = $this->create_pending_session(
+    $login = $this->login_repository->create_pending(
       $client->get_id(),
       $query['state'],
       $query['nonce'],
-      $query['redirect_uri']
+      $query['scope'],
+      $query['redirect_uri'],
+      $query['response_mode']
     );
 
-    return $session->get_id();
+    if ($login === null) {
+      throw new StorageErrorException(
+        "unable to create pending login for $client_name"
+      );
+    }
+
+    $this->logger->info("pending login created");
+
+    return $login->get_id();
+  }
+
+  public function ensure_valid_session(
+    string $session_id,
+    int $session_expires_in,
+    int $idle_session_expires_in
+  ): ?Session {
+    $session = $this->session_repository->find_by_id($session_id);
+    if ($session == null || $session->get_status() != 'ACTIVE') {
+      return null;
+    }
+    $ok = $this->check_session_validity(
+      $session,
+      $session_expires_in,
+      $idle_session_expires_in
+    );
+    return $ok ? $session : null;
+  }
+
+  public function create_authorized_login(
+    Session $session,
+    array $query
+  ): Login {
+    $client_name = $query['client_id'];
+    $this->logger->info("initializing login for client $client_name");
+
+    self::validate_query_params($query);
+
+    $client = $this->ensure_valid_client($client_name, $query['redirect_uri']);
+
+    $user_id = $session->get_user_id();
+    $user = $this->user_repository->find_by_id($user_id);
+
+    $session_id = $session->get_id();
+    if ($user == null) {
+      throw new CriticalLoginErrorException(
+        "invalid user $user_id for session $session_id "
+      );
+    }
+    if (!self::validate_scope($user->get_scope(), $query['scope'])) {
+      throw new CriticalLoginErrorException('invalid user scope');
+    }
+
+    $code = $this->secrets_service->generate_code();
+
+    $login = $this->login_repository->create_authenticated(
+      $client->get_id(),
+      $session_id,
+      $query['state'],
+      $query['nonce'],
+      $query['scope'],
+      $query['redirect_uri'],
+      $query['response_mode'],
+      $code
+    );
+
+    if ($login === null) {
+      throw new StorageErrorException(
+        "unable to create authenticated login for session $session_id"
+      );
+    }
+
+    $this->logger->info("authenticated login created");
+
+    return $login;
   }
 
   public function ensure_valid_user_credentials(
@@ -131,63 +204,75 @@ class AuthorizeService
     ];
   }
 
-  public function authenticate(
+
+  public function authenticate_login(
+    string $login_id,
     User $user,
-    string $session_id,
-    string $scopes,
-    string $response_mode
-  ): string {
-    $this->logger->info("authenticating user for session $session_id");
+    Realm $realm
+  ): array {
+    $this->logger->info("authenticating user for login $login_id");
 
-    if (!self::validate_scopes($user->get_scopes(), $scopes)) {
-      throw new CriticalLoginErrorException('invalid user scopes');
-    }
-    $session = $this->session_repository->find_by_id($session_id);
-
-    if ($session == null || $session->get_status() != 'PENDING') {
-      $this->logger->error("could not find a session in PENDING status for $session_id");
-      throw new CriticalLoginErrorException('invalid session - not in PENDING status');
+    $login = $this->login_repository->find_by_id($login_id);
+    if (!$login) {
+      throw new StorageErrorException("unable to find login $login_id");
     }
 
-    $this->check_session_expiration(
-      $session,
-      $this->pending_session_expires_in_seconds
-    );
+    $this->check_login_expiration($login, $realm);
 
-    $ok = $this->session_repository->setAuthenticated(
-      $session_id,
+    $scope = $login->get_scope();
+    if (!self::validate_scope($user->get_scope(), $scope)) {
+      throw new CriticalLoginErrorException('invalid user scope');
+    }
+
+    $session = $this->session_repository->create(
+      $realm->get_id(),
       $user->get_id(),
-      $this->secrets_service->generate_code()
+      '0'
+    );
+    if (!$session) {
+      throw new StorageErrorException(
+        "unable to create new session for login $login_id"
+      );
+    }
+
+    $session_id = $session->get_id();
+    $code = $this->secrets_service->generate_code();
+    $ok = $this->login_repository->set_authenticated(
+      $login_id,
+      $session_id,
+      $code
     );
     if (!$ok) {
-      $this->logger->error("unable to transition $session_id to authenticated");
-      throw new StorageErrorException('unable to update session');
+      throw new StorageErrorException(
+        "unable to authenticate login $login_id"
+      );
     }
 
-    $updated = $this->session_repository->find_by_id($session_id);
-    if (!$updated) {
-      $this->logger->error("unable to find $session_id after transitioning to authenticated");
-      throw new StorageErrorException('unable to find updated session');
-    }
+    $updated = $this->login_repository->find_by_id($login_id);
 
-    return self::get_redirect_uri($updated, $response_mode);
+    return [
+      'login' => $updated,
+      'session' => $session
+    ];
   }
 
-  public function get_tokens(array $params): array
+  public function get_tokens(array $params, Realm $realm): array
   {
     $this->logger->info("generating tokens...");
 
     self::validate_token_params($params);
     extract($params);
 
-    $client = $this->client_repository->find_by_client_id($client_id);
+    $client = $this->client_repository->find_by_name($client_id);
     if ($client === null) {
-      $this->logger->error("$client_id for generating tokens not found");
-      throw new InvalidInputException('invalid client_id');
+      $this->logger->info(
+        "client $client_id not found while generating tokens"
+      );
+      throw new InvalidInputException('invalid client');
     }
 
-    $hashed_secret = $client->get_client_secret();
-    if ($hashed_secret) {
+    if ($client->requires_auth()) {
+      $hashed_secret = $client->get_client_secret();
       $this->logger->info("$client_id requires secret validation");
       $this->validate_client_secret($hashed_secret, $client_secret ?: '');
     }
@@ -198,12 +283,14 @@ class AuthorizeService
       case 'authorization_code':
         return $this->get_tokens_by_code(
           $code,
+          $realm,
           $client
         );
       case 'refresh_token':
         $this->logger->info("generating tokens from refresh token");
         return $this->get_tokens_by_refresh_token(
           $refresh_token,
+          $realm,
           $client
         );
       default:
@@ -212,22 +299,12 @@ class AuthorizeService
     }
   }
 
-  public function get_client_uri(string $client_id)
-  {
-    $this->logger->info("getting uri for client $client_id to enable cors on origin");
-    $client = $this->client_repository->find_by_client_id($client_id);
-    if ($client === null) {
-      $this->logger->error("client $client_id not found");
-      throw new InvalidInputException('invalid client_id');
-    }
-    return $client->get_uri();
-  }
-
   public function logout(
-    string $id_token
+    string $id_token,
+    Realm $realm
   ): bool {
     $this->logger->info("logging out for id token");
-    $token_valid = $this->token_service->validateToken($id_token);
+    $token_valid = $this->token_service->validateToken($id_token, $realm);
     if (!$token_valid) {
       throw new InvalidInputException('invalid id_token');
     }
@@ -236,7 +313,7 @@ class AuthorizeService
 
     $this->logger->info("token contains session id $session_id");
 
-    $ok = $this->session_repository->setExpired($session_id);
+    $ok = $this->session_repository->set_expired($session_id);
     if (!$ok) {
       $this->logger->error("unable to transition $session_id to expired");
       throw new StorageErrorException('unable to update session');
@@ -245,25 +322,50 @@ class AuthorizeService
     return $ok;
   }
 
+  public function get_client_uri(string $client_id)
+  {
+    $this->logger->info("getting uri for client $client_id to enable cors on origin");
+    $client = $this->client_repository->find_by_name($client_id);
+    if ($client === null) {
+      $this->logger->error("client $client_id not found");
+      throw new InvalidInputException('invalid client_id');
+    }
+    return $client->get_uri();
+  }
+
   private function get_tokens_by_code(
     string $code,
+    Realm $realm,
     Client $client
   ): array {
     $this->logger->info("generating tokens from authorization code $code");
-    $session = $this->session_repository->find_by_code($code);
-    if ($session === null) {
+    $login = $this->login_repository->find_by_code($code);
+    if ($login === null) {
       $this->logger->error("invalid authorization code");
       throw new InvalidInputException('invalid code');
     }
-    if ($session->get_status() != 'AUTHENTICATED') {
+    if ($login->get_status() != 'AUTHENTICATED') {
       $this->logger->error("code $code is expired");
       throw new InvalidInputException('code is expired');
     }
 
-    $this->check_session_expiration(
+    $this->check_login_expiration($login, $realm);
+
+    $session_id = $login->get_session_id();
+    $session = $this->session_repository->find_by_id($session_id);
+    if ($session == null) {
+      throw new StorageErrorException("invalid session $session_id");
+    }
+
+    $ok = $this->check_session_validity(
       $session,
-      $this->authenticated_session_expires_in_seconds
+      $realm->get_session_expires_in(),
+      $realm->get_idle_session_expires_in()
     );
+    if (!$ok) {
+      $this->logger->error("session $session_id expired");
+      throw new InvalidInputException('session expired');
+    }
 
     $user = $this->user_repository->find_by_id($session->get_user_id());
     if ($user == null) {
@@ -271,20 +373,30 @@ class AuthorizeService
     }
 
     $token_bundle = $this->token_service->createTokenBundle(
+      $realm,
       $session,
+      $login,
       $client,
-      $user,
-      $this->access_token_expires_in_seconds,
-      $this->refresh_token_expires_in_seconds,
-      '1'
+      $user
     );
 
-    $updated_session = $this->session_repository->setActive(
-      $session->get_id(),
+    $login_id = $login->get_id();
+    $ok = $this->login_repository->set_active(
+      $login_id,
       $token_bundle['refresh_token']
     );
-    if (!$updated_session) {
-      throw new StorageErrorException('error updating session');
+    if (!$ok) {
+      throw new StorageErrorException(
+        "error setting login $login_id to active"
+      );
+    }
+    $ok = $this->session_repository->refresh(
+      $session_id
+    );
+    if (!$ok) {
+      throw new StorageErrorException(
+        "error refreshing session $session_id"
+      );
     }
 
     return $token_bundle;
@@ -292,111 +404,197 @@ class AuthorizeService
 
   private function get_tokens_by_refresh_token(
     string $refresh_token,
+    Realm $realm,
     Client $client
   ): array {
     $this->logger->info("generating tokens from refresh token");
 
-    $session = $this->session_repository->find_by_refresh_token($refresh_token);
-
-    if ($session === null) {
-      throw new InvalidInputException('invalid refresh_token');
+    $login = $this->login_repository->find_by_refresh_token($refresh_token);
+    if ($login === null) {
+      $this->logger->error("invalid refresh token");
+      throw new InvalidInputException('invalid refresh token');
     }
-    $session_id = $session->get_id();
-    $this->logger->info("session $session_id found for refresh token");
+    if ($login->get_status() != 'ACTIVE') {
+      $this->logger->error("login is in invalid status");
+      throw new InvalidInputException('login is expired');
+    }
+    $login_id = $login->get_id();
+
+    $this->check_login_expiration($login, $realm);
 
     $expired = $this->token_service->tokenIsExpired($refresh_token);
     if ($expired) {
-      $ok = $this->session_repository->setExpired($session_id);
+      $ok = $this->login_repository->set_expired($login_id);
       if (!$ok) {
-        $this->logger->error("unable to set session $session_id to expired");
+        $this->logger->error("unable to set session $login_id to expired");
         throw new StorageErrorException('unable to set session to expired');
       }
       throw new InvalidInputException('refresh_token is expired');
+    }
+
+    $session_id = $login->get_session_id();
+    $session = $this->session_repository->find_by_id($session_id);
+    if ($session == null) {
+      throw new StorageErrorException("invalid session $session_id");
     }
     if ($session->get_status() != 'ACTIVE') {
       $this->logger->error("invalid status for session $session_id - not active");
       throw new InvalidInputException('invalid session status');
     }
+
+
+    $ok = $this->check_session_validity(
+      $session,
+      $realm->get_session_expires_in(),
+      $realm->get_idle_session_expires_in()
+    );
+    if (!$ok) {
+      $this->logger->error("session $session_id expired");
+      throw new InvalidInputException('session expired');
+    }
+
     $user = $this->user_repository->find_by_id($session->get_user_id());
     if ($user == null) {
-      $this->logger->error("active $session_id not found");
+      $this->logger->error("invalid user for active session $session_id");
       throw new StorageErrorException('invalid session');
     }
+
     $token_bundle = $this->token_service->createTokenBundle(
+      $realm,
       $session,
+      $login,
       $client,
-      $user,
-      $this->access_token_expires_in_seconds,
-      $this->refresh_token_expires_in_seconds,
-      '1'
+      $user
     );
-    $updated_session = $this->session_repository->updateRefreshToken(
-      $session_id,
+
+    $ok = $this->login_repository->refresh(
+      $login_id,
       $token_bundle['refresh_token']
     );
-    if (!$updated_session) {
-      $this->logger->error("could not update session $session_id with refresh token");
-      throw new StorageErrorException('error updating session');
+    if (!$ok) {
+      throw new StorageErrorException(
+        "error refreshing login $login_id"
+      );
     }
+    $ok = $this->session_repository->refresh(
+      $session_id
+    );
+    if (!$ok) {
+      throw new StorageErrorException(
+        "error refreshing session $session_id"
+      );
+    }
+
     return $token_bundle;
   }
 
-  private function create_pending_session(
-    string $client_id,
-    string $state,
-    string $nonce,
+  private function ensure_valid_client(
+    string $client_name,
     string $redirect_uri
-  ): Session {
-    $this->logger->info("creating pending session for client $client_id");
-    $session = $this->session_repository->createPending(
-      $client_id,
-      $state,
-      $nonce,
-      $redirect_uri
-    );
-    if ($session === null) {
-      $this->logger->error("unable to create pending session for client $client_id");
-      throw new StorageErrorException('unable to create session');
+  ) {
+    $client = $this->client_repository->find_by_name($client_name);
+    if ($client === null) {
+      $this->logger->error("client matching $client_name not found for realm");
+      throw new InvalidInputException('invalid client id');
     }
-    $this->logger->info("pending session created");
-    return $session;
+    self::validate_redirect_uri($client, $redirect_uri);
+
+    return $client;
   }
 
-  private function check_session_expiration(
+  private function check_login_expiration(
+    Login $login,
+    Realm $realm
+  ) {
+    $login_id = $login->get_id();
+    $status = $login->get_status();
+    $this->logger->info(
+      "checking expiration for login $login_id in status $status"
+    );
+
+    $now = new DateTime();
+    switch ($login->get_status()) {
+      case 'PENDING':
+        $interval = $realm->get_pending_login_expires_in();
+        $is_expired = $login->get_created_at()->add(
+          new \DateInterval("PT{$interval}S")
+        ) < $now;
+        break;
+      case 'AUTHENTICATED':
+        $interval = $realm->get_authenticated_login_expires_in();
+        $is_expired = $login->get_authenticated_at()->add(
+          new \DateInterval("PT{$interval}S")
+        ) < $now;
+        break;
+      case 'ACTIVE':
+        $interval = $realm->get_refresh_token_expires_in();
+        $is_expired = $login->get_updated_at()->add(
+          new \DateInterval("PT{$interval}S")
+        ) < $now;
+        break;
+      default:
+        $is_expired = true;
+        break;
+    }
+
+    if ($is_expired) {
+      $this->logger->info(
+        "login $login_id in status $status expired"
+      );
+      $ok = $this->login_repository->set_expired($login_id);
+      if (!$ok) {
+        throw new StorageErrorException(
+          "unable to set login $login_id to expired"
+        );
+      }
+      throw new InvalidInputException("$status login expired");
+    }
+  }
+
+  private function check_session_validity(
     Session $session,
     int $exp_in_s,
-    ?string $msg = 'session expired'
-  ): void {
+    int $idle_exp_in_s
+  ): bool {
     $session_id = $session->get_id();
-    $this->logger->info("checking expiration fpr $session_id (valid: $exp_in_s s)");
+    $this->logger->info("checking expiration for $session_id (valid: $exp_in_s s)");
 
-    $interval = "PT{$exp_in_s}S";
+    $now = new DateTime('now', new \DateTimeZone('UTC'));
+    $is_expired = $session->get_created_at()->add(
+      new \DateInterval("PT{$exp_in_s}S")
+    ) < $now;
+
+    $is_idle_for_too_long = $session->get_created_at()->add(
+      new \DateInterval("PT{$idle_exp_in_s}S")
+    ) < $now;
+
     if (
-      $session->get_created_at()->add(
-        new \DateInterval($interval)
-      ) > new DateTime()
+      $is_expired || $is_idle_for_too_long
     ) {
       $this->logger->info("session $session_id expired");
-      $ok = $this->session_repository->setExpired($session_id);
+      $ok = $this->session_repository->set_expired($session_id);
       if (!$ok) {
-        throw new StorageErrorException('unable to set session to expired');
+        throw new StorageErrorException(
+          "unable to $session_id set session to expired"
+        );
+        return false;
       }
-      throw new InvalidInputException($msg);
     }
     $this->logger->info("session $session_id not expired");
+    return true;
   }
 
-  private static function validate_scopes(
-    array $allowed_scopes,
-    string $requested_scopes
+  private static function validate_scope(
+    array $allowed_scope,
+    string $requested_scope
   ): bool {
-    $input_scopes_array = explode(' ', $requested_scopes);
+    $input_scope_array = explode(' ', $requested_scope);
     $valid = TRUE;
-    foreach ($input_scopes_array as $s) {
+    foreach ($input_scope_array as $s) {
       if ($s == 'openid') {
         continue;
       }
-      if (!in_array($s, $allowed_scopes)) {
+      if (!in_array($s, $allowed_scope)) {
         $valid = FALSE;
         break;
       }
@@ -495,32 +693,6 @@ class AuthorizeService
     ) {
       throw new InvalidInputException('invalid client secret');
     }
-  }
-
-  private static function get_redirect_uri(
-    Session $session,
-    string $response_mode
-  ): string {
-    $redirect_uri = $session->get_redirect_uri();
-    $append = '';
-    $char = '';
-    $hash_pos = strpos($redirect_uri, '#');
-
-    if ($response_mode == 'query') {
-      $char = strpos($redirect_uri, '?') ? '&' : '?';
-      if ($hash_pos) {
-        $append = substr($redirect_uri, $hash_pos);
-        $redirect_uri = substr($redirect_uri, 0, $hash_pos);
-      }
-    } else {
-      $char = $hash_pos ? '&' : '#';
-    }
-
-    return $redirect_uri . $char .
-      'code=' . $session->get_code() .
-      '&state=' . $session->get_state() .
-      '&session_state=' . $session->get_session_state() .
-      $append;
   }
 
   private static function str_starts_with(string $haystack, string $needle): bool

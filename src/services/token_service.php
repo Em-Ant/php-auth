@@ -9,6 +9,8 @@ use AuthServer\Models\Client;
 use AuthServer\Models\User;
 
 use AuthServer\Lib\Utils;
+use AuthServer\Models\Login;
+use AuthServer\Models\Realm;
 
 require_once 'src/lib/utils.php';
 require_once 'src/models/session.php';
@@ -18,23 +20,20 @@ require_once 'src/models/user.php';
 
 class TokenService
 {
-  private string $public_key;
-  private string $private_key;
-  private string $keys_id;
   private string $issuer;
 
   function __construct(
-    string $kid,
     string $issuer
   ) {
-    $this->public_key = file_get_contents("keys/$kid/public_key.pem");
-    $this->private_key = file_get_contents("keys/$kid/private_key.pem");
-    $this->keys_id = $kid;
     $this->issuer = $issuer;
   }
 
-  function validateToken(string $token): int
+  function validateToken(string $token, Realm $realm): int
   {
+
+    $kid = $realm->get_keys_id();
+    $public_key = file_get_contents("keys/$kid/public_key.pem");
+
     $t = explode('.', $token);
     $header = json_decode(self::b64UrlDecode($t[0]), true);
 
@@ -48,7 +47,7 @@ class TokenService
     return openssl_verify(
       $data,
       $signature,
-      $this->public_key,
+      $public_key,
       "sha256WithRSAEncryption"
     );
   }
@@ -59,8 +58,9 @@ class TokenService
     return $decoded['exp'] < time();
   }
 
-  function createToken(array $payload): string
+  function createToken(array $payload, $keys_id): string
   {
+    $private_key = file_get_contents("keys/$keys_id/private_key.pem");
 
     $header = json_encode([
       'typ' => 'JWT',
@@ -74,7 +74,7 @@ class TokenService
     openssl_sign(
       $base64UrlHeader . "." . $base64UrlPayload,
       $signature,
-      $this->private_key,
+      $private_key,
       'sha256WithRSAEncryption'
     );
 
@@ -171,134 +171,157 @@ class TokenService
   }
 
   public function createTokenBundle(
+    Realm $realm,
     Session $session,
+    Login $login,
     Client $client,
-    User $user,
-    int $access_token_validity_seconds,
-    int $refresh_token_validity_seconds,
-    ?string $acr = '1'
+    User $user
   ): array {
     $now = time();
+    $kid = $realm->get_keys_id();
     $access_token = $this->createAccessToken(
       $now,
-      $access_token_validity_seconds,
+      $realm->get_access_token_expires_in(),
+      $realm->get_name(),
+      $login,
       $session,
       $client,
       $user,
-      $acr
+      $kid
     );
     $id_token = $this->createIdToken(
       $now,
-      $access_token_validity_seconds,
+      $realm->get_access_token_expires_in(),
+      $realm->get_name(),
+      $login,
       $session,
       $client,
       $user,
       $access_token,
-      $acr
+      $kid
     );
     $refresh_token = $this->createRefreshToken(
       $now,
-      $refresh_token_validity_seconds,
+      $realm->get_refresh_token_expires_in(),
+      $realm->get_name(),
+      $login,
       $session,
       $client,
-      $user
+      $user,
+      $kid
     );
 
     return [
       "access_token" => $access_token,
-      "expires_in" => $access_token_validity_seconds,
-      "refresh_expires_in" => $refresh_token_validity_seconds,
+      "expires_in" => $realm->get_access_token_expires_in(),
+      "refresh_expires_in" => $realm->get_refresh_token_expires_in(),
       "refresh_token" => $refresh_token,
       "token_type" => "Bearer",
       "id_token" => $id_token,
       "not-before-policy" => 0,
-      "session_state" => $session->get_session_state(),
-      "scope" => join(" ", $user->get_scopes()),
+      "session_state" => $session->get_id(),
+      "scope" => join(" ", $user->get_scope()),
     ];
   }
 
   private function createRefreshToken(
     int $now,
     int $validity,
+    $realm_name,
+    Login $login,
     Session $session,
     Client $client,
-    User $user
+    User $user,
+    string $keys_id
   ): string {
     $exp = $now + $validity;
-    return $this->createToken([
-      "exp" => $exp,
-      "iat" => $now,
-      "jti" => Utils::get_guid(),
-      "iss" => $this->issuer,
-      "aud" => $this->issuer,
-      "sub" => $session->get_user_id(),
-      "typ" => "Refresh",
-      "azp" => $client->get_client_id(),
-      "nonce" => $session->get_nonce(),
-      "session_state" => $session->get_session_state(),
-      "scope" => join(" ", $user->get_scopes()),
-      "sid" => $session->get_id()
-    ]);
+    return $this->createToken(
+      [
+        "exp" => $exp,
+        "iat" => $now,
+        "jti" => Utils::get_guid(),
+        "iss" => $this->issuer . "/realms/$realm_name",
+        "aud" => $this->issuer,
+        "sub" => $session->get_user_id(),
+        "typ" => "Refresh",
+        "azp" => $client->get_name(),
+        "nonce" => $login->get_nonce(),
+        "session_state" => $session->get_id(),
+        "scope" => join(" ", $user->get_scope()),
+        "sid" => $session->get_id()
+      ],
+      $keys_id
+    );
   }
 
   private function createAccessToken(
     int $now,
     int $validity,
+    string $realm_name,
+    Login $login,
     Session $session,
     Client $client,
     User $user,
-    ?string $acr = '1'
+    string $keys_id
   ): string {
     $exp = $now + $validity;
-    return $this->createToken([
-      "exp" => $exp,
-      "iat" => $now,
-      "auth_time" => date_timestamp_get($session->get_authenticated_at()),
-      "jti" => Utils::get_guid(),
-      "iss" => $this->issuer,
-      "aud" => $client->get_client_id(),
-      "sub" => $session->get_user_id(),
-      "typ" => "Bearer",
-      "azp" => $client->get_client_id(),
-      "nonce" => $session->get_nonce(),
-      "session_state" => $session->get_session_state(),
-      "acr" => $acr,
-      "allowed-origins" => [
-        $client->get_uri()
+    return $this->createToken(
+      [
+        "exp" => $exp,
+        "iat" => $now,
+        "auth_time" => date_timestamp_get($login->get_authenticated_at()),
+        "jti" => Utils::get_guid(),
+        "iss" => $this->issuer . "/realms/$realm_name",
+        "aud" => $client->get_name(),
+        "sub" => $session->get_user_id(),
+        "typ" => "Bearer",
+        "azp" => $client->get_name(),
+        "nonce" => $login->get_nonce(),
+        "session_state" => $session->get_id(),
+        "acr" => $session->get_acr(),
+        "allowed-origins" => [
+          $client->get_uri()
+        ],
+        "scope" => join(" ", $user->get_scope()),
+        "sid" => $session->get_id(),
+        "preferred_username" => $user->get_name()
       ],
-      "scope" => join(" ", $user->get_scopes()),
-      "sid" => $session->get_id(),
-      "preferred_username" => $user->get_email()
-    ]);
+      $keys_id
+    );
   }
 
   private function createIdToken(
     int $now,
     int $validity,
+    string $realm_name,
+    Login $login,
     Session $session,
     Client $client,
     User $user,
     string $access_token,
-    ?string $acr = '1'
+    string $keys_id
   ): string {
     $exp = $now + $validity;
-    return $this->createToken([
-      "exp" => $exp,
-      "iat" => $now,
-      "auth_time" => date_timestamp_get($session->get_authenticated_at()),
-      "jti" => Utils::get_guid(),
-      "iss" => $this->issuer,
-      "aud" => $client->get_client_id(),
-      "sub" => $session->get_user_id(),
-      "typ" => "ID",
-      "azp" => $client->get_client_id(),
-      "nonce" => $session->get_nonce(),
-      "session_state" => $session->get_session_state(),
-      "at_hash" => md5($access_token),
-      "acr" => $acr,
-      "sid" => $session->get_id(),
-      "preferred_username" => $user->get_email()
-    ]);
+    return $this->createToken(
+      [
+        "exp" => $exp,
+        "iat" => $now,
+        "auth_time" => date_timestamp_get($login->get_authenticated_at()),
+        "jti" => Utils::get_guid(),
+        "iss" => $this->issuer . "/realms/$realm_name",
+        "aud" => $client->get_name(),
+        "sub" => $session->get_user_id(),
+        "typ" => "ID",
+        "azp" => $client->get_name(),
+        "nonce" => $login->get_nonce(),
+        "session_state" => $session->get_id(),
+        "at_hash" => md5($access_token),
+        "acr" => $session->get_acr(),
+        "sid" => $session->get_id(),
+        "preferred_username" => $user->get_email()
+      ],
+      $keys_id
+    );
   }
 
   private static function remove_begin_end(string $pem): string
