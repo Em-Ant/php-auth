@@ -59,7 +59,7 @@ class Authorize
         );
       }
 
-      if ($session) {
+      if (isset($session) && $session != null) {
         $login = $this->auth_service->create_authorized_login(
           $session,
           $query
@@ -222,7 +222,9 @@ class Authorize
   private static function get_session_id_from_cookie(
     string $realm_name
   ): ?string {
-    $session_cookie = $_COOKIE['AUTH_SESSION'];
+    $session_cookie = isset($_COOKIE['AUTH_SESSION'])
+      ? $_COOKIE['AUTH_SESSION']
+      : null;
 
     if (!$session_cookie) {
       return null;

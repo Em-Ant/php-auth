@@ -94,12 +94,13 @@ class AuthorizeService
     );
 
     if ($login === null) {
-      throw new StorageErrorException(
-        "unable to create pending login for $client_name"
-      );
+      $msg = "unable to create pending login for $client_name";
+      $this->logger->error($msg);
+      throw new StorageErrorException($msg);
     }
 
-    $this->logger->info("pending login created");
+    $login_id = $login->get_id();
+    $this->logger->info("pending login $login_id created");
 
     return $login->get_id();
   }
@@ -557,7 +558,7 @@ class AuthorizeService
     int $idle_exp_in_s
   ): bool {
     $session_id = $session->get_id();
-    $this->logger->info("checking expiration for $session_id (valid: $exp_in_s s)");
+    $this->logger->info("checking expiration for session $session_id");
 
     $now = new DateTime('now', new \DateTimeZone('UTC'));
     $is_expired = $session->get_created_at()->add(
@@ -574,13 +575,13 @@ class AuthorizeService
       $this->logger->info("session $session_id expired");
       $ok = $this->session_repository->set_expired($session_id);
       if (!$ok) {
-        throw new StorageErrorException(
-          "unable to $session_id set session to expired"
-        );
+        $msg = "unable to $session_id set session to expired";
+        $this->logger->error($msg);
+        throw new StorageErrorException($msg);
         return false;
       }
     }
-    $this->logger->info("session $session_id not expired");
+    $this->logger->info("session $session_id valid");
     return true;
   }
 

@@ -34,14 +34,24 @@ require_once 'src/middleware/realm_provider.php';
 
 
 $config = parse_ini_file('./config.ini', true);
-$issuer = $config['issuer'] . '/realms/web';
-$sub_path = $config['base_path'];
+$server = $config['server'];
+
+$issuer = $server['issuer'] . '/realms/web';
+$sub_path = $server['base_path'];
 
 $token_service = new TokenService(
   $issuer
 );
 
-$logger = new Logger();
+$log = $config['log'];
+$logger = new Logger(
+  $log['level'],
+  $log['print'],
+  $log['write'],
+  $log['file'],
+  __DIR__
+);
+
 $secrets_service = new SecretsService();
 
 $client_repo = new ClientRepository(DataSource::getInstance());

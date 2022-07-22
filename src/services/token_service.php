@@ -65,7 +65,7 @@ class TokenService
     $header = json_encode([
       'typ' => 'JWT',
       'alg' => 'RS256',
-      'kid' => $this->keys_id
+      'kid' => $keys_id
     ]);
 
     $base64UrlHeader = self::b64UrlEncode($header);
@@ -271,7 +271,7 @@ class TokenService
         "iat" => $now,
         "auth_time" => date_timestamp_get($login->get_authenticated_at()),
         "jti" => Utils::get_guid(),
-        "iss" => $this->issuer . "/realms/$realm_name",
+        "iss" => $this->issuer,
         "aud" => $client->get_name(),
         "sub" => $session->get_user_id(),
         "typ" => "Bearer",
