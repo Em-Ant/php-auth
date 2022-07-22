@@ -5,9 +5,6 @@
 # backups
 *~
 
-# env file
-config.ini
-
 # linter cache
 *.cache
 

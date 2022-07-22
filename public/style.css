@@ -90,6 +90,7 @@ button.unit .icon {
   margin-right: 0;
 }
 button.submit {
+  text-align: center;
   display: block;
   width: 100%;
 }
