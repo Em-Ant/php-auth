@@ -4,7 +4,6 @@ namespace AuthServer\Interfaces;
 
 use AuthServer\Models\Login;
 
-require_once 'src/models/session.php';
 
 interface LoginRepository
 {

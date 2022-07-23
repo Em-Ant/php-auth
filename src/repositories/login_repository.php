@@ -9,9 +9,6 @@ use AuthServer\Lib\Utils;
 use AuthServer\Models\Login;
 use AuthServer\Repositories\DataSource;
 
-require_once 'src/interfaces/login_repository.php';
-require_once 'src/models/login.php';
-require_once 'src/lib/utils.php';
 
 
 class LoginRepository implements IRepo

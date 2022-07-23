@@ -4,7 +4,6 @@ namespace AuthServer\Lib;
 
 use AuthServer\Interfaces\Logger as ILogger;
 
-require_once 'src/interfaces/logger.php';
 
 class Logger implements ILogger
 {

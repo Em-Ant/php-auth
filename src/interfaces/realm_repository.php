@@ -4,7 +4,6 @@ namespace AuthServer\Interfaces;
 
 use AuthServer\Models\Realm;
 
-require_once 'src/models/realm.php';
 
 interface RealmRepository
 {

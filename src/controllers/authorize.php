@@ -11,9 +11,6 @@ use AuthServer\Models\Login;
 use AuthServer\Models\Realm;
 use AuthServer\Services\AuthorizeService;
 
-require_once 'src/lib/utils.php';
-require_once 'src/exceptions/invalid_input_exception.php';
-require_once 'src/exceptions/critical_login_error_exception.php';
 
 class Authorize
 {

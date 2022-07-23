@@ -2,7 +2,7 @@
 @refresh_token=
 @access_token=
 
-@path=http;//localhost:8000
+@path=http://localhost:8000
 @realm=web
 @client_id=test
 @redirect_uri=http://localhost:4200

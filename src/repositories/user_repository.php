@@ -8,8 +8,6 @@ use AuthServer\Interfaces\UserRepository as IUser;
 use AuthServer\Models\User;
 use AuthServer\Repositories\DataSource;
 
-require_once 'src/interfaces/user_repository.php';
-require_once 'src/models/user.php';
 
 class UserRepository implements IUser
 {

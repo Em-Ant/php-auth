@@ -9,9 +9,6 @@ use AuthServer\Lib\Utils;
 use AuthServer\Models\Session;
 use AuthServer\Repositories\DataSource;
 
-require_once 'src/interfaces/session_repository.php';
-require_once 'src/models/session.php';
-require_once 'src/lib/utils.php';
 
 
 class SessionRepository implements IRepo

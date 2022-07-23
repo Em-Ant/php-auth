@@ -4,7 +4,6 @@ namespace AuthServer\Interfaces;
 
 use AuthServer\Models\Client;
 
-require_once 'src/models/client.php';
 
 interface ClientRepository
 {

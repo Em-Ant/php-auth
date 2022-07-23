@@ -6,7 +6,6 @@ namespace AuthServer\Services;
 
 use AuthServer\Lib\Utils;
 
-require_once 'src/lib/utils.php';
 class SecretsService
 {
   static function generate_code(): string

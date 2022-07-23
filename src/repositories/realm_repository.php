@@ -9,8 +9,6 @@ use AuthServer\Models\Realm;
 use AuthServer\Repositories\DataSource;
 use Error;
 
-require_once 'src/interfaces/realm_repository.php';
-require_once 'src/models/realm.php';
 
 
 class RealmRepository implements IRepo

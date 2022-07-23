@@ -12,10 +12,6 @@ use AuthServer\Lib\Utils;
 use AuthServer\Models\Login;
 use AuthServer\Models\Realm;
 
-require_once 'src/lib/utils.php';
-require_once 'src/models/session.php';
-require_once 'src/models/client.php';
-require_once 'src/models/user.php';
 
 
 class TokenService

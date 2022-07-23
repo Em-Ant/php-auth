@@ -8,8 +8,6 @@ use AuthServer\Interfaces\ClientRepository as IRepo;
 use AuthServer\Models\Client;
 use AuthServer\Repositories\DataSource;
 
-require_once 'src/interfaces/client_repository.php';
-require_once 'src/models/client.php';
 
 
 class ClientRepository implements IRepo

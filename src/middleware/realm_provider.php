@@ -5,7 +5,6 @@ namespace AuthServer\Middleware;
 use AuthServer\Interfaces\RealmRepository;
 use AuthServer\Lib\Utils;
 
-require_once 'src/lib/utils.php';
 
 
 class RealmProvider

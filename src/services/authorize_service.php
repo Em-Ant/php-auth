@@ -20,19 +20,9 @@ use AuthServer\Models\Session;
 use AuthServer\Models\User;
 use DateTime;
 
-require_once 'src/exceptions/invalid_input_exception.php';
-require_once 'src/exceptions/storage_error_exception.php';
-require_once 'src/exceptions/critical_login_error_exception.php';
 
-require_once 'src/interfaces/client_repository.php';
-require_once 'src/interfaces/session_repository.php';
-require_once 'src/interfaces/user_repository.php';
-require_once 'src/interfaces/login_repository.php';
 
-require_once 'src/interfaces/logger.php';
 
-require_once 'src/services/secrets_service.php';
-require_once 'src/services/secrets_service.php';
 
 class AuthorizeService
 {

@@ -17,21 +17,7 @@ use AuthServer\Services\AuthorizeService;
 use AuthServer\Services\SecretsService;
 use AuthServer\Services\TokenService;
 
-require_once 'src/lib/router.php';
-require_once 'src/lib/utils.php';
-require_once 'src/lib/logger.php';
-require_once 'src/controllers/authorize.php';
-require_once 'src/repositories/data_source.php';
-require_once 'src/repositories/client_repository.php';
-require_once 'src/repositories/session_repository.php';
-require_once 'src/repositories/login_repository.php';
-require_once 'src/repositories/user_repository.php';
-require_once 'src/repositories/realm_repository.php';
-require_once 'src/services/authorize_service.php';
-require_once 'src/services/secrets_service.php';
-require_once 'src/services/token_service.php';
-require_once 'src/middleware/realm_provider.php';
-
+require 'vendor/autoload.php';
 
 $config = parse_ini_file('./config.ini', true);
 $server = $config['server'];
