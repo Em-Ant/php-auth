@@ -43,7 +43,11 @@ class Logger implements ILogger
       $this->output_streams['stdout'] = fopen('php://stdout', 'wb');
     }
 
-    if (true === $write_log && file_exists($this->log_dir)) {
+    if (
+      true === $write_log &&
+      (file_exists($this->log_dir) || mkdir($this->log_dir))
+    ) {
+
       $log_file_path = implode(DIRECTORY_SEPARATOR, [$this->log_dir, $this->log_file_name]);
       $mode = $this->log_file_append ? "a" : "w";
       $this->output_streams[$log_file_path] = fopen($log_file_path, $mode);

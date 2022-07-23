@@ -48,8 +48,8 @@ $logger = new Logger(
   $log['level'],
   $log['print'],
   $log['write'],
-  $log['file'],
-  __DIR__
+  date('Y-m-d') . '_' . $log['file'],
+  __DIR__ . '/log'
 );
 
 $secrets_service = new SecretsService();

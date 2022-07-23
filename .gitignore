@@ -20,4 +20,5 @@ keys/*
 tools/
 
 # logs
+log/
 *.log

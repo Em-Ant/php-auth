@@ -68,7 +68,7 @@ class AuthorizeService
   ) {
     if (!self::validate_scope($realm_allowed_scope, $required_scope)) {
       $this->logger->info(
-        "scope $required_scope not allowed for realm"
+        "scope '$required_scope' not allowed for realm"
       );
       throw new InvalidInputException('scope not allowed for realm');
     }
@@ -288,7 +288,6 @@ class AuthorizeService
           $client
         );
       case 'refresh_token':
-        $this->logger->info("generating tokens from refresh token");
         return $this->get_tokens_by_refresh_token(
           $refresh_token,
           $realm,
