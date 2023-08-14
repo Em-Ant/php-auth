@@ -323,6 +323,22 @@ class AuthorizeService
     return $client->get_uri();
   }
 
+  public function parse_valid_token(string $token,  Realm $realm): array
+  {
+    $is_valid = $this->token_service->validateToken($token, $realm);
+    $is_expired = $this->token_service->tokenIsExpired($token);
+    if(!$is_valid) {
+      $this->logger->error("invalid token");
+      throw new InvalidInputException('Token verification failed');
+    }
+    if($is_expired) {
+      $this->logger->error("token expired");
+      throw new InvalidInputException('Token is expired');
+    }
+
+    return $this->token_service->decodeTokenPayload($token);
+  }
+
   private function get_tokens_by_code(
     string $code,
     Realm $realm,

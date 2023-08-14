@@ -3,7 +3,7 @@
   "authorization_endpoint": "<<ISSUER>>/protocol/openid-connect/auth",
   "token_endpoint": "<<ISSUER>>/protocol/openid-connect/token",
   "introspection_endpoint": null,
-  "userinfo_endpoint": null,
+  "userinfo_endpoint": "<<ISSUER>>/protocol/openid-connect/userinfo",
   "end_session_endpoint": "<<ISSUER>>/protocol/openid-connect/logout",
   "frontchannel_logout_session_supported": true,
   "frontchannel_logout_supported": true,

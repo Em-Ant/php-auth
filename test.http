@@ -1,8 +1,7 @@
 @code=
 @refresh_token=
-@access_token=
-
-@path=http://localhost:8000
+@access_token=eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImtpZCI6IjMzY2U0MDM2LTBhMzYtNDViOS1iYTc0LTYwODdkMDNjM2IzNSJ9.eyJleHAiOjE2OTIwMjkxMTMsImlhdCI6MTY5MjAyODgxMywiYXV0aF90aW1lIjoxNjkyMDI5MTEzLCJqdGkiOiIwN2NlZjg5Yi1mYzJjLTRjNDYtYWZkNi0wOTY2NTBhZjk0MDkiLCJpc3MiOiJodHRwOlwvXC9sb2NhbGhvc3Q6ODAwMFwvcmVhbG1zXC93ZWIiLCJhdWQiOiJ0ZXN0Iiwic3ViIjoiNTg2ZDdiYjMtZDM4Ni00YjU3LTllOTktYjJhNDYwZjIwYjQ3IiwidHlwIjoiQmVhcmVyIiwiYXpwIjoidGVzdCIsIm5vbmNlIjoiMmQ3NDdmZjItNDk1OC00Zjk2LTkwMDQtOWY0Zjc2ZDIwZjRjIiwic2Vzc2lvbl9zdGF0ZSI6IjFiNmQ2MGIyLTU4ZWItNDllZC1iYjg0LTZkMWE5MTNkNDNjMSIsImFjciI6IjAiLCJhbGxvd2VkLW9yaWdpbnMiOlsiaHR0cDpcL1wvbG9jYWxob3N0OjQyMDAiXSwic2NvcGUiOiJhZG1pbiB1c2VyIiwic2lkIjoiMWI2ZDYwYjItNThlYi00OWVkLWJiODQtNmQxYTkxM2Q0M2MxIiwicHJlZmVycmVkX3VzZXJuYW1lIjoiZW1hbnQifQ.K2WZcMl9ngPzarZPUcMwcOFYj7Iq4uKQkRPb0UghZrm_n0ybftoOVwHRhKomwNmiix-9kqfGovrAyWwuJGvFYzUHA99GoGDr5KwtHHFBfdpn4HcK_otDaaJ6dCin5ly6fzKP7bKC8LuGNgWvBk-na7wwm9r8hCGyLwoxj5tkeJDYEMrDrNMe7JW0IOuphZiwXiVFkDQmVRTOO4_8VoWXDwIxg_-9AeY6_fehEgOulD9ceFhyx4xRgft3MtdyHiys86Wkd6hZAst7dQjuF7M9uzLOIpqvUinEiebQjSgmBRiS1ZzTG5OWrn2WOx6n9B1f4tp7ZGmNcaU-ZCCt58GlRw
+@path=http://localhost:8080
 @realm=web
 @client_id=test
 @redirect_uri=http://localhost:4200
@@ -30,3 +29,10 @@ GET {{path}}/realms/{{realm}}/protocol/openid-connect/certs
 ###
 
 GET {{path}}/realms/{{realm}}/.well-known/openid-configuration
+
+
+###
+
+GET {{path}}/realms/{{realm}}/protocol/openid-connect/userinfo
+Authorization: Bearer {{access_token}}
+

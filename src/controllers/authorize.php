@@ -19,6 +19,8 @@ class Authorize
   private string $mount_path;
 
   const INVALID_REQUEST = 'Invalid request';
+  const INVALID_TOKEN = 'Invalid token';
+
 
   public function __construct(
     AuthorizeService $service,
@@ -307,5 +309,29 @@ class Authorize
       302
     );
     die();
+  }
+
+  public function validate_access_token_middleware(array &$ctx) {
+    /** @var Realm */
+    $realm = $ctx['realm'];  
+
+    $token = '';
+    if (array_key_exists('authorization', $ctx['headers'])) {
+      $token = str_replace('Bearer ', '', $ctx['headers']['authorization']);
+    }
+   
+    try {
+      $ctx['accessTokenParsed'] = $this->auth_service->parse_valid_token($token, $realm);
+    } catch (InvalidInputException $e) {
+      Utils::server_error(self::INVALID_REQUEST, $e->getMessage(), 400);
+    }
+  }
+
+  public function send_user_info(array $ctx) {
+    $token = $ctx['accessTokenParsed'];
+    $user = [];
+    $user['sub'] = $token['sub'];
+    $user['preferred_username'] = $token['preferred_username'];
+    Utils::send_json($user);
   }
 }

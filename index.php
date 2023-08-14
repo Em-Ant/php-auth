@@ -77,6 +77,11 @@ $auth->post(
 $auth->get('/logout', [$auth_controller, 'logout']);
 $auth->get('/error', [$auth_controller, 'error']);
 $auth->get('/certs', [$auth_controller, 'send_keys']);
+$auth->get('/userinfo', 
+  [$auth_controller, 'validate_access_token_middleware'], 
+  [$auth_controller, 'send_user_info']
+);
+
 
 
 $app = new Router();
