@@ -47,12 +47,30 @@ INSERT INTO clients (
     'require_auth',
     'realm_id'
   )
-values(
+values (
     'a540c566-dfbf-430a-9941-fb8531c022d4',
     'test',
     /* plain client_id = c_id */
     '$2y$10$jeRBi.jzl05D2bulVLI6zeY2BZYSGonKEY1UlEERVGpqT7peJAI.6',
-    'http://localhost:4200',
+    'http://localhost:5173',
+    FALSE,
+    '84be68b8-7936-4422-bb4d-b741d2292a9f'
+  ),
+  (
+    'df616379-3695-4466-bcda-910fcb50bb01',
+    'test_w',
+    /* plain client_id = c_id */
+    '$2y$10$jeRBi.jzl05D2bulVLI6zeY2BZYSGonKEY1UlEERVGpqT7peJAI.6',
+    'https://www.keycloak.org/app',
+    FALSE,
+    '84be68b8-7936-4422-bb4d-b741d2292a9f'
+  ),
+  (
+    'f83a1166-c39a-4e01-884e-bfe5073a4473',
+    'playground',
+    /* plain client_id = c_id */
+    '$2y$10$jeRBi.jzl05D2bulVLI6zeY2BZYSGonKEY1UlEERVGpqT7peJAI.6',
+    'https://em-ant.gitlab.io/react-playground',
     FALSE,
     '84be68b8-7936-4422-bb4d-b741d2292a9f'
   );
