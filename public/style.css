@@ -105,8 +105,9 @@ button.submit {
 }
 
 span.icon {
-  display: inline-flex;
+  display: flex;
   height: 1.5em;
+  justify-content: center;
 }
 
 span.icon svg {
