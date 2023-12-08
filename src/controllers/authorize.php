@@ -45,6 +45,7 @@ class Authorize
     try {
       $query = $ctx['query'];
       $scope = $query['scope'];
+      $prompt = $query['prompt'];
 
       $this->auth_service->validate_required_login_scope(
         $realm->get_scope(),
@@ -68,6 +69,14 @@ class Authorize
         $redirect_uri = self::get_redirect_uri($login, $session->get_id());
 
         $this->set_session_cookie($realm, $current_session_id);
+        header("location: $redirect_uri", true, 302);
+        die();
+      } else if ($prompt == 'none') {
+        $redirect_uri = self::get_login_required_redirect_uri(
+          $query['redirect_uri'],
+          $query['response_mode'],
+          $query['state']
+        );
         header("location: $redirect_uri", true, 302);
         die();
       } else {
@@ -274,6 +283,30 @@ class Authorize
     ]);
   }
 
+  private static function get_login_required_redirect_uri(
+    string $redirect_uri,
+    string $response_mode,
+    string $state
+  ) {
+    $char = '';
+    $hash_pos = strpos($redirect_uri, '#');
+
+    if ($response_mode == 'query') {
+      $char = strpos($redirect_uri, '?') ? '&' : '?';
+      if ($hash_pos) {
+        $append = substr($redirect_uri, $hash_pos);
+        $redirect_uri = substr($redirect_uri, 0, $hash_pos);
+      }
+    } else {
+      $char = $hash_pos ? '&' : '#';
+    }
+
+    return $redirect_uri . $char .
+      'error=login_required' .
+      '&state=' . $state .
+      $append;
+  }
+
   private static function get_redirect_uri(
     Login $login,
     string $session_id
@@ -312,15 +345,16 @@ class Authorize
     die();
   }
 
-  public function validate_access_token_middleware(array &$ctx) {
+  public function validate_access_token_middleware(array &$ctx)
+  {
     /** @var Realm */
-    $realm = $ctx['realm'];  
+    $realm = $ctx['realm'];
 
     $token = '';
     if (array_key_exists('authorization', $ctx['headers'])) {
       $token = str_replace('Bearer ', '', $ctx['headers']['authorization']);
     }
-   
+
     try {
       $ctx['accessTokenParsed'] = $this->auth_service->parse_valid_token($token, $realm);
     } catch (InvalidInputException $e) {
@@ -328,7 +362,8 @@ class Authorize
     }
   }
 
-  public function send_user_info(array $ctx) {
+  public function send_user_info(array $ctx)
+  {
     $token = $ctx['accessTokenParsed'];
     $user = [];
     $user['sub'] = $token['sub'];
