@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace AuthServer\Lib;
+namespace Emant\BrowniePhp;
 
 class Utils
 {
@@ -12,10 +12,10 @@ class Utils
     if (isset($_GET['callback'])) {
       echo $_GET['callback'] . '(' . json_encode($data) . ');';
     } else {
-      header('Content-type: application/json');
+      header('Content-Type: application/json');
       echo json_encode($data, JSON_UNESCAPED_SLASHES);
     }
-    die();
+    Utils::terminate();
   }
 
   public static function server_error(
@@ -26,7 +26,6 @@ class Utils
     $data = array('error' => $error_type, 'error_description' => $description);
     http_response_code($status_code);
     self::send_json($data);
-    die();
   }
 
   public static function unknown_error()
@@ -65,7 +64,7 @@ class Utils
     extract($params);
     $view = 'src/views/' . $view . '.php';
     include 'src/views/template.php';
-    die();
+    Utils::terminate();
   }
 
   public static function get_guid($data = null): string
@@ -84,7 +83,14 @@ class Utils
   {
     header("Access-Control-Allow-Origin: $origin");
     header('Access-Control-Allow-Credentials: true');
-    header('Access-Control-Allow-Headers:content-type,accept,origin');
-    header('Access-Control-Allow-Methods:GET,POST,OPTIONS');
+    header('Access-Control-Allow-Headers: content-type,accept,origin');
+    header('Access-Control-Allow-Methods: GET,POST,OPTIONS');
+  }
+
+  private static function terminate()
+  {
+    if (!defined('UNIT_TESTING')) {
+      die();
+    }
   }
 }

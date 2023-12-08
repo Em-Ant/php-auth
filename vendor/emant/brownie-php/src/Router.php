@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace AuthServer\Lib;
+namespace Emant\BrowniePhp;
 
 
 class Router
@@ -19,7 +19,7 @@ class Router
   }
   public function patch(string $path, ...$args)
   {
-    $this->_route('PATCH', $path, $args);
+    $this->_route('PATCH', $path, ...$args);
   }
   public function put(string $path, ...$args)
   {
@@ -170,7 +170,7 @@ class Router
       isset($_SERVER['HTTP_CONTENT_TYPE']) &&
       $_SERVER['HTTP_CONTENT_TYPE'] == 'application/json'
     ) {
-      $raw_body = file_get_contents('php://input');
+      $raw_body = self::get_raw_input();
       $ctx['body'] = json_decode($raw_body, true);
     }
   }
@@ -178,7 +178,17 @@ class Router
   private static function get_request_headers(): array
   {
     $headers = [];
-    foreach ((getallheaders() ?: []) as $key => $value) {
+    $raw_headers = [];
+    if (function_exists('getallheaders')) {
+      $raw_headers = getallheaders();
+    } else {
+      foreach ($_SERVER as $name => $value) {
+        if (substr($name, 0, 5) == 'HTTP_') {
+          $raw_headers[str_replace(' ', '-', ucwords(strtolower(str_replace('_', ' ', substr($name, 5)))))] = $value;
+        }
+      }
+    }
+    foreach ($raw_headers as $key => $value) {
       $headers[strtolower($key)] = $value;
     }
     return $headers;
@@ -207,5 +217,13 @@ class Router
     $cred = explode(':', base64_decode($h[1]));
     $ctx['basic_auth_user'] = $cred[0];
     $ctx['basic_auth_pwd'] = $cred[1];
+  }
+
+  private static function get_raw_input()
+  {
+    if (defined('UNIT_TESTING')) {
+      return $GLOBALS['PHPINPUT'];
+    }
+    return file_get_contents('php://input');
   }
 }

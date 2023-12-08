@@ -17,8 +17,6 @@ return array(
     'AuthServer\\Interfaces\\SessionRepository' => $baseDir . '/src/interfaces/session_repository.php',
     'AuthServer\\Interfaces\\UserRepository' => $baseDir . '/src/interfaces/user_repository.php',
     'AuthServer\\Lib\\Logger' => $baseDir . '/src/lib/logger.php',
-    'AuthServer\\Lib\\Router' => $baseDir . '/src/lib/router.php',
-    'AuthServer\\Lib\\Utils' => $baseDir . '/src/lib/utils.php',
     'AuthServer\\Middleware\\RealmProvider' => $baseDir . '/src/middleware/realm_provider.php',
     'AuthServer\\Models\\Client' => $baseDir . '/src/models/client.php',
     'AuthServer\\Models\\Login' => $baseDir . '/src/models/login.php',

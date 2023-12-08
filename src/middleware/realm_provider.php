@@ -3,7 +3,7 @@
 namespace AuthServer\Middleware;
 
 use AuthServer\Interfaces\RealmRepository;
-use AuthServer\Lib\Utils;
+use Emant\BrowniePhp\Utils;;
 
 
 

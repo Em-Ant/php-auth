@@ -20,6 +20,8 @@ class Logger implements ILogger
   private string $log_file_name;
   private bool $log_file_append;
   private string $log_level;
+  private bool $print_log;
+  private bool $write_log;
 
   private $output_streams = [];
 
@@ -38,12 +40,12 @@ class Logger implements ILogger
     $this->log_dir = $log_dir;
     $this->log_file_append = $log_file_append;
 
-    if (true === $print_log) {
+    if (true === $this->print_log) {
       $this->output_streams['stdout'] = fopen('php://stdout', 'wb');
     }
 
     if (
-      true === $write_log &&
+      true === $this->write_log &&
       (file_exists($this->log_dir) || mkdir($this->log_dir))
     ) {
 

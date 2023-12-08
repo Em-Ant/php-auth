@@ -2,10 +2,8 @@
 
 namespace AuthServer;
 
+use Emant\BrowniePhp\Router;
 use AuthServer\Controllers;
-use AuthServer\Lib;
-use AuthServer\Lib\Logger;
-use AuthServer\Lib\Router;
 use AuthServer\Middleware\RealmProvider;
 use AuthServer\Repositories\DataSource;
 use AuthServer\Repositories\ClientRepository;
@@ -16,6 +14,7 @@ use AuthServer\Repositories\UserRepository;
 use AuthServer\Services\AuthorizeService;
 use AuthServer\Services\SecretsService;
 use AuthServer\Services\TokenService;
+use AuthServer\Lib\Logger;
 
 require 'vendor/autoload.php';
 

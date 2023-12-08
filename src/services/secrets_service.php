@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace AuthServer\Services;
 
-use AuthServer\Lib\Utils;
+use Emant\BrowniePhp\Utils;;
 
 class SecretsService
 {

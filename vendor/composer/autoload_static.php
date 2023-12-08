@@ -6,6 +6,20 @@ namespace Composer\Autoload;
 
 class ComposerStaticInita532f046346e6854dc20b8c24474a90d
 {
+    public static $prefixLengthsPsr4 = array (
+        'E' => 
+        array (
+            'Emant\\BrowniePhp\\' => 17,
+        ),
+    );
+
+    public static $prefixDirsPsr4 = array (
+        'Emant\\BrowniePhp\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/emant/brownie-php/src',
+        ),
+    );
+
     public static $classMap = array (
         'AuthServer\\Controllers\\Authorize' => __DIR__ . '/../..' . '/src/controllers/authorize.php',
         'AuthServer\\Exceptions\\CriticalLoginErrorException' => __DIR__ . '/../..' . '/src/exceptions/critical_login_error_exception.php',
@@ -18,8 +32,6 @@ class ComposerStaticInita532f046346e6854dc20b8c24474a90d
         'AuthServer\\Interfaces\\SessionRepository' => __DIR__ . '/../..' . '/src/interfaces/session_repository.php',
         'AuthServer\\Interfaces\\UserRepository' => __DIR__ . '/../..' . '/src/interfaces/user_repository.php',
         'AuthServer\\Lib\\Logger' => __DIR__ . '/../..' . '/src/lib/logger.php',
-        'AuthServer\\Lib\\Router' => __DIR__ . '/../..' . '/src/lib/router.php',
-        'AuthServer\\Lib\\Utils' => __DIR__ . '/../..' . '/src/lib/utils.php',
         'AuthServer\\Middleware\\RealmProvider' => __DIR__ . '/../..' . '/src/middleware/realm_provider.php',
         'AuthServer\\Models\\Client' => __DIR__ . '/../..' . '/src/models/client.php',
         'AuthServer\\Models\\Login' => __DIR__ . '/../..' . '/src/models/login.php',
@@ -41,6 +53,8 @@ class ComposerStaticInita532f046346e6854dc20b8c24474a90d
     public static function getInitializer(ClassLoader $loader)
     {
         return \Closure::bind(function () use ($loader) {
+            $loader->prefixLengthsPsr4 = ComposerStaticInita532f046346e6854dc20b8c24474a90d::$prefixLengthsPsr4;
+            $loader->prefixDirsPsr4 = ComposerStaticInita532f046346e6854dc20b8c24474a90d::$prefixDirsPsr4;
             $loader->classMap = ComposerStaticInita532f046346e6854dc20b8c24474a90d::$classMap;
 
         }, null, ClassLoader::class);

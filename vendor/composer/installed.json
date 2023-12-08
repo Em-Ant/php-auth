@@ -1,0 +1,49 @@
+{
+    "packages": [
+        {
+            "name": "emant/brownie-php",
+            "version": "v0.0.1",
+            "version_normalized": "0.0.1.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/Em-Ant/brownie-php.git",
+                "reference": "1cf8627c56e78ad9d7be9f52b3b5c30db3a9e9e6"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/Em-Ant/brownie-php/zipball/1cf8627c56e78ad9d7be9f52b3b5c30db3a9e9e6",
+                "reference": "1cf8627c56e78ad9d7be9f52b3b5c30db3a9e9e6",
+                "shasum": ""
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10"
+            },
+            "time": "2023-05-29T20:40:57+00:00",
+            "type": "library",
+            "installation-source": "dist",
+            "autoload": {
+                "psr-4": {
+                    "Emant\\BrowniePhp\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "emant",
+                    "email": "joshua999x@gmail.com"
+                }
+            ],
+            "description": "A tiny routing framework inspired by Express.js",
+            "support": {
+                "issues": "https://github.com/Em-Ant/brownie-php/issues",
+                "source": "https://github.com/Em-Ant/brownie-php/tree/v0.0.1"
+            },
+            "install-path": "../emant/brownie-php"
+        }
+    ],
+    "dev": true,
+    "dev-package-names": []
+}

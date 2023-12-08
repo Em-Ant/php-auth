@@ -8,7 +8,8 @@ use AuthServer\Models\Session;
 use AuthServer\Models\Client;
 use AuthServer\Models\User;
 
-use AuthServer\Lib\Utils;
+use Emant\BrowniePhp\Utils;;
+
 use AuthServer\Models\Login;
 use AuthServer\Models\Realm;
 

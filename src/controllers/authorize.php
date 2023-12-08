@@ -5,7 +5,8 @@ declare(strict_types=1);
 namespace AuthServer\Controllers;
 
 use AuthServer\Exceptions\CriticalLoginErrorException;
-use AuthServer\Lib\Utils;
+use Emant\BrowniePhp\Utils;;
+
 use AuthServer\Exceptions\InvalidInputException;
 use AuthServer\Models\Login;
 use AuthServer\Models\Realm;

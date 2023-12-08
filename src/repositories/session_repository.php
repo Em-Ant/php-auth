@@ -5,7 +5,8 @@ declare(strict_types=1);
 namespace AuthServer\Repositories;
 
 use AuthServer\Interfaces\SessionRepository as IRepo;
-use AuthServer\Lib\Utils;
+use Emant\BrowniePhp\Utils;;
+
 use AuthServer\Models\Session;
 use AuthServer\Repositories\DataSource;
 
