@@ -173,7 +173,9 @@ class Authorize
 
     try {
       $realm = $ctx['realm'];
-      $origin = $this->auth_service->get_client_uri($body['client_id']);
+      $headers = $ctx['headers'];
+      $origin = $headers['origin'] ??
+        $this->auth_service->get_client_uri($body['client_id']);
       Utils::enable_cors($origin);
       Utils::send_json($this->auth_service->get_tokens($body, $realm));
     } catch (InvalidInputException $e) {
