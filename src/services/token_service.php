@@ -315,7 +315,7 @@ class TokenService
         "at_hash" => md5($access_token),
         "acr" => $session->get_acr(),
         "sid" => $session->get_id(),
-        "preferred_username" => $user->get_email()
+        "preferred_username" => $user->get_name()
       ],
       $keys_id
     );
