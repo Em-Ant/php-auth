@@ -244,7 +244,10 @@ class TokenService
         "azp" => $client->get_name(),
         "nonce" => $login->get_nonce(),
         "session_state" => $session->get_id(),
-        "scope" => join(" ", $user->get_scope()),
+        "realm_access" => [
+          "roles" => $user->get_scope()
+        ],
+        "scope" => "openid" . join(" ", $user->get_scope()),
         "sid" => $session->get_id()
       ],
       $keys_id
@@ -279,7 +282,10 @@ class TokenService
         "allowed-origins" => [
           $client->get_uri()
         ],
-        "scope" => join(" ", $user->get_scope()),
+        "realm_access" => [
+          "roles" => $user->get_scope()
+        ],
+        "scope" => "openid" . join(" ", $user->get_scope()),
         "sid" => $session->get_id(),
         "preferred_username" => $user->get_name()
       ],
