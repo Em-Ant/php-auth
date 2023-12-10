@@ -61,6 +61,7 @@ CREATE TABLE IF NOT EXISTS 'logins' (
   'redirect_uri' varchar(256) NOT NULL,
   'response_mode' varchar(16) NOT NULL,
   'code' varchar(512),
+  'code_challenge' varchar(512),
   'refresh_token' varchar(2048),
   'created_at' TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
   'authenticated_at' TIMESTAMP,

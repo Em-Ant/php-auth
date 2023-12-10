@@ -17,6 +17,7 @@ class Login implements \JsonSerializable
   private string $response_mode;
   private DateTime $created_at;
   private ?string $code;
+  private ?string $code_challenge;
   private ?DateTime $authenticated_at;
   private ?string $refresh_token;
   private ?DateTime $updated_at;
@@ -34,6 +35,7 @@ class Login implements \JsonSerializable
     ?string $session_id,
     ?string $authenticated_at,
     ?string $code,
+    ?string $code_challenge,
     ?string $updated_at,
     ?string $refresh_token,
     ?string $status = 'PENDING'
@@ -47,6 +49,7 @@ class Login implements \JsonSerializable
     $this->redirect_uri = $redirect_uri;
     $this->response_mode = $response_mode;
     $this->code = $code;
+    $this->code_challenge = $code_challenge;
     $this->refresh_token = $refresh_token;
     $utc = new DateTimeZone('UTC');
     $this->created_at = is_null($created_at) ?
@@ -94,6 +97,10 @@ class Login implements \JsonSerializable
   public function get_code(): ?string
   {
     return $this->code;
+  }
+  public function get_code_challenge(): ?string
+  {
+    return $this->code_challenge;
   }
   public function get_refresh_token(): ?string
   {

@@ -13,7 +13,7 @@ use Emant\BrowniePhp\Utils;;
 use AuthServer\Models\Login;
 use AuthServer\Models\Realm;
 
-
+use AuthServer\Services\Base64Utils;
 
 class TokenService
 {
@@ -32,14 +32,14 @@ class TokenService
     $public_key = file_get_contents("keys/$kid/public_key.pem");
 
     $t = explode('.', $token);
-    $header = json_decode(self::b64UrlDecode($t[0]), true);
+    $header = json_decode(Base64Utils::b64UrlDecode($t[0]), true);
 
     if ($header['alg'] != 'RS256') {
       return 0;
     }
 
     $data = "$t[0].$t[1]";
-    $signature = self::b64UrlDecode($t[2]);
+    $signature = Base64Utils::b64UrlDecode($t[2]);
 
     return openssl_verify(
       $data,
@@ -65,8 +65,8 @@ class TokenService
       'kid' => $keys_id
     ]);
 
-    $base64UrlHeader = self::b64UrlEncode($header);
-    $base64UrlPayload = self::b64UrlEncode(json_encode($payload));
+    $base64UrlHeader = Base64Utils::b64UrlEncode($header);
+    $base64UrlPayload = Base64Utils::b64UrlEncode(json_encode($payload));
 
     openssl_sign(
       $base64UrlHeader . "." . $base64UrlPayload,
@@ -75,35 +75,17 @@ class TokenService
       'sha256WithRSAEncryption'
     );
 
-    $base64UrlSignature = self::b64UrlEncode($signature);
+    $base64UrlSignature = Base64Utils::b64UrlEncode($signature);
     return $base64UrlHeader . "." . $base64UrlPayload . "." . $base64UrlSignature;
   }
 
   function decodeTokenPayload(string $token): array
   {
     $t = explode('.', $token);
-    return json_decode(self::b64UrlDecode($t[1]), true);
+    return json_decode(Base64Utils::b64UrlDecode($t[1]), true);
   }
 
-  private static function b64UrlEncode($data): string
-  {
-    return str_replace(
-      ['+', '/', '='],
-      ['-', '_', ''],
-      base64_encode($data)
-    );
-  }
 
-  private static function b64UrlDecode(string $data)
-  {
-    $b64 = str_replace(['-', '_'], ['+', '/'], $data);
-
-    while (strlen($b64) % 4 != 0) {
-      $b64 = $b64 . '=';
-    }
-
-    return base64_decode($b64);
-  }
 
   public static function createKeys(?array $dn = [], ?int $cert_duration = 365): void
   {
@@ -147,13 +129,13 @@ class TokenService
           "kty" => "RSA",
           "alg" => "RS256",
           "use" => "sig",
-          "n" => self::b64UrlEncode($details['rsa']['n']),
-          "e" => self::b64UrlEncode($details['rsa']['e']),
+          "n" => Base64Utils::b64UrlEncode($details['rsa']['n']),
+          "e" => Base64Utils::b64UrlEncode($details['rsa']['e']),
           "x5c" => [
             self::remove_begin_end($x509)
           ],
-          "x5t" => self::b64UrlEncode(openssl_x509_fingerprint($x509)),
-          "x5t#sha256" => self::b64UrlEncode(openssl_x509_fingerprint($x509, 'sha256')),
+          "x5t" => Base64Utils::b64UrlEncode(openssl_x509_fingerprint($x509)),
+          "x5t#sha256" => Base64Utils::b64UrlEncode(openssl_x509_fingerprint($x509, 'sha256')),
         ]
       ]
     ];

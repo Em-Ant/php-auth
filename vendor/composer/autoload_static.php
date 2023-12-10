@@ -45,6 +45,7 @@ class ComposerStaticInita532f046346e6854dc20b8c24474a90d
         'AuthServer\\Repositories\\SessionRepository' => __DIR__ . '/../..' . '/src/repositories/session_repository.php',
         'AuthServer\\Repositories\\UserRepository' => __DIR__ . '/../..' . '/src/repositories/user_repository.php',
         'AuthServer\\Services\\AuthorizeService' => __DIR__ . '/../..' . '/src/services/authorize_service.php',
+        'AuthServer\\Services\\Base64Utils' => __DIR__ . '/../..' . '/src/services/base64_Utils.php',
         'AuthServer\\Services\\SecretsService' => __DIR__ . '/../..' . '/src/services/secrets_service.php',
         'AuthServer\\Services\\TokenService' => __DIR__ . '/../..' . '/src/services/token_service.php',
         'Composer\\InstalledVersions' => __DIR__ . '/..' . '/composer/InstalledVersions.php',

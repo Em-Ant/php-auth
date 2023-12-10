@@ -30,6 +30,7 @@ return array(
     'AuthServer\\Repositories\\SessionRepository' => $baseDir . '/src/repositories/session_repository.php',
     'AuthServer\\Repositories\\UserRepository' => $baseDir . '/src/repositories/user_repository.php',
     'AuthServer\\Services\\AuthorizeService' => $baseDir . '/src/services/authorize_service.php',
+    'AuthServer\\Services\\Base64Utils' => $baseDir . '/src/services/base64_Utils.php',
     'AuthServer\\Services\\SecretsService' => $baseDir . '/src/services/secrets_service.php',
     'AuthServer\\Services\\TokenService' => $baseDir . '/src/services/token_service.php',
     'Composer\\InstalledVersions' => $vendorDir . '/composer/InstalledVersions.php',

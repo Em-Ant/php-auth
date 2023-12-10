@@ -20,9 +20,7 @@ use AuthServer\Models\Session;
 use AuthServer\Models\User;
 use DateTime;
 
-
-
-
+use AuthServer\Services\Base64Utils;
 
 class AuthorizeService
 {
@@ -80,7 +78,8 @@ class AuthorizeService
       $query['nonce'],
       $query['scope'],
       $query['redirect_uri'],
-      $query['response_mode']
+      $query['response_mode'],
+      $query['code_challenge']
     );
 
     if ($login === null) {
@@ -146,7 +145,8 @@ class AuthorizeService
       $query['scope'],
       $query['redirect_uri'],
       $query['response_mode'],
-      $code
+      $code,
+      isset($query['code_challenge']) ? $query['code_challenge'] : null
     );
 
     if ($login === null) {
@@ -231,7 +231,8 @@ class AuthorizeService
     $ok = $this->login_repository->set_authenticated(
       $login_id,
       $session_id,
-      $code
+      $code,
+      isset($query['code_challenge']) ? $query['code_challenge'] : null
     );
     if (!$ok) {
       throw new StorageErrorException(
@@ -268,14 +269,15 @@ class AuthorizeService
       $this->validate_client_secret($hashed_secret, $client_secret ?: '');
     }
 
-    self::validate_redirect_uri($client, $redirect_uri);
 
     switch ($grant_type) {
       case 'authorization_code':
+        self::validate_redirect_uri($client, $redirect_uri);
         return $this->get_tokens_by_code(
           $code,
           $realm,
-          $client
+          $client,
+          isset($code_verifier) ? $code_verifier : null
         );
       case 'refresh_token':
         return $this->get_tokens_by_refresh_token(
@@ -327,11 +329,11 @@ class AuthorizeService
   {
     $is_valid = $this->token_service->validateToken($token, $realm);
     $is_expired = $this->token_service->tokenIsExpired($token);
-    if(!$is_valid) {
+    if (!$is_valid) {
       $this->logger->error("invalid token");
       throw new InvalidInputException('Token verification failed');
     }
-    if($is_expired) {
+    if ($is_expired) {
       $this->logger->error("token expired");
       throw new InvalidInputException('Token is expired');
     }
@@ -339,13 +341,31 @@ class AuthorizeService
     return $this->token_service->decodeTokenPayload($token);
   }
 
+  private static function validate_code_challenge(
+    ?string $code_challenge,
+    ?string $code_verifier,
+  ) {
+    if ($code_challenge !== Base64Utils::b64UrlEncode(hash('sha256', $code_verifier, true))) {
+      throw new InvalidInputException('code_verifier does not match code_challenge');
+    }
+    return true;
+  }
+
   private function get_tokens_by_code(
     string $code,
     Realm $realm,
-    Client $client
+    Client $client,
+    ?string $code_verifier
   ): array {
+
     $this->logger->info("generating tokens from authorization code $code");
     $login = $this->login_repository->find_by_code($code);
+
+    $code_challenge = $login->get_code_challenge();
+    if ($code_verifier != null || $code_challenge != null) {
+      self::validate_code_challenge($code_challenge, $code_verifier);
+    }
+
     if ($login === null) {
       $this->logger->error("invalid authorization code");
       throw new InvalidInputException('invalid code');
@@ -635,6 +655,14 @@ class AuthorizeService
       'nonce',
     ];
 
+    $code_challenge_method = isset($query['code_challenge_method']) ? $query['code_challenge_method'] :  null;
+    if ($code_challenge_method !== null) {
+      if ($code_challenge_method !== 'S256') {
+        throw new InvalidInputException('unsupported code challenge method');
+      }
+      array_push($required_fields, 'code_challenge');
+    }
+
     self::validate_params($query, $required_fields);
 
     if (!in_array($query['response_mode'], ['fragment', 'query'])) {
@@ -651,7 +679,6 @@ class AuthorizeService
     $required_fields = [
       'grant_type',
       'client_id',
-      'redirect_uri'
     ];
 
     self::validate_params($query, $required_fields);

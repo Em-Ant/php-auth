@@ -96,7 +96,8 @@ class LoginRepository implements IRepo
     string $nonce,
     string $scope,
     string $redirect_uri,
-    string $response_mode
+    string $response_mode,
+    ?string $code_challenge
   ): ?Login {
     try {
       $uid = Utils::get_guid();
@@ -104,10 +105,10 @@ class LoginRepository implements IRepo
       $q = $this->db->prepare(
         "INSERT INTO logins (
           'id', 'client_id', 'state', 'nonce', 'scope', 
-          'redirect_uri', 'response_mode', 'status'
+          'redirect_uri', 'response_mode', 'code_challenge', 'status'
         ) VALUES (
           :id, :client_id, :state, :nonce, :scope, 
-          :redirect_uri, :response_mode, 'PENDING'
+          :redirect_uri, :response_mode, :code_challenge, 'PENDING'
         )"
       );
 
@@ -118,6 +119,7 @@ class LoginRepository implements IRepo
       $q->bindValue(':scope', $scope);
       $q->bindValue(':redirect_uri', $redirect_uri);
       $q->bindValue(':response_mode', $response_mode);
+      $q->bindValue(':code_challenge', $code_challenge);
 
       $q->execute();
 
@@ -136,7 +138,8 @@ class LoginRepository implements IRepo
     string $scope,
     string $redirect_uri,
     string $response_mode,
-    string $code
+    string $code,
+    ?string $code_challenge
   ): ?Login {
     try {
       $uid = Utils::get_guid();
@@ -144,10 +147,10 @@ class LoginRepository implements IRepo
       $q = $this->db->prepare(
         "INSERT INTO logins (
           'id', 'client_id', 'session_id', 'state', 'nonce', 'scope', 
-          'redirect_uri', 'response_mode', 'code', 'status', authenticated_at
+          'redirect_uri', 'response_mode', 'code', 'code_challenge', 'status', authenticated_at
         ) VALUES (
           :id, :client_id, :session_id, :state, :nonce, :scope, 
-          :redirect_uri, :response_mode, :code, 'AUTHENTICATED', :timestamp
+          :redirect_uri, :response_mode, :code, :code_challenge, 'AUTHENTICATED', :timestamp
         )"
       );
 
@@ -161,6 +164,7 @@ class LoginRepository implements IRepo
       $q->bindValue(':response_mode', $response_mode);
       $q->bindValue(':timestamp', gmdate('Y-m-d H:i:s'));
       $q->bindValue(':code', $code);
+      $q->bindValue(':code_challenge', $code_challenge);
 
       $q->execute();
 
@@ -270,6 +274,7 @@ class LoginRepository implements IRepo
       $r['session_id'],
       $r['authenticated_at'],
       $r['code'],
+      $r['code_challenge'],
       $r['updated_at'],
       $r['refresh_token'],
       $r['status']

@@ -17,7 +17,8 @@ interface LoginRepository
     string $nonce,
     string $scope,
     string $redirect_uri,
-    string $response_mode
+    string $response_mode,
+    ?string $code_challenge
   ): ?Login;
 
   public function create_authenticated(
@@ -28,13 +29,14 @@ interface LoginRepository
     string $scope,
     string $redirect_uri,
     string $response_mode,
-    string $code
+    string $code,
+    ?string $code_challenge
   ): ?Login;
 
   public function set_authenticated(
     string $id,
     string $session_id,
-    string $code
+    string $code,
   ): bool;
 
   public function set_active(
