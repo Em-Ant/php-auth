@@ -3,6 +3,7 @@
 namespace AuthServer;
 
 use Emant\BrowniePhp\Router;
+use Emant\BrowniePhp\Utils;
 use AuthServer\Controllers;
 use AuthServer\Middleware\RealmProvider;
 use AuthServer\Repositories\DataSource;
@@ -63,6 +64,22 @@ $auth_controller = new Controllers\Authorize(
 );
 
 
+$check_3rd_party_cookies = function ($ctx) {
+  $params = $ctx['params'];
+  include('./src/views/3p-' . $params['step']);
+  die();
+};
+
+$send_login_iframe = function () {
+  include('./src/views/login-iframe.html');
+  die();
+};
+
+$ok = function () {
+  http_response_code(200);
+  die();
+};
+
 $auth = new Router();
 
 $auth->use([$realm_provider, 'provide_realm']);
@@ -76,12 +93,14 @@ $auth->post(
 $auth->get('/logout', [$auth_controller, 'logout']);
 $auth->get('/error', [$auth_controller, 'error']);
 $auth->get('/certs', [$auth_controller, 'send_keys']);
-$auth->get('/userinfo', 
-  [$auth_controller, 'validate_access_token_middleware'], 
+$auth->get(
+  '/userinfo',
+  [$auth_controller, 'validate_access_token_middleware'],
   [$auth_controller, 'send_user_info']
 );
-
-
+$auth->get('/3p-cookies/{step}', $check_3rd_party_cookies);
+$auth->get('/login-status-iframe.html', $send_login_iframe);
+$auth->get('/login-status-iframe.html/init', $ok);
 
 $app = new Router();
 
@@ -91,7 +110,7 @@ $app->get(
   '/realms/web/.well-known/openid-configuration',
   [$auth_controller, 'send_config']
 );
-$app->all('/', [Lib\Utils::class, 'not_found']);
-$app->all('/{unknown}', [Lib\Utils::class, 'not_found']);
+$app->all('/', [Utils::class, 'not_found']);
+$app->all('/{unknown}', [Utils::class, 'not_found']);
 
 $app->run();
