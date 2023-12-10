@@ -2,9 +2,14 @@
 
 ### OpenId connect like php auth server, implementing code grant flow.
 
-Depends on php7, Sqlite3, open_ssl.
+[![Deploy](https://github.com/Em-Ant/php-auth/actions/workflows/deploy.yml/badge.svg)](https://github.com/Em-Ant/php-auth/actions/workflows/deploy.yml)
 
-Featuring a tiny express like routing system.
+#### Dependencies
+
+- PHP 8,
+- Sqlite 3,
+- open_ssl,
+- [BrowniePhP](https://github.com/Em-Ant/brownie-php).
 
 #### License
 
