@@ -5,6 +5,7 @@
     ]
   },
   "require": {
-    "emant/brownie-php": "^0.0.1"
+    "emant/brownie-php": "^0.0.1",
+    "ralouphie/mimey": "^1.0"
   }
 }

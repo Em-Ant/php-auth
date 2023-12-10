@@ -38,6 +38,18 @@ $logger = new Logger(
   __DIR__ . '/log'
 );
 
+$logHttpRequest = function () use ($logger) {
+  $method = $_SERVER['REQUEST_METHOD'];
+  $uri = $_SERVER['REQUEST_URI'];
+  $protocol = $_SERVER['SERVER_PROTOCOL'];
+  $ip = $_SERVER['REMOTE_ADDR'];
+
+
+  $logMessage = "$method $uri $protocol";
+
+  $logger->info($logMessage);
+};
+
 $secrets_service = new SecretsService();
 
 $client_repo = new ClientRepository(DataSource::getInstance());
@@ -80,6 +92,20 @@ $ok = function () {
   die();
 };
 
+$static = function (string $path) {
+  $mimes = new \Mimey\MimeTypes;
+  return function (array $ctx) use ($path, $mimes) {
+    $params = $ctx['params'];
+    $file = $path . '/' . $params['file'];
+    if (file_exists($file)) {
+      $ext = pathinfo($file, PATHINFO_EXTENSION);
+      header('Content-Type: ' . $mimes->getMimeType($ext));
+      include($file);
+      die();
+    }
+  };
+};
+
 $auth = new Router();
 
 $auth->use([$realm_provider, 'provide_realm']);
@@ -104,6 +130,7 @@ $auth->get('/login-status-iframe.html/init', $ok);
 
 $app = new Router();
 
+$app->use($logHttpRequest);
 $app->use([Router::class, 'parse_json_body']);
 $app->use('/realms/{realm}/protocol/openid-connect', [$auth, 'run']);
 $app->get(
@@ -111,6 +138,8 @@ $app->get(
   [$auth_controller, 'send_config']
 );
 $app->all('/', [Utils::class, 'not_found']);
+$app->get('/public/{file}', $static('./public'));
+
 $app->all('/{unknown}', [Utils::class, 'not_found']);
 
 $app->run();

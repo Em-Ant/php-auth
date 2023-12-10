@@ -7,6 +7,10 @@ namespace Composer\Autoload;
 class ComposerStaticInita532f046346e6854dc20b8c24474a90d
 {
     public static $prefixLengthsPsr4 = array (
+        'M' => 
+        array (
+            'Mimey\\' => 6,
+        ),
         'E' => 
         array (
             'Emant\\BrowniePhp\\' => 17,
@@ -14,6 +18,10 @@ class ComposerStaticInita532f046346e6854dc20b8c24474a90d
     );
 
     public static $prefixDirsPsr4 = array (
+        'Mimey\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/ralouphie/mimey/src',
+        ),
         'Emant\\BrowniePhp\\' => 
         array (
             0 => __DIR__ . '/..' . '/emant/brownie-php/src',
