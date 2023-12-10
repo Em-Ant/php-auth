@@ -12,8 +12,8 @@
 
     // If so, clear the cookies, so they can no longer be used.
     if (hasAccess) {
-      document.cookie = "KEYCLOAK_3P_COOKIE_SAMESITE=; Max-Age=0";
-      document.cookie = "KEYCLOAK_3P_COOKIE=; Max-Age=0";
+      document.cookie = "AUTH_3P_COOKIE_SAMESITE=; Max-Age=0";
+      document.cookie = "AUTH_3P_COOKIE=; Max-Age=0";
     }
 
     // Signal 3rd-party access support to the page embedding this iframe.

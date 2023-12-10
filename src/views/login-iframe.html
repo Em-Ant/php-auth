@@ -101,18 +101,11 @@
     }
 
     function getSessionCookie() {
-      const cookie = getCookieByName("KEYCLOAK_SESSION");
-
-      if (cookie !== null) {
-        return cookie;
-      }
-
-      return getCookieByName("KEYCLOAK_SESSION_LEGACY");
+      return getCookieByName("AUTH_SESSION");
     }
 
     function getCookieByName(name) {
       const cookies = new Map();
-
       for (const cookie of document.cookie.split(";")) {
         const [key, value] = cookie.split("=").map((value) => value.trim());
         cookies.set(key, value);

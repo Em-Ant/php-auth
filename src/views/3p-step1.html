@@ -50,8 +50,8 @@
 
     function attemptWithTestCookie() {
       // Place a cookie to test whether we can access cookies from 3rd-party storage.
-      document.cookie = "KEYCLOAK_3P_COOKIE_SAMESITE=supported; Max-Age=60; SameSite=None; Secure";
-      document.cookie = "KEYCLOAK_3P_COOKIE=supported; Max-Age=60";
+      document.cookie = "AUTH_3P_COOKIE_SAMESITE=supported; Max-Age=60; SameSite=None; Secure";
+      document.cookie = "AUTH_3P_COOKIE=supported; Max-Age=60";
 
       // Then redirect to the page where we will read these cookies to confirm this.
       window.location = "step2.html";

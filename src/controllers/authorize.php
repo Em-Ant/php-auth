@@ -263,7 +263,7 @@ class Authorize
       'expires' => time() + $realm->get_session_expires_in(),
       'path' => "$mount_path/realms/$realm_name",
       'domain' => $_SERVER['SERVER_NAME'],
-      'httponly' => true,
+      'httponly' => false,
       'secure' => true,
       'samesite' => 'None',
     ]);
