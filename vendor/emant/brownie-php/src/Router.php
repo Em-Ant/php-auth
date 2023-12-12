@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Emant\BrowniePhp;
 
+use \Mimey\MimeTypes;
 
 class Router
 {
@@ -173,6 +174,27 @@ class Router
       $raw_body = self::get_raw_input();
       $ctx['body'] = json_decode($raw_body, true);
     }
+  }
+
+  public static function static_server(string $path)
+  {
+    $mimes = new MimeTypes;
+    return function (array $ctx) use ($path, $mimes) {
+      $method = $ctx['method'];
+      $route_path = $ctx['path'];
+      $mount_path = $ctx['mount_path'];
+
+      $file_name = str_replace($mount_path, '', $route_path);
+      $file_name = $file_name !== '' ? $file_name : '/index.html';
+      $file = $path . $file_name;
+
+      if ($method === 'GET' && file_exists($file)) {
+        $ext = pathinfo($file, PATHINFO_EXTENSION);
+        header('Content-Type: ' . $mimes->getMimeType($ext));
+        include($file);
+        die();
+      }
+    };
   }
 
   private static function get_request_headers(): array

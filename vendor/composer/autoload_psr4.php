@@ -6,5 +6,6 @@ $vendorDir = dirname(__DIR__);
 $baseDir = dirname($vendorDir);
 
 return array(
+    'Mimey\\' => array($vendorDir . '/ralouphie/mimey/src'),
     'Emant\\BrowniePhp\\' => array($vendorDir . '/emant/brownie-php/src'),
 );

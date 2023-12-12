@@ -45,7 +45,7 @@ class Authorize
     try {
       $query = $ctx['query'];
       $scope = $query['scope'];
-      $prompt = $query['prompt'];
+      $prompt = $query['prompt'] ?? '';
 
       $this->auth_service->validate_required_login_scope(
         $realm->get_scope(),
@@ -71,7 +71,7 @@ class Authorize
         $this->set_session_cookie($realm, $current_session_id);
         header("location: $redirect_uri", true, 302);
         die();
-      } else if ($prompt == 'none') {
+      } else if ($prompt === 'none') {
         $redirect_uri = self::get_login_required_redirect_uri(
           $query['redirect_uri'],
           $query['response_mode'],
@@ -291,6 +291,7 @@ class Authorize
     string $state
   ) {
     $char = '';
+    $append = '';
     $hash_pos = strpos($redirect_uri, '#');
 
     if ($response_mode == 'query') {

@@ -4,7 +4,8 @@
       "src/"
     ]
   },
+  "repositories": {},
   "require": {
-    "emant/brownie-php": "^0.0.1"
+    "emant/brownie-php": "0.0.2"
   }
 }

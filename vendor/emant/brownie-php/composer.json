@@ -27,5 +27,8 @@
       "@putenv XDEBUG_MODE=coverage",
       "phpunit"
     ]
+  },
+  "require": {
+    "ralouphie/mimey": "^1.0"
   }
 }

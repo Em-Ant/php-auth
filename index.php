@@ -38,6 +38,16 @@ $logger = new Logger(
   __DIR__ . '/log'
 );
 
+$logHttpRequest = function () use ($logger) {
+  $method = $_SERVER['REQUEST_METHOD'];
+  $uri = $_SERVER['REQUEST_URI'];
+  $protocol = $_SERVER['SERVER_PROTOCOL'];
+
+  $logMessage = "$method $uri $protocol";
+
+  $logger->info($logMessage);
+};
+
 $secrets_service = new SecretsService();
 
 $client_repo = new ClientRepository(DataSource::getInstance());
@@ -63,20 +73,14 @@ $auth_controller = new Controllers\Authorize(
   $sub_path
 );
 
-
-$check_3rd_party_cookies = function ($ctx) {
+$check_3rd_party_cookies = function (array $ctx) {
   $params = $ctx['params'];
-  include('./src/views/3p-' . $params['step']);
+  include("./src/views/3p-{$params['step']}");
   die();
 };
 
 $send_login_iframe = function () {
   include('./src/views/login-iframe.html');
-  die();
-};
-
-$ok = function () {
-  http_response_code(200);
   die();
 };
 
@@ -100,10 +104,12 @@ $auth->get(
 );
 $auth->get('/3p-cookies/{step}', $check_3rd_party_cookies);
 $auth->get('/login-status-iframe.html', $send_login_iframe);
-$auth->get('/login-status-iframe.html/init', $ok);
+$auth->get('/login-status-iframe.html/init', [Utils::class, 'ok']);
 
 $app = new Router();
 
+$app->use($logHttpRequest);
+$app->use('/public', Router::static_server('./public'));
 $app->use([Router::class, 'parse_json_body']);
 $app->use('/realms/{realm}/protocol/openid-connect', [$auth, 'run']);
 $app->get(

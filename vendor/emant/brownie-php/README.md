@@ -2,7 +2,7 @@
 
 ![brownie illustration](brownie.jpeg)
 
-## A tiny PHP Routing Framework
+## A Tiny PHP Routing Framework
 
 BrowniePHP is a lightweight PHP routing framework, inspired by Express.js, that provides a simple and intuitive way to handle HTTP requests and define routes for your web applications. It aims to be minimalistic yet powerful, allowing you to quickly build RESTful APIs or handle various HTTP methods with ease.
 
@@ -57,19 +57,12 @@ $router->use(function ($ctx) {
 });
 ```
 
-The `ALL` route allows you to define a route that matches all HTTP methods. This means that any incoming request, regardless of the HTTP method used, will be matched by the `ALL` route. It provides a convenient way to handle common functionality or apply middleware to all routes, regardless of the specific method. By using the `ALL` route, you can define global middleware functions or common logic that needs to be executed for every request, ensuring consistent behavior across your application.
+The `Router` class provides an `all` method, which allows you to define a route that matches all HTTP methods. This means that any incoming request, regardless of the HTTP method used, will be matched.
+It provides a convenient way to handle common functionality or apply middleware , regardless of the specific method.
 
 ```php
-use Emant\BrowniePhp\Router;
-
-$router = new Router();
-
 $router->all('/common-route', function ($ctx) {
     // Common logic or middleware for all routes
-});
-
-$router->get('/specific-route', function ($ctx) {
-    // Handler for a specific GET route
 });
 ```
 
@@ -82,6 +75,68 @@ $router->run();
 This will match the incoming request to the defined routes and execute the corresponding route handler or middleware functions.
 
 Inside the route handler or middleware functions, the request context is available as an associative array named `$ctx`. You can access various request properties such as method, path, query parameters, request body, and headers through this array.
+
+## Mounting a Nested Router
+
+The `all` method provided by the `Router` class allows you to mount a nested router on a specific path. This is useful when you want to group related routes together under a common prefix or when you want to delegate the handling of certain routes to a separate router instance.
+
+To mount a nested router, follow these steps:
+
+1. Create an instance of the nested router using the `Router` class constructor.
+
+```php
+$nestedRouter = new Router();
+
+$nestedRouter->get('/subroute', [$controller, 'index']);
+$nestedRouter->post('/subroute', [$controller, 'create']);
+// Add more routes as needed...
+```
+
+2. Mount the nested router on a specific route of the main router using the all method.
+
+```php
+$mainRouter = new Router();
+
+$mainRouter->all('/prefix', [$nestedRouter, 'run']);
+
+$mainRouter->get('/home', [$homeController, 'index']);
+$mainRouter->post('/users', [$userController, 'create']);
+// ...
+```
+
+3. Run the main router to start processing incoming requests.
+
+```php
+$mainRouter->run();
+```
+
+## Utils Class
+
+The Utils class in BrowniePHP provides a collection of utility methods that offer functionality commonly used in web development. Here are some key methods available in the class:
+
+`send_json($data)`
+
+This method sends JSON-encoded data as a response to the client. It supports JSONP by checking for a callback parameter in the request URL. If the parameter is present, the response is wrapped in a callback function. Otherwise, the response is sent as standard JSON. This method can be used to send JSON data back to the client in a consistent and structured manner.
+
+`enable_cors($origin = '*')`
+
+This method enables Cross-Origin Resource Sharing (CORS) by setting the necessary headers in the response. It allows requests from different origins to access the resources of your application. The $origin parameter specifies the allowed origin or origins. By default, it is set to '\*', allowing requests from any origin. The method sets the `Access-Control-Allow-Origin, Access-Control-Allow-Credentials, Access-Control-Allow-Headers, and Access-Control-Allow-Methods` headers accordingly.
+
+### Error Handlers
+
+The Utils class also includes error handler methods that simplify the process of returning error responses. These methods facilitate sending error messages and appropriate HTTP status codes to the client.
+
+`server_error($error_type, $description, $status_code)`
+
+This method generates an error response with a specified error type, description, and HTTP status code. It constructs an associative array with the error details and sets the appropriate status code. The error response is then sent as JSON using the `send_json` method.
+
+`unknown_error()`
+
+The unknown_error method is a convenience wrapper for the `server_error` method. It simplifies handling internal server errors by providing a pre-defined error type, description, and HTTP status code.
+
+`not_found()`
+
+Similar to the `unknown_error` method, `not_found` is a convenience wrapper for the `server_error` method. It simplifies handling resource not found errors by providing a pre-defined error type, description, and HTTP status code.
 
 ## Contributing
 
