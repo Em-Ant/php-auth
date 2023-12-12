@@ -9,13 +9,16 @@ class Utils
   public static function send_json($data)
   {
     header('Content-Type: text/javascript; charset=utf8');
-    if (isset($_GET['callback'])) {
-      echo $_GET['callback'] . '(' . json_encode($data) . ');';
+    $callback = isset($_GET['callback']) ? $_GET['callback'] : '';
+
+    // Sanitize the callback function name
+    if (preg_match('/^[a-zA-Z0-9_]+$/', $callback)) {
+      echo $callback . '(' . json_encode($data) . ');';
     } else {
       header('Content-Type: application/json');
       echo json_encode($data, JSON_UNESCAPED_SLASHES);
     }
-    Utils::terminate();
+    self::terminate();
   }
 
   public static function server_error(
@@ -36,6 +39,12 @@ class Utils
   public static function not_found()
   {
     self::server_error('not found', 'resource not found', 404);
+  }
+
+  public static function ok()
+  {
+    http_response_code(200);
+    self::terminate();
   }
 
   public static function read_env($file = '.env')
@@ -59,11 +68,11 @@ class Utils
     return $vars;
   }
 
-  public static function show_view(string $view, array $params)
+  public static function show_view(string $view, array $params, ?string $path = 'src/views')
   {
     extract($params);
-    $view = 'src/views/' . $view . '.php';
-    include 'src/views/template.php';
+    $view = self::ensure_end_slash($path) . $view . '.php';
+    include self::ensure_end_slash($path) . 'template.php';
     Utils::terminate();
   }
 
@@ -92,5 +101,13 @@ class Utils
     if (!defined('UNIT_TESTING')) {
       die();
     }
+  }
+
+  private static function ensure_end_slash(string $path)
+  {
+    if (!str_ends_with($path, '/')) {
+      $path = $path . '/';
+    }
+    return $path;
   }
 }

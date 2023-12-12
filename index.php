@@ -42,8 +42,6 @@ $logHttpRequest = function () use ($logger) {
   $method = $_SERVER['REQUEST_METHOD'];
   $uri = $_SERVER['REQUEST_URI'];
   $protocol = $_SERVER['SERVER_PROTOCOL'];
-  $ip = $_SERVER['REMOTE_ADDR'];
-
 
   $logMessage = "$method $uri $protocol";
 
@@ -75,35 +73,15 @@ $auth_controller = new Controllers\Authorize(
   $sub_path
 );
 
-
-$check_3rd_party_cookies = function ($ctx) {
+$check_3rd_party_cookies = function (array $ctx) {
   $params = $ctx['params'];
-  include('./src/views/3p-' . $params['step']);
+  include("./src/views/3p-{$params['step']}");
   die();
 };
 
 $send_login_iframe = function () {
   include('./src/views/login-iframe.html');
   die();
-};
-
-$ok = function () {
-  http_response_code(200);
-  die();
-};
-
-$static = function (string $path) {
-  $mimes = new \Mimey\MimeTypes;
-  return function (array $ctx) use ($path, $mimes) {
-    $params = $ctx['params'];
-    $file = $path . '/' . $params['file'];
-    if (file_exists($file)) {
-      $ext = pathinfo($file, PATHINFO_EXTENSION);
-      header('Content-Type: ' . $mimes->getMimeType($ext));
-      include($file);
-      die();
-    }
-  };
 };
 
 $auth = new Router();
@@ -126,11 +104,12 @@ $auth->get(
 );
 $auth->get('/3p-cookies/{step}', $check_3rd_party_cookies);
 $auth->get('/login-status-iframe.html', $send_login_iframe);
-$auth->get('/login-status-iframe.html/init', $ok);
+$auth->get('/login-status-iframe.html/init', [Utils::class, 'ok']);
 
 $app = new Router();
 
 $app->use($logHttpRequest);
+$app->use('/public', Router::static_server('./public'));
 $app->use([Router::class, 'parse_json_body']);
 $app->use('/realms/{realm}/protocol/openid-connect', [$auth, 'run']);
 $app->get(
@@ -138,8 +117,6 @@ $app->get(
   [$auth_controller, 'send_config']
 );
 $app->all('/', [Utils::class, 'not_found']);
-$app->get('/public/{file}', $static('./public'));
-
 $app->all('/{unknown}', [Utils::class, 'not_found']);
 
 $app->run();
