@@ -109,7 +109,7 @@ $auth->get('/login-status-iframe.html/init', [Utils::class, 'ok']);
 $app = new Router();
 
 $app->use('/admin', function () {
-  include('./admin/index.php');
+  include('./db_admin/index.php');
   die();
 });
 $app->use($logHttpRequest);
