@@ -108,6 +108,10 @@ $auth->get('/login-status-iframe.html/init', [Utils::class, 'ok']);
 
 $app = new Router();
 
+$app->use('/admin', function () {
+  include('./admin/index.php');
+  die();
+});
 $app->use($logHttpRequest);
 $app->use('/public', Router::static_server('./public'));
 $app->use([Router::class, 'parse_json_body']);
