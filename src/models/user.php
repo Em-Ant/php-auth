@@ -11,7 +11,7 @@ class User implements \JsonSerializable
     private string $name;
     private string $email;
     private string $password;
-    private array $scope;
+    private array $realm_roles;
     private DateTime $created_at;
     private bool $valid;
 
@@ -21,7 +21,7 @@ class User implements \JsonSerializable
         string $name,
         string $email,
         string $password,
-        string $scope,
+        string $realm_roles,
         string $created_at,
         ?bool $valid = true
     ) {
@@ -30,7 +30,7 @@ class User implements \JsonSerializable
         $this->name = $name;
         $this->email = $email;
         $this->password = $password;
-        $this->scope = explode(' ', $scope);
+        $this->realm_roles = explode(' ', $realm_roles);
         $utc = new \DateTimeZone('UTC');
         $this->created_at =
             \DateTime::createFromFormat('Y-m-d H:i:s', $created_at, $utc);
@@ -57,9 +57,9 @@ class User implements \JsonSerializable
     {
         return $this->password;
     }
-    public function getScope(): array
+    public function getRealmRoles(): array
     {
-        return $this->scope;
+        return $this->realm_roles;
     }
     public function getCreatedAt(): \DateTime
     {

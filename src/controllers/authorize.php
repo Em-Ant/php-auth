@@ -61,6 +61,7 @@ class Authorize
             if (isset($session) && $session != null) {
                 $login = $this->auth_service->createAuthorizedLogin(
                     $session,
+                    $realm,
                     $query
                 );
 
@@ -79,6 +80,7 @@ class Authorize
                 die();
             } else {
                 $pending_login_id = $this->auth_service->initializeLogin(
+                    $realm->getId(),
                     $query
                 );
                 Utils::show_view(
@@ -115,6 +117,7 @@ class Authorize
         $login_id = $query['q'];
 
         $result = $this->auth_service->ensureValidCredentials(
+            $realm->getId(),
             $email,
             $password,
         );
@@ -213,6 +216,9 @@ class Authorize
         $realm = $ctx['realm'];
         $kid = $realm->getKeysId();
         $keys = file_get_contents("keys/$kid/keys.json", true);
+        if (!$keys) {
+            throw new InvalidInputException('keys not found');
+        }
         header('Content-Type: application/json; charset=utf-8');
         Utils::enable_cors();
         echo $keys;

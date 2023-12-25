@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS 'realms' (
   'authenticated_login_expires_in' integer NOT NULL,
   'session_expires_in' integer NOT NULL,
   'idle_session_expires_in' integer NOT NULL,
-  'scope' varchar(100) NOT NULL,
+  'scope' varchar(100) DEFAULT 'openid profile email' NOT NULL,
   'created_at' TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 CREATE UNIQUE INDEX 'name_ind' ON 'realms' ('name');
@@ -18,14 +18,15 @@ CREATE TABLE IF NOT EXISTS 'users' (
   'id' varchar(36) PRIMARY KEY NOT NULL,
   'realm_id' varchar(36) NOT NULL,
   'name' varchar(64),
-  'email' varchar(64) UNIQUE NOT NULL,
+  'email' varchar(64) NOT NULL,
+  'email_verified' boolean DEFAULT false,
   'password' varchar(128) NOT NULL,
-  'scope' varchar(100) NOT NULL,
+  'realm_roles' varchar(100) DEFAULT 'basic' NOT NULL,
   'created_at' TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
   'valid' boolean DEFAULT "TRUE",
   FOREIGN KEY ('realm_id') REFERENCES realms('id')
 );
-CREATE UNIQUE INDEX 'email_ind' ON 'users' ('email');
+CREATE UNIQUE INDEX 'email_ind' ON 'users' ('email', 'realm_id');
 DROP TABLE IF EXISTS 'clients';
 CREATE TABLE IF NOT EXISTS 'clients' (
   'id' varchar(36) PRIMARY KEY NOT NULL,

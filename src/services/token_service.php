@@ -28,6 +28,10 @@ class TokenService
         $kid = $realm->getKeysId();
         $public_key = file_get_contents("keys/$kid/public_key.pem");
 
+        if (!$public_key) {
+            throw new \RuntimeException('keys not found');
+        }
+
         $t = explode('.', $token);
         $header = json_decode(Base64Utils::b64UrlDecode($t[0]), true);
 
@@ -55,6 +59,10 @@ class TokenService
     public function createToken(array $payload, $keys_id): string
     {
         $private_key = file_get_contents("keys/$keys_id/private_key.pem");
+
+        if (!$private_key) {
+            throw new \RuntimeException('keys not found');
+        }
 
         $header = json_encode([
             'typ' => 'JWT',
@@ -84,8 +92,11 @@ class TokenService
 
 
 
-    public static function createKeys(?array $dn = [], ?int $cert_duration = 365): void
-    {
+    public static function createKeys(
+        ?string $kid = null,
+        ?array $dn = [],
+        ?int $cert_duration = 365
+    ): void {
         $config = array(
             "private_key_bits" => 2048,
             "private_key_type" => OPENSSL_KEYTYPE_RSA,
@@ -118,7 +129,7 @@ class TokenService
 
         $details = openssl_pkey_get_details($new_key_pair);
         $public_key_pem = $details['key'];
-        $kid = bin2hex(random_bytes(6));
+        $kid = $kid ?? Utils::get_guid();
         $keys = [
             "keys" => [
                 [
@@ -196,7 +207,7 @@ class TokenService
             "id_token" => $id_token,
             "not-before-policy" => 0,
             "session_state" => $session->getId(),
-            "scope" => join(" ", $user->getScope()),
+            "scope" => $login->getScope(),
         ];
     }
 
@@ -224,9 +235,9 @@ class TokenService
                 "nonce" => $login->getNonce(),
                 "session_state" => $session->getId(),
                 "realm_access" => [
-                    "roles" => $user->getScope()
+                    "roles" => $user->getRealmRoles()
                 ],
-                "scope" => "openid" . join(" ", $user->getScope()),
+                "scope" => $login->getScope(),
                 "sid" => $session->getId()
             ],
             $keys_id
@@ -262,9 +273,9 @@ class TokenService
                     $client->getUri()
                 ],
                 "realm_access" => [
-                    "roles" => $user->getScope()
+                    "roles" => $user->getRealmRoles()
                 ],
-                "scope" => "openid" . join(" ", $user->getScope()),
+                "scope" => $login->getScope(),
                 "sid" => $session->getId(),
                 "preferred_username" => $user->getName()
             ],

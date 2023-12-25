@@ -59,6 +59,7 @@ class AuthorizeService
     }
 
     public function initializeLogin(
+        string $realm_id,
         array $query
     ): string {
         $client_name = $query['client_id'];
@@ -66,7 +67,7 @@ class AuthorizeService
 
         self::validateQueryParams($query);
 
-        $client = $this->ensureValidClient($client_name, $query['redirect_uri']);
+        $client = $this->ensureValidClient($client_name, $realm_id, $query['redirect_uri']);
 
         $login = $this->login_repository->createPending(
             $client->getId(),
@@ -109,6 +110,7 @@ class AuthorizeService
 
     public function createAuthorizedLogin(
         Session $session,
+        Realm $realm,
         array $query
     ): Login {
         $client_name = $query['client_id'];
@@ -116,7 +118,7 @@ class AuthorizeService
 
         self::validateQueryParams($query);
 
-        $client = $this->ensureValidClient($client_name, $query['redirect_uri']);
+        $client = $this->ensureValidClient($client_name, $realm->getId(), $query['redirect_uri']);
 
         $user_id = $session->getUserId();
         $user = $this->user_repository->findById($user_id);
@@ -127,8 +129,8 @@ class AuthorizeService
                 "invalid user $user_id for session $session_id "
             );
         }
-        if (!self::validateScope($user->getScope(), $query['scope'])) {
-            throw new CriticalLoginErrorException('invalid user scope');
+        if (!self::validateScope($realm->getScope(), $query['scope'])) {
+            throw new CriticalLoginErrorException('invalid realm scope');
         }
 
         $code = $this->secrets_service->generateCode();
@@ -157,13 +159,14 @@ class AuthorizeService
     }
 
     public function ensureValidCredentials(
+        string $realm_id,
         string $email,
         string $password
     ): array {
         $this->logger->info("validating user credentials for $email");
 
         $error = false;
-        $user = $this->user_repository->findByEmail($email);
+        $user = $this->user_repository->findByEmailAndRealmId($email, $realm_id);
         if ($user == null) {
             $error = 'email not found';
         } else {
@@ -207,7 +210,7 @@ class AuthorizeService
         $this->checkLoginExpiration($login, $realm);
 
         $scope = $login->getScope();
-        if (!self::validateScope($user->getScope(), $scope)) {
+        if (!self::validateScope($realm->getScope(), $scope)) {
             throw new CriticalLoginErrorException('invalid user scope');
         }
 
@@ -519,12 +522,17 @@ class AuthorizeService
 
     private function ensureValidClient(
         string $client_name,
+        string $realm_id,
         string $redirect_uri
     ) {
         $client = $this->client_repository->findByName($client_name);
         if ($client === null) {
             $this->logger->error("client matching $client_name not found for realm");
             throw new InvalidInputException('invalid client id');
+        }
+        if ($client->getRealmId() !== $realm_id) {
+            $this->logger->error("client $client_name realm id {$client->getRealmId()} doesn't match $realm_id");
+            throw new InvalidInputException("invalid client for realm $realm_id");
         }
         self::validateRedirectUri($client, $redirect_uri);
 
@@ -618,16 +626,17 @@ class AuthorizeService
     ): bool {
         $input_scope_array = explode(' ', $requested_scope);
         $valid = true;
+        $required_found = false;
         foreach ($input_scope_array as $s) {
             if ($s == 'openid') {
-                continue;
+                $required_found = true;
             }
             if (!in_array($s, $allowed_scope)) {
                 $valid = false;
                 break;
             }
         }
-        return $valid;
+        return $valid && $required_found;
     }
 
     private static function validateRedirectUri(

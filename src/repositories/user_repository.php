@@ -39,7 +39,7 @@ class UserRepository implements IUser
                 $r['name'],
                 $r['email'],
                 $r['password'],
-                $r['scope'],
+                $r['realm_roles'],
                 $r['created_at'],
                 $r['valid'] == 'TRUE'
             );
@@ -49,13 +49,14 @@ class UserRepository implements IUser
         }
     }
 
-    public function findByEmail(string $email): ?User
+    public function findByEmailAndRealmId(string $email, string $realm_id): ?User
     {
         try {
             $statement = $this->db->prepare(
-                "SELECT * FROM users WHERE email = :email"
+                "SELECT * FROM users WHERE email = :email AND realm_id = :realm_id"
             );
             $statement->bindValue(':email', $email);
+            $statement->bindValue(':realm_id', $realm_id);
 
             $statement->execute();
 
@@ -71,7 +72,7 @@ class UserRepository implements IUser
                 $r['name'],
                 $r['email'],
                 $r['password'],
-                $r['scope'],
+                $r['realm_roles'],
                 $r['created_at'],
                 $r['valid'] == 'TRUE'
             );
