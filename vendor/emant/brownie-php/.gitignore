@@ -1,5 +1,0 @@
-composer.phar
-/vendor/
-/coverage/
-/.phpunit.cache
-.phpunit.**.cache

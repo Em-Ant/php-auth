@@ -10,7 +10,10 @@ jobs:
     if: "!contains(toJSON(github.event.commits.*.message), '[skip-ci]')"
     steps:
       - uses: actions/checkout@v3
-      - name: Create dist folder
+      - uses: php-actions/composer@v6
+        with:
+          dev: no
+      - name: build
         run: |
           mkdir -p ./dist && cp -r src public static vendor db_admin dist && cp index.php dist
           ls dist
