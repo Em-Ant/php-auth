@@ -4,52 +4,51 @@ namespace AuthServer\Interfaces;
 
 use AuthServer\Models\Login;
 
-
 interface LoginRepository
 {
-  public function find_by_id(string $id): ?Login;
-  public function find_by_code(string $code): ?Login;
-  public function find_by_refresh_token(string $token): ?Login;
+    public function find_by_id(string $id): ?Login;
+    public function find_by_code(string $code): ?Login;
+    public function find_by_refresh_token(string $token): ?Login;
 
-  public function create_pending(
-    string $client_id,
-    string $state,
-    string $nonce,
-    string $scope,
-    string $redirect_uri,
-    string $response_mode,
-    ?string $code_challenge
-  ): ?Login;
+    public function create_pending(
+        string $client_id,
+        string $state,
+        string $nonce,
+        string $scope,
+        string $redirect_uri,
+        string $response_mode,
+        ?string $code_challenge
+    ): ?Login;
 
-  public function create_authenticated(
-    string $client_id,
-    string $session_id,
-    string $state,
-    string $nonce,
-    string $scope,
-    string $redirect_uri,
-    string $response_mode,
-    string $code,
-    ?string $code_challenge
-  ): ?Login;
+    public function create_authenticated(
+        string $client_id,
+        string $session_id,
+        string $state,
+        string $nonce,
+        string $scope,
+        string $redirect_uri,
+        string $response_mode,
+        string $code,
+        ?string $code_challenge
+    ): ?Login;
 
-  public function set_authenticated(
-    string $id,
-    string $session_id,
-    string $code,
-  ): bool;
+    public function set_authenticated(
+        string $id,
+        string $session_id,
+        string $code,
+    ): bool;
 
-  public function set_active(
-    string $id,
-    string $token
-  ): bool;
+    public function set_active(
+        string $id,
+        string $token
+    ): bool;
 
-  public function refresh(
-    string $id,
-    string $token
-  ): bool;
+    public function refresh(
+        string $id,
+        string $token
+    ): bool;
 
-  public function set_expired(
-    string $id
-  ): bool;
+    public function set_expired(
+        string $id
+    ): bool;
 }

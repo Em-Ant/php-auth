@@ -1,6 +1,6 @@
 <?php
 $sub_path = $GLOBALS['sub_path'] ?: '';
-$title = $title ?: 'Auth';
+$title = $title ?? 'Auth';
 ?>
 
 <!DOCTYPE html>
@@ -16,8 +16,10 @@ $title = $title ?: 'Auth';
 
 <body>
   <?php
-  include $view;
-  ?>
+    if (isset($view)) {
+        include $view;
+    }
+    ?>
 </body>
 
 </html>

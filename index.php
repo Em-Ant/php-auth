@@ -26,26 +26,26 @@ $issuer = $server['issuer'] . '/realms/web';
 $sub_path = $server['base_path'];
 
 $token_service = new TokenService(
-  $issuer
+    $issuer
 );
 
 $log = $config['log'];
 $logger = new Logger(
-  $log['level'],
-  $log['print'],
-  $log['write'],
-  date('Y-m-d') . '_' . $log['file'],
-  __DIR__ . '/log'
+    $log['level'],
+    $log['print'],
+    $log['write'],
+    date('Y-m-d') . '_' . $log['file'],
+    __DIR__ . '/log'
 );
 
 $logHttpRequest = function () use ($logger) {
-  $method = $_SERVER['REQUEST_METHOD'];
-  $uri = $_SERVER['REQUEST_URI'];
-  $protocol = $_SERVER['SERVER_PROTOCOL'];
+    $method = $_SERVER['REQUEST_METHOD'];
+    $uri = $_SERVER['REQUEST_URI'];
+    $protocol = $_SERVER['SERVER_PROTOCOL'];
 
-  $logMessage = "$method $uri $protocol";
+    $logMessage = "$method $uri $protocol";
 
-  $logger->info($logMessage);
+    $logger->info($logMessage);
 };
 
 $secrets_service = new SecretsService();
@@ -58,30 +58,30 @@ $realm_repo = new RealmRepository(DataSource::getInstance());
 $realm_provider = new RealmProvider($realm_repo);
 
 $auth_service = new AuthorizeService(
-  $client_repo,
-  $session_repo,
-  $user_repo,
-  $login_repo,
-  $secrets_service,
-  $token_service,
-  $logger
+    $client_repo,
+    $session_repo,
+    $user_repo,
+    $login_repo,
+    $secrets_service,
+    $token_service,
+    $logger
 );
 
 $auth_controller = new Controllers\Authorize(
-  $auth_service,
-  $issuer,
-  $sub_path
+    $auth_service,
+    $issuer,
+    $sub_path
 );
 
 $check_3rd_party_cookies = function (array $ctx) {
-  $params = $ctx['params'];
-  include("./src/views/3p-{$params['step']}");
-  die();
+    $params = $ctx['params'];
+    include("./src/views/3p-{$params['step']}");
+    die();
 };
 
 $send_login_iframe = function () {
-  include('./src/views/login-iframe.html');
-  die();
+    include('./src/views/login-iframe.html');
+    die();
 };
 
 $auth = new Router();
@@ -90,17 +90,17 @@ $auth->use([$realm_provider, 'provide_realm']);
 $auth->get('/auth', [$auth_controller, 'authorize']);
 $auth->post('/login-actions/authenticate', [$auth_controller, 'login']);
 $auth->post(
-  '/token',
-  [Router::class, 'parse_basic_auth'],
-  [$auth_controller, 'token']
+    '/token',
+    [Router::class, 'parse_basic_auth'],
+    [$auth_controller, 'token']
 );
 $auth->get('/logout', [$auth_controller, 'logout']);
 $auth->get('/error', [$auth_controller, 'error']);
 $auth->get('/certs', [$auth_controller, 'send_keys']);
 $auth->get(
-  '/userinfo',
-  [$auth_controller, 'validate_access_token_middleware'],
-  [$auth_controller, 'send_user_info']
+    '/userinfo',
+    [$auth_controller, 'validate_access_token_middleware'],
+    [$auth_controller, 'send_user_info']
 );
 $auth->get('/3p-cookies/{step}', $check_3rd_party_cookies);
 $auth->get('/login-status-iframe.html', $send_login_iframe);
@@ -109,16 +109,16 @@ $auth->get('/login-status-iframe.html/init', [Utils::class, 'ok']);
 $app = new Router();
 
 $app->use('/admin', function () {
-  include('./db_admin/index.php');
-  die();
+    include('./db_admin/index.php');
+    die();
 });
 $app->use($logHttpRequest);
 $app->use('/public', Router::static_server('./public'));
 $app->use([Router::class, 'parse_json_body']);
 $app->use('/realms/{realm}/protocol/openid-connect', [$auth, 'run']);
 $app->get(
-  '/realms/web/.well-known/openid-configuration',
-  [$auth_controller, 'send_config']
+    '/realms/web/.well-known/openid-configuration',
+    [$auth_controller, 'send_config']
 );
 $app->all('/', [Utils::class, 'not_found']);
 $app->all('/{unknown}', [Utils::class, 'not_found']);

@@ -7,5 +7,19 @@
   "repositories": {},
   "require": {
     "emant/brownie-php": "0.0.2"
+  },
+  "require-dev": {
+    "phpstan/phpstan": "^1.10",
+    "squizlabs/php_codesniffer": "3.*"
+  },
+  "scripts": {
+    "serve": "php -S localhost:8000 index.php",
+    "stan": "phpstan analyse -l 5 src index.php",
+    "cs_check": "phpcs src index.php --standard=PSR12",
+    "cs_fix": "phpcbf src index.php --standard=PSR12",
+    "check": [
+      "@stan",
+      "@cs_check"
+    ]
   }
 }
