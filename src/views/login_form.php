@@ -1,4 +1,5 @@
 <?php
+// phpcs:disable Generic.Files.LineLength
 if (!(isset($login_id) && isset($realm))) {
     throw new \RuntimeException('login form: missing required parameters');
 }

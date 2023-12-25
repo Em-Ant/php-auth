@@ -6,11 +6,11 @@ use AuthServer\Models\Login;
 
 interface LoginRepository
 {
-    public function find_by_id(string $id): ?Login;
-    public function find_by_code(string $code): ?Login;
-    public function find_by_refresh_token(string $token): ?Login;
+    public function findById(string $id): ?Login;
+    public function findByCode(string $code): ?Login;
+    public function findByrefreshToken(string $token): ?Login;
 
-    public function create_pending(
+    public function createPending(
         string $client_id,
         string $state,
         string $nonce,
@@ -20,7 +20,7 @@ interface LoginRepository
         ?string $code_challenge
     ): ?Login;
 
-    public function create_authenticated(
+    public function createAuthenticated(
         string $client_id,
         string $session_id,
         string $state,
@@ -32,13 +32,13 @@ interface LoginRepository
         ?string $code_challenge
     ): ?Login;
 
-    public function set_authenticated(
+    public function setAuthenticated(
         string $id,
         string $session_id,
         string $code,
     ): bool;
 
-    public function set_active(
+    public function setActive(
         string $id,
         string $token
     ): bool;
@@ -48,7 +48,7 @@ interface LoginRepository
         string $token
     ): bool;
 
-    public function set_expired(
+    public function setExpired(
         string $id
     ): bool;
 }

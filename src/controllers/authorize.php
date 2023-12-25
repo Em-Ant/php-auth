@@ -36,41 +36,41 @@ class Authorize
         /** @var Realm */
         $realm = $ctx['realm'];
 
-        $realm_name = $realm->get_name();
+        $realm_name = $realm->getName();
         $current_session_id =
-            self::get_session_id_from_cookie($realm_name);
+            self::getSessionIdFromCookie($realm_name);
 
         try {
             $query = $ctx['query'];
             $scope = $query['scope'];
             $prompt = $query['prompt'] ?? '';
 
-            $this->auth_service->validate_required_login_scope(
-                $realm->get_scope(),
+            $this->auth_service->validateRequiredLoginScope(
+                $realm->getScope(),
                 $scope
             );
 
             if ($current_session_id) {
-                $session = $this->auth_service->ensure_valid_session(
+                $session = $this->auth_service->ensureValidSession(
                     $current_session_id,
-                    $realm->get_session_expires_in(),
-                    $realm->get_idle_session_expires_in()
+                    $realm->getSessionExpiresIn(),
+                    $realm->getIdleSessionExpiresIn()
                 );
             }
 
             if (isset($session) && $session != null) {
-                $login = $this->auth_service->create_authorized_login(
+                $login = $this->auth_service->createAuthorizedLogin(
                     $session,
                     $query
                 );
 
-                $redirect_uri = self::get_redirect_uri($login, $session->get_id());
+                $redirect_uri = self::getRedirectUri($login, $session->getId());
 
-                $this->set_session_cookie($realm, $current_session_id);
+                $this->setSessionCookie($realm, $current_session_id);
                 header("location: $redirect_uri", true, 302);
                 die();
             } elseif ($prompt === 'none') {
-                $redirect_uri = self::get_login_required_redirect_uri(
+                $redirect_uri = self::getLoginRequiredRedirectUri(
                     $query['redirect_uri'],
                     $query['response_mode'],
                     $query['state']
@@ -78,7 +78,7 @@ class Authorize
                 header("location: $redirect_uri", true, 302);
                 die();
             } else {
-                $pending_login_id = $this->auth_service->initialize_login(
+                $pending_login_id = $this->auth_service->initializeLogin(
                     $query
                 );
                 Utils::show_view(
@@ -97,7 +97,7 @@ class Authorize
         } catch (InvalidInputException $e) {
             Utils::server_error(self::INVALID_REQUEST, $e->getMessage(), 400);
         } catch (CriticalLoginErrorException $e) {
-            $this->redirect_to_error($realm->get_name(), $e->getMessage());
+            $this->redirectToError($realm->getName(), $e->getMessage());
         }
     }
 
@@ -114,7 +114,7 @@ class Authorize
 
         $login_id = $query['q'];
 
-        $result = $this->auth_service->ensure_valid_user_credentials(
+        $result = $this->auth_service->ensureValidCredentials(
             $email,
             $password,
         );
@@ -124,7 +124,7 @@ class Authorize
                 [
                     'title' => 'Login',
                     'login_id' => $login_id,
-                    'realm' => $realm->get_name(),
+                    'realm' => $realm->getName(),
                     'email' => $email,
                     'password' => $password,
                     'error' => $result['error']
@@ -134,23 +134,23 @@ class Authorize
         }
 
         try {
-            $data = $this->auth_service->authenticate_login(
+            $data = $this->auth_service->authenticateLogin(
                 $login_id,
                 $result['user'],
                 $realm
             );
 
-            $session_id = (string) $data['session']->get_id();
+            $session_id = (string) $data['session']->getId();
             /** @var Login */
             $login = $data['login'];
-            $redirect_uri = self::get_redirect_uri($login, $session_id);
+            $redirect_uri = self::getRedirectUri($login, $session_id);
 
-            $this->set_session_cookie($realm, $session_id);
+            $this->setSessionCookie($realm, $session_id);
 
             header("location: $redirect_uri", true, 302);
             die();
         } catch (CriticalLoginErrorException $e) {
-            $this->redirect_to_error($realm->get_name(), $e->getMessage());
+            $this->redirectToError($realm->getName(), $e->getMessage());
         }
     }
 
@@ -173,9 +173,9 @@ class Authorize
             $realm = $ctx['realm'];
             $headers = $ctx['headers'];
             $origin = $headers['origin'] ??
-                $this->auth_service->get_client_uri($body['client_id']);
+                $this->auth_service->getClientUri($body['client_id']);
             Utils::enable_cors($origin);
-            Utils::send_json($this->auth_service->get_tokens($body, $realm));
+            Utils::send_json($this->auth_service->getTokens($body, $realm));
         } catch (InvalidInputException $e) {
             Utils::server_error(self::INVALID_REQUEST, $e->getMessage(), 400);
         }
@@ -199,7 +199,7 @@ class Authorize
         $id_token = $query['id_token_hint'];
         try {
             $this->auth_service->logout($id_token, $realm);
-            $this->delete_session_cookie($realm);
+            $this->deleteSessionCookie($realm);
             header("location: $redirect", true, 302);
             die();
         } catch (InvalidInputException $e) {
@@ -207,11 +207,11 @@ class Authorize
         }
     }
 
-    public function send_keys(array $ctx)
+    public function sendKeys(array $ctx)
     {
         /** @var Realm */
         $realm = $ctx['realm'];
-        $kid = $realm->get_keys_id();
+        $kid = $realm->getKeysId();
         $keys = file_get_contents("keys/$kid/keys.json", true);
         header('Content-Type: application/json; charset=utf-8');
         Utils::enable_cors();
@@ -219,7 +219,7 @@ class Authorize
         die();
     }
 
-    public function send_config()
+    public function sendConfig()
     {
         $data = file_get_contents('./static/well-known.json', true);
         header('Content-Type: application/json; charset=utf-8');
@@ -228,7 +228,7 @@ class Authorize
         die();
     }
 
-    private static function get_session_id_from_cookie(
+    private static function getSessionIdFromCookie(
         string $realm_name
     ): ?string {
         $session_cookie = isset($_COOKIE['AUTH_SESSION'])
@@ -250,15 +250,15 @@ class Authorize
         return $session_id;
     }
 
-    private function set_session_cookie(
+    private function setSessionCookie(
         Realm $realm,
         string $session_id
     ) {
-        $realm_name = $realm->get_name();
+        $realm_name = $realm->getName();
         $mount_path = $this->mount_path ?: '';
 
         setcookie('AUTH_SESSION', "$realm_name\\$session_id", [
-            'expires' => time() + $realm->get_session_expires_in(),
+            'expires' => time() + $realm->getSessionExpiresIn(),
             'path' => "$mount_path/realms/$realm_name",
             'domain' => $_SERVER['SERVER_NAME'],
             'httponly' => false,
@@ -268,9 +268,9 @@ class Authorize
     }
 
 
-    private function delete_session_cookie(Realm $realm)
+    private function deleteSessionCookie(Realm $realm)
     {
-        $realm_name = $realm->get_name();
+        $realm_name = $realm->getName();
         $mount_path = $this->mount_path ?: '';
 
         setcookie('AUTH_SESSION', "", [
@@ -283,7 +283,7 @@ class Authorize
         ]);
     }
 
-    private static function get_login_required_redirect_uri(
+    private static function getLoginRequiredRedirectUri(
         string $redirect_uri,
         string $response_mode,
         string $state
@@ -308,12 +308,12 @@ class Authorize
             $append;
     }
 
-    private static function get_redirect_uri(
+    private static function getRedirectUri(
         Login $login,
         string $session_id
     ): string {
-        $redirect_uri = $login->get_redirect_uri();
-        $response_mode = $login->get_response_mode();
+        $redirect_uri = $login->getRedirectUri();
+        $response_mode = $login->getResponseMode();
         $append = '';
         $char = '';
         $hash_pos = strpos($redirect_uri, '#');
@@ -329,13 +329,13 @@ class Authorize
         }
 
         return $redirect_uri . $char .
-            'code=' . $login->get_code() .
-            '&state=' . $login->get_state() .
+            'code=' . $login->getCode() .
+            '&state=' . $login->getState() .
             '&session_state=' . $session_id .
             $append;
     }
 
-    private function redirect_to_error($realm_name, $message)
+    private function redirectToError($realm_name, $message)
     {
         $sub = $this->mount_path ?: '';
         header(
@@ -346,7 +346,7 @@ class Authorize
         die();
     }
 
-    public function validate_access_token_middleware(array &$ctx)
+    public function validateAccessTokenMiddleware(array &$ctx)
     {
         /** @var Realm */
         $realm = $ctx['realm'];
@@ -357,13 +357,13 @@ class Authorize
         }
 
         try {
-            $ctx['accessTokenParsed'] = $this->auth_service->parse_valid_token($token, $realm);
+            $ctx['accessTokenParsed'] = $this->auth_service->parseValidToken($token, $realm);
         } catch (InvalidInputException $e) {
             Utils::server_error(self::INVALID_REQUEST, $e->getMessage(), 400);
         }
     }
 
-    public function send_user_info(array $ctx)
+    public function sendUserInfo(array $ctx)
     {
         $token = $ctx['accessTokenParsed'];
         $user = [];

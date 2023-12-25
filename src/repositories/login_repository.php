@@ -18,7 +18,7 @@ class LoginRepository implements IRepo
         $this->db = $data_source->getDb();
     }
 
-    public function find_by_id(string $id): ?Login
+    public function findById(string $id): ?Login
     {
         try {
             $statement = $this->db->prepare(
@@ -34,14 +34,14 @@ class LoginRepository implements IRepo
                 return null;
             }
 
-            return self::build_from_data($r);
+            return self::buildFromData($r);
         } catch (\PDOException $e) {
             error_log($e->getMessage());
             return null;
         }
     }
 
-    public function find_by_code(string $code): ?Login
+    public function findByCode(string $code): ?Login
     {
         try {
             $statement = $this->db->prepare(
@@ -57,14 +57,14 @@ class LoginRepository implements IRepo
                 return null;
             }
 
-            return self::build_from_data($r);
+            return self::buildFromData($r);
         } catch (\PDOException $e) {
             error_log($e->getMessage());
             return null;
         }
     }
 
-    public function find_by_refresh_token(string $token): ?Login
+    public function findByrefreshToken(string $token): ?Login
     {
         try {
             $statement = $this->db->prepare(
@@ -80,14 +80,14 @@ class LoginRepository implements IRepo
                 return null;
             }
 
-            return self::build_from_data($r);
+            return self::buildFromData($r);
         } catch (\PDOException $e) {
             error_log($e->getMessage());
             return null;
         }
     }
 
-    public function create_pending(
+    public function createPending(
         string $client_id,
         string $state,
         string $nonce,
@@ -120,14 +120,14 @@ class LoginRepository implements IRepo
 
             $q->execute();
 
-            return $this->find_by_id($uid);
+            return $this->findById($uid);
         } catch (\PDOException $e) {
             error_log($e->getMessage());
             return null;
         }
     }
 
-    public function create_authenticated(
+    public function createAuthenticated(
         string $client_id,
         string $session_id,
         string $state,
@@ -165,14 +165,14 @@ class LoginRepository implements IRepo
 
             $q->execute();
 
-            return $this->find_by_id($uid);
+            return $this->findById($uid);
         } catch (\PDOException $e) {
             error_log($e->getMessage());
             return null;
         }
     }
 
-    public function set_authenticated(
+    public function setAuthenticated(
         string $id,
         string $session_id,
         string $code
@@ -197,7 +197,7 @@ class LoginRepository implements IRepo
         }
     }
 
-    public function set_active(
+    public function setActive(
         string $id,
         string $refresh_token
     ): bool {
@@ -239,7 +239,7 @@ class LoginRepository implements IRepo
         }
     }
 
-    public function set_expired(
+    public function setExpired(
         string $id
     ): bool {
         try {
@@ -257,7 +257,7 @@ class LoginRepository implements IRepo
         }
     }
 
-    private static function build_from_data(array $r): Login
+    private static function buildFromData(array $r): Login
     {
         return new Login(
             $r['id'],

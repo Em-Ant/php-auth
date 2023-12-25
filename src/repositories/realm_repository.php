@@ -18,7 +18,7 @@ class RealmRepository implements IRepo
         $this->db = $data_source->getDb();
     }
 
-    public function find_by_id(string $id): ?Realm
+    public function findById(string $id): ?Realm
     {
         try {
             $statement = $this->db->prepare(
@@ -53,7 +53,7 @@ class RealmRepository implements IRepo
         }
     }
 
-    public function find_by_name(string $name): ?Realm
+    public function findByName(string $name): ?Realm
     {
         try {
             $statement = $this->db->prepare(

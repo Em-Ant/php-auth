@@ -86,7 +86,7 @@ $send_login_iframe = function () {
 
 $auth = new Router();
 
-$auth->use([$realm_provider, 'provide_realm']);
+$auth->use([$realm_provider, 'provideRealm']);
 $auth->get('/auth', [$auth_controller, 'authorize']);
 $auth->post('/login-actions/authenticate', [$auth_controller, 'login']);
 $auth->post(
@@ -96,11 +96,11 @@ $auth->post(
 );
 $auth->get('/logout', [$auth_controller, 'logout']);
 $auth->get('/error', [$auth_controller, 'error']);
-$auth->get('/certs', [$auth_controller, 'send_keys']);
+$auth->get('/certs', [$auth_controller, 'sendKeys']);
 $auth->get(
     '/userinfo',
-    [$auth_controller, 'validate_access_token_middleware'],
-    [$auth_controller, 'send_user_info']
+    [$auth_controller, 'validateAccessTokenMiddleware'],
+    [$auth_controller, 'sendUserInfo']
 );
 $auth->get('/3p-cookies/{step}', $check_3rd_party_cookies);
 $auth->get('/login-status-iframe.html', $send_login_iframe);
@@ -118,7 +118,7 @@ $app->use([Router::class, 'parse_json_body']);
 $app->use('/realms/{realm}/protocol/openid-connect', [$auth, 'run']);
 $app->get(
     '/realms/web/.well-known/openid-configuration',
-    [$auth_controller, 'send_config']
+    [$auth_controller, 'sendConfig']
 );
 $app->all('/', [Utils::class, 'not_found']);
 $app->all('/{unknown}', [Utils::class, 'not_found']);

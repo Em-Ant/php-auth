@@ -30,34 +30,34 @@ class Client implements \JsonSerializable
         $this->require_auth = $require_auth;
         $utc = new \DateTimeZone('UTC');
         $this->created_at =
-          \DateTime::createFromFormat('Y-m-d H:i:s', $created_at, $utc);
+            \DateTime::createFromFormat('Y-m-d H:i:s', $created_at, $utc);
     }
 
-    public function get_id()
+    public function getId()
     {
         return $this->id;
     }
-    public function get_name()
+    public function getName()
     {
         return $this->name;
     }
-    public function get_realm_id()
+    public function getRealmId()
     {
         return $this->realm_id;
     }
-    public function get_uri()
+    public function getUri()
     {
         return $this->uri;
     }
-    public function get_client_secret()
+    public function getClientSecret()
     {
         return $this->client_secret;
     }
-    public function requires_auth(): bool
+    public function requiresAuth(): bool
     {
         return $this->require_auth;
     }
-    public function get_created_at(): \DateTime
+    public function getCreatedAt(): \DateTime
     {
         return $this->created_at;
     }

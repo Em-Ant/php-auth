@@ -33,39 +33,39 @@ class User implements \JsonSerializable
         $this->scope = explode(' ', $scope);
         $utc = new \DateTimeZone('UTC');
         $this->created_at =
-          \DateTime::createFromFormat('Y-m-d H:i:s', $created_at, $utc);
+            \DateTime::createFromFormat('Y-m-d H:i:s', $created_at, $utc);
         $this->valid = $valid;
     }
 
-    public function get_id(): string
+    public function getId(): string
     {
         return $this->id;
     }
-    public function get_realm_id(): string
+    public function getRealmId(): string
     {
         return $this->realm_id;
     }
-    public function get_name(): string
+    public function getName(): string
     {
         return $this->name;
     }
-    public function get_email(): string
+    public function getEmail(): string
     {
         return $this->email;
     }
-    public function get_password(): string
+    public function getPassword(): string
     {
         return $this->password;
     }
-    public function get_scope(): array
+    public function getScope(): array
     {
         return $this->scope;
     }
-    public function get_created_at(): \DateTime
+    public function getCreatedAt(): \DateTime
     {
         return $this->created_at;
     }
-    public function get_valid(): bool
+    public function getValid(): bool
     {
         return $this->valid;
     }

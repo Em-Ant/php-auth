@@ -53,72 +53,72 @@ class Login implements \JsonSerializable
         $this->refresh_token = $refresh_token;
         $utc = new DateTimeZone('UTC');
         $this->created_at = is_null($created_at) ?
-          date_create() :
-          \DateTime::createFromFormat('Y-m-d H:i:s', $created_at, $utc);
+            date_create() :
+            \DateTime::createFromFormat('Y-m-d H:i:s', $created_at, $utc);
         $this->updated_at =
-          \DateTime::createFromFormat('Y-m-d H:i:s', $updated_at, $utc) ?: null;
+            \DateTime::createFromFormat('Y-m-d H:i:s', $updated_at, $utc) ?: null;
         $this->authenticated_at =
-          \DateTime::createFromFormat('Y-m-d H:i:s', $authenticated_at, $utc) ?: null;
+            \DateTime::createFromFormat('Y-m-d H:i:s', $authenticated_at, $utc) ?: null;
         $this->status = is_null($status) ? '' : $status;
     }
 
-    public function get_id(): string
+    public function getId(): string
     {
         return $this->id;
     }
-    public function get_session_id(): string
+    public function getSessionId(): string
     {
         return $this->session_id;
     }
-    public function get_client_id(): string
+    public function getClientId(): string
     {
         return $this->client_id;
     }
-    public function get_state(): string
+    public function getState(): string
     {
         return $this->state;
     }
-    public function get_nonce(): string
+    public function getNonce(): string
     {
         return $this->nonce;
     }
-    public function get_scope(): string
+    public function getScope(): string
     {
         return $this->scope;
     }
-    public function get_redirect_uri(): string
+    public function getRedirectUri(): string
     {
         return $this->redirect_uri;
     }
-    public function get_response_mode(): string
+    public function getResponseMode(): string
     {
         return $this->response_mode;
     }
-    public function get_code(): ?string
+    public function getCode(): ?string
     {
         return $this->code;
     }
-    public function get_code_challenge(): ?string
+    public function getCodeChallenge(): ?string
     {
         return $this->code_challenge;
     }
-    public function get_refresh_token(): ?string
+    public function getRefreshToken(): ?string
     {
         return $this->refresh_token;
     }
-    public function get_created_at(): \DateTime
+    public function getCreatedAt(): \DateTime
     {
         return $this->created_at;
     }
-    public function get_authenticated_at(): ?\DateTime
+    public function getAuthenticatedAt(): ?\DateTime
     {
         return $this->authenticated_at;
     }
-    public function get_updated_at(): ?\DateTime
+    public function getUpdatedAt(): ?\DateTime
     {
         return $this->updated_at;
     }
-    public function get_status(): string
+    public function getStatus(): string
     {
         return $this->status;
     }
@@ -128,11 +128,11 @@ class Login implements \JsonSerializable
         $data = get_object_vars($this);
         $data['created_at'] = $data['created_at']->format('Y-m-d H:i:s');
         $data['authenticated_at'] = isset($data['authenticated_at']) ?
-          $data['authenticated_at']->format('Y-m-d H:i:s') :
-          null;
+            $data['authenticated_at']->format('Y-m-d H:i:s') :
+            null;
         $data['updated_at'] = isset($data['updated_at']) ?
-          $data['updated_at']->format('Y-m-d H:i:s') :
-          null;
+            $data['updated_at']->format('Y-m-d H:i:s') :
+            null;
 
         return $data;
     }

@@ -7,10 +7,10 @@ use AuthServer\Interfaces\Logger as ILogger;
 class Logger implements ILogger
 {
     private static $log_level_integers = [
-      'debug' => 7,
-      'info' => 6,
-      'warning' => 4,
-      'error' => 3
+        'debug' => 7,
+        'info' => 6,
+        'warning' => 4,
+        'error' => 3
     ];
 
     protected $log = [];
@@ -68,7 +68,7 @@ class Logger implements ILogger
     {
         $this->add($message, $name, 'error');
     }
-    public function clear_log(): void
+    public function clearLog(): void
     {
         $this->log = [];
     }
@@ -84,23 +84,23 @@ class Logger implements ILogger
 
         /* Create the log entry */
         $log_entry = [
-          'timestamp' => time(),
-          'name' => $name,
-          'message' => $message,
-          'level' => $level,
+            'timestamp' => time(),
+            'name' => $name,
+            'message' => $message,
+            'level' => $level,
         ];
 
         $this->log[] = $log_entry;
 
         if (count($this->output_streams) > 0) {
-            $output_line = self::format_log_entry($log_entry) . PHP_EOL;
+            $output_line = self::formatLogEntry($log_entry) . PHP_EOL;
             foreach ($this->output_streams as $stream) {
                 fputs($stream, $output_line);
             }
         }
     }
 
-    private static function format_log_entry(array $log_entry): string
+    private static function formatLogEntry(array $log_entry): string
     {
         $log_line = "";
 
@@ -112,7 +112,7 @@ class Logger implements ILogger
 
             /* Build a line of the pretty log */
             $log_line .= date('[D M d H:i:s Y]', intval($log_entry['timestamp'])) . " ";
-            $log_line .= self::get_request_id() . ' ';
+            $log_line .= self::getRequestId() . ' ';
             $log_line .= "[" . strtoupper($log_entry['level']) . "] ";
             if (!empty($log_entry['name'])) {
                 $log_line .= $log_entry['name'] . " => ";
@@ -123,9 +123,9 @@ class Logger implements ILogger
         return $log_line;
     }
 
-    private static function get_request_id()
+    private static function getRequestId()
     {
         return ($_SERVER['REMOTE_ADDR'] ?: $_SERVER['HTTP_X_FORWARDED_FOR'])
-          . ':' . $_SERVER['REMOTE_PORT'];
+            . ':' . $_SERVER['REMOTE_PORT'];
     }
 }

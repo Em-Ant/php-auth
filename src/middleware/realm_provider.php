@@ -14,12 +14,12 @@ class RealmProvider
         $this->realms = $repo;
     }
 
-    public function provide_realm(array &$ctx): void
+    public function provideRealm(array &$ctx): void
     {
         $params = $ctx['params'] ?: [];
         $realm_name = $params['realm'];
 
-        $realm = $this->realms->find_by_name($realm_name);
+        $realm = $this->realms->findByName($realm_name);
         $ctx['realm'] = $realm;
 
         if (!$realm) {

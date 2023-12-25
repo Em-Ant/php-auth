@@ -6,7 +6,7 @@ use AuthServer\Models\Session;
 
 interface SessionRepository
 {
-    public function find_by_id(string $id): ?Session;
+    public function findById(string $id): ?Session;
 
     public function create(
         string $realm_id,
@@ -18,7 +18,7 @@ interface SessionRepository
         string $id
     ): bool;
 
-    public function set_expired(
+    public function setExpired(
         string $id
     ): bool;
 }

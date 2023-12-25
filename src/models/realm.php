@@ -42,50 +42,50 @@ class Realm implements \JsonSerializable
         $this->scope = explode(' ', $scope);
         $utc = new \DateTimeZone('UTC');
         $this->created_at =
-          \DateTime::createFromFormat('Y-m-d H:i:s', $created_at, $utc);
+            \DateTime::createFromFormat('Y-m-d H:i:s', $created_at, $utc);
     }
 
-    public function get_id()
+    public function getId()
     {
         return $this->id;
     }
-    public function get_name()
+    public function getName()
     {
         return $this->name;
     }
-    public function get_keys_id()
+    public function getKeysId()
     {
         return $this->keys_id;
     }
-    public function get_refresh_token_expires_in(): int
+    public function getRefreshTokenExpiresIn(): int
     {
         return $this->refresh_token_expires_in;
     }
-    public function get_access_token_expires_in(): int
+    public function getAccessTokenExpiresIn(): int
     {
         return $this->access_token_expires_in;
     }
-    public function get_pending_login_expires_in(): int
+    public function getPendingLoginExpiresIn(): int
     {
         return $this->pending_login_expires_in;
     }
-    public function get_authenticated_login_expires_in(): int
+    public function getAuthenticatedLoginExpiresIn(): int
     {
         return $this->authenticated_login_expires_in;
     }
-    public function get_session_expires_in(): int
+    public function getSessionExpiresIn(): int
     {
         return $this->session_expires_in;
     }
-    public function get_idle_session_expires_in(): int
+    public function getIdleSessionExpiresIn(): int
     {
         return $this->idle_session_expires_in;
     }
-    public function get_scope(): array
+    public function getScope(): array
     {
         return $this->scope;
     }
-    public function get_created_at(): \DateTime
+    public function getCreatedAt(): \DateTime
     {
         return $this->created_at;
     }

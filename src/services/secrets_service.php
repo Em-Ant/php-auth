@@ -8,18 +8,18 @@ use Emant\BrowniePhp\Utils;
 
 class SecretsService
 {
-    public static function generate_code(): string
+    public static function generateCode(): string
     {
         return join('.', [Utils::get_guid(), Utils::get_guid(), Utils::get_guid()]);
     }
 
-    public static function hash_password(string $password): string
+    public static function hashPassword(string $password): string
     {
         return
             password_hash($password, PASSWORD_BCRYPT, ['cost' => 10]);
     }
 
-    public static function validate_password(string $plain, string $hash): bool
+    public static function validatePassword(string $plain, string $hash): bool
     {
         return password_verify($plain, $hash);
     }

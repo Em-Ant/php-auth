@@ -29,38 +29,38 @@ class Session implements \JsonSerializable
         $this->user_id = $user_id;
         $utc = new \DateTimeZone('UTC');
         $this->created_at = is_null($created_at) ?
-          date_create() :
-          \DateTime::createFromFormat('Y-m-d H:i:s', $created_at, $utc);
+            date_create() :
+            \DateTime::createFromFormat('Y-m-d H:i:s', $created_at, $utc);
         $this->updated_at =
-          \DateTime::createFromFormat('Y-m-d H:i:s', $updated_at, $utc) ?: null;
+            \DateTime::createFromFormat('Y-m-d H:i:s', $updated_at, $utc) ?: null;
         $this->status = is_null($status) ? 'ACTIVE' : $status;
     }
 
-    public function get_id(): string
+    public function getId(): string
     {
         return $this->id;
     }
-    public function get_realm_id(): string
+    public function getRealmId(): string
     {
         return $this->realm_id;
     }
-    public function get_acr(): string
+    public function getAcr(): string
     {
         return $this->acr;
     }
-    public function get_user_id(): string
+    public function getUserId(): string
     {
         return $this->user_id;
     }
-    public function get_created_at(): \DateTime
+    public function getCreatedAt(): \DateTime
     {
         return $this->created_at;
     }
-    public function get_updated_at(): ?\DateTime
+    public function getUpdatedAt(): ?\DateTime
     {
         return $this->updated_at;
     }
-    public function get_status(): string
+    public function getStatus(): string
     {
         return $this->status;
     }
@@ -70,8 +70,8 @@ class Session implements \JsonSerializable
         $data = get_object_vars($this);
         $data['created_at'] = $data['created_at']->format('Y-m-d H:i:s');
         $data['updated_at'] = isset($data['updated_at']) ?
-          $data['updated_at']->format('Y-m-d H:i:s') :
-          null;
+            $data['updated_at']->format('Y-m-d H:i:s') :
+            null;
 
         return $data;
     }

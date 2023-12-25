@@ -18,7 +18,7 @@ class SessionRepository implements IRepo
         $this->db = $data_source->getDb();
     }
 
-    public function find_by_id(string $id): ?Session
+    public function findById(string $id): ?Session
     {
         try {
             $statement = $this->db->prepare(
@@ -34,7 +34,7 @@ class SessionRepository implements IRepo
                 return null;
             }
 
-            return self::build_from_data($r);
+            return self::buildFromData($r);
         } catch (\PDOException $e) {
             error_log($e->getMessage());
             return null;
@@ -62,7 +62,7 @@ class SessionRepository implements IRepo
 
             $q->execute();
 
-            return $this->find_by_id($uid);
+            return $this->findById($uid);
         } catch (\PDOException $e) {
             error_log($e->getMessage());
             return null;
@@ -88,7 +88,7 @@ class SessionRepository implements IRepo
         }
     }
 
-    public function set_expired(
+    public function setExpired(
         string $id
     ): bool {
         try {
@@ -106,7 +106,7 @@ class SessionRepository implements IRepo
         }
     }
 
-    private static function build_from_data(array $r): Session
+    private static function buildFromData(array $r): Session
     {
         return new Session(
             $r['id'],

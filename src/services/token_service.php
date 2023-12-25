@@ -25,7 +25,7 @@ class TokenService
     public function validateToken(string $token, Realm $realm): int
     {
 
-        $kid = $realm->get_keys_id();
+        $kid = $realm->getKeysId();
         $public_key = file_get_contents("keys/$kid/public_key.pem");
 
         $t = explode('.', $token);
@@ -129,7 +129,7 @@ class TokenService
                     "n" => Base64Utils::b64UrlEncode($details['rsa']['n']),
                     "e" => Base64Utils::b64UrlEncode($details['rsa']['e']),
                     "x5c" => [
-                        self::remove_begin_end($x509)
+                        self::removeBeginEnd($x509)
                     ],
                     "x5t" => Base64Utils::b64UrlEncode(openssl_x509_fingerprint($x509)),
                     "x5t#sha256" => Base64Utils::b64UrlEncode(openssl_x509_fingerprint($x509, 'sha256')),
@@ -154,11 +154,11 @@ class TokenService
         User $user
     ): array {
         $now = time();
-        $kid = $realm->get_keys_id();
+        $kid = $realm->getKeysId();
         $access_token = $this->createAccessToken(
             $now,
-            $realm->get_access_token_expires_in(),
-            $realm->get_name(),
+            $realm->getAccessTokenExpiresIn(),
+            $realm->getName(),
             $login,
             $session,
             $client,
@@ -167,8 +167,8 @@ class TokenService
         );
         $id_token = $this->createIdToken(
             $now,
-            $realm->get_access_token_expires_in(),
-            $realm->get_name(),
+            $realm->getAccessTokenExpiresIn(),
+            $realm->getName(),
             $login,
             $session,
             $client,
@@ -178,8 +178,8 @@ class TokenService
         );
         $refresh_token = $this->createRefreshToken(
             $now,
-            $realm->get_refresh_token_expires_in(),
-            $realm->get_name(),
+            $realm->getRefreshTokenExpiresIn(),
+            $realm->getName(),
             $login,
             $session,
             $client,
@@ -189,14 +189,14 @@ class TokenService
 
         return [
             "access_token" => $access_token,
-            "expires_in" => $realm->get_access_token_expires_in(),
-            "refresh_expires_in" => $realm->get_refresh_token_expires_in(),
+            "expires_in" => $realm->getAccessTokenExpiresIn(),
+            "refresh_expires_in" => $realm->getRefreshTokenExpiresIn(),
             "refresh_token" => $refresh_token,
             "token_type" => "Bearer",
             "id_token" => $id_token,
             "not-before-policy" => 0,
-            "session_state" => $session->get_id(),
-            "scope" => join(" ", $user->get_scope()),
+            "session_state" => $session->getId(),
+            "scope" => join(" ", $user->getScope()),
         ];
     }
 
@@ -218,16 +218,16 @@ class TokenService
                 "jti" => Utils::get_guid(),
                 "iss" => $this->issuer . "/realms/$realm_name",
                 "aud" => $this->issuer,
-                "sub" => $session->get_user_id(),
+                "sub" => $session->getUserId(),
                 "typ" => "Refresh",
-                "azp" => $client->get_name(),
-                "nonce" => $login->get_nonce(),
-                "session_state" => $session->get_id(),
+                "azp" => $client->getName(),
+                "nonce" => $login->getNonce(),
+                "session_state" => $session->getId(),
                 "realm_access" => [
-                    "roles" => $user->get_scope()
+                    "roles" => $user->getScope()
                 ],
-                "scope" => "openid" . join(" ", $user->get_scope()),
-                "sid" => $session->get_id()
+                "scope" => "openid" . join(" ", $user->getScope()),
+                "sid" => $session->getId()
             ],
             $keys_id
         );
@@ -248,25 +248,25 @@ class TokenService
             [
                 "exp" => $exp,
                 "iat" => $now,
-                "auth_time" => date_timestamp_get($login->get_authenticated_at()),
+                "auth_time" => date_timestamp_get($login->getAuthenticatedAt()),
                 "jti" => Utils::get_guid(),
                 "iss" => $this->issuer,
-                "aud" => $client->get_name(),
-                "sub" => $session->get_user_id(),
+                "aud" => $client->getName(),
+                "sub" => $session->getUserId(),
                 "typ" => "Bearer",
-                "azp" => $client->get_name(),
-                "nonce" => $login->get_nonce(),
-                "session_state" => $session->get_id(),
-                "acr" => $session->get_acr(),
+                "azp" => $client->getName(),
+                "nonce" => $login->getNonce(),
+                "session_state" => $session->getId(),
+                "acr" => $session->getAcr(),
                 "allowed-origins" => [
-                    $client->get_uri()
+                    $client->getUri()
                 ],
                 "realm_access" => [
-                    "roles" => $user->get_scope()
+                    "roles" => $user->getScope()
                 ],
-                "scope" => "openid" . join(" ", $user->get_scope()),
-                "sid" => $session->get_id(),
-                "preferred_username" => $user->get_name()
+                "scope" => "openid" . join(" ", $user->getScope()),
+                "sid" => $session->getId(),
+                "preferred_username" => $user->getName()
             ],
             $keys_id
         );
@@ -288,25 +288,25 @@ class TokenService
             [
                 "exp" => $exp,
                 "iat" => $now,
-                "auth_time" => date_timestamp_get($login->get_authenticated_at()),
+                "auth_time" => date_timestamp_get($login->getAuthenticatedAt()),
                 "jti" => Utils::get_guid(),
                 "iss" => $this->issuer . "/realms/$realm_name",
-                "aud" => $client->get_name(),
-                "sub" => $session->get_user_id(),
+                "aud" => $client->getName(),
+                "sub" => $session->getUserId(),
                 "typ" => "ID",
-                "azp" => $client->get_name(),
-                "nonce" => $login->get_nonce(),
-                "session_state" => $session->get_id(),
+                "azp" => $client->getName(),
+                "nonce" => $login->getNonce(),
+                "session_state" => $session->getId(),
                 "at_hash" => md5($access_token),
-                "acr" => $session->get_acr(),
-                "sid" => $session->get_id(),
-                "preferred_username" => $user->get_name()
+                "acr" => $session->getAcr(),
+                "sid" => $session->getId(),
+                "preferred_username" => $user->getName()
             ],
             $keys_id
         );
     }
 
-    private static function remove_begin_end(string $pem): string
+    private static function removeBeginEnd(string $pem): string
     {
         $pem = preg_replace("/-----BEGIN (.*)-----/", "", $pem);
         $pem = preg_replace("/-----END (.*)-----/", "", $pem);
