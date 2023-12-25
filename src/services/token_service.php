@@ -261,7 +261,7 @@ class TokenService
                 "iat" => $now,
                 "auth_time" => date_timestamp_get($login->getAuthenticatedAt()),
                 "jti" => Utils::get_guid(),
-                "iss" => $this->issuer,
+                "iss" => $this->issuer . "/realms/$realm_name",
                 "aud" => $client->getName(),
                 "sub" => $session->getUserId(),
                 "typ" => "Bearer",

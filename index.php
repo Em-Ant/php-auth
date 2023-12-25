@@ -22,7 +22,7 @@ require 'vendor/autoload.php';
 $config = parse_ini_file('./config.ini', true);
 $server = $config['server'];
 
-$issuer = $server['issuer'] . '/realms/web';
+$issuer = $server['issuer'];
 $sub_path = $server['base_path'];
 
 $token_service = new TokenService(
