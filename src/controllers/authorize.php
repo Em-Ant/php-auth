@@ -225,12 +225,15 @@ class Authorize
         die();
     }
 
-    public function sendConfig()
+    public function sendConfig(array $ctx)
     {
+        /** @var Realm */
+        $params = $ctx['params'];
+        $realm_name = $params['realm'];
         $data = file_get_contents('./static/well-known.json', true);
         header('Content-Type: application/json; charset=utf-8');
         Utils::enable_cors();
-        echo str_replace('<<ISSUER>>', $this->issuer, $data);
+        echo str_replace('<<ISSUER>>', $this->issuer . "/realms/$realm_name", $data);
         die();
     }
 

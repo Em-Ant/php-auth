@@ -117,7 +117,7 @@ $app->use('/public', Router::static_server('./public'));
 $app->use([Router::class, 'parse_json_body']);
 $app->use('/realms/{realm}/protocol/openid-connect', [$auth, 'run']);
 $app->get(
-    '/realms/web/.well-known/openid-configuration',
+    '/realms/{realm}/.well-known/openid-configuration',
     [$auth_controller, 'sendConfig']
 );
 $app->all('/', [Utils::class, 'not_found']);
