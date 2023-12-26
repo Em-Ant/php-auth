@@ -19,19 +19,8 @@ values(
     300,
     3600 * 24,
     1800
-  );
-INSERT INTO realms (
-    'id',
-    'name',
-    'keys_id',
-    'refresh_token_expires_in',
-    'access_token_expires_in',
-    'pending_login_expires_in',
-    'authenticated_login_expires_in',
-    'session_expires_in',
-    'idle_session_expires_in'
-  )
-values(
+  ),
+  (
     'c03aa58c-2888-4f40-821c-4aadf5c58f6f',
     'test',
     '2daca932-9ae0-411b-9bec-d8dac4cbe70b',
@@ -58,16 +47,8 @@ values(
     'basic admin',
     '586d7bb3-d386-4b57-9e99-b2a460f20b47',
     '84be68b8-7936-4422-bb4d-b741d2292a9f'
-  );
-INSERT INTO users (
-    'name',
-    'email',
-    'password',
-    'realm_roles',
-    'id',
-    'realm_id'
-  )
-values(
+  ),
+  (
     'emant_test',
     'test@example.com',
     /* plain password = tst */
