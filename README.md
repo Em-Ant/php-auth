@@ -1,6 +1,6 @@
 # php auth
 
-### OpenId connect like php auth server, implementing code grant flow.
+OpenId connect like php auth server, implementing code grant flow.
 
 [![Deploy](https://github.com/Em-Ant/php-auth/actions/workflows/deploy.yml/badge.svg)](https://github.com/Em-Ant/php-auth/actions/workflows/deploy.yml)
 
