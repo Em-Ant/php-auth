@@ -2,7 +2,7 @@
 class CustomCredentials
 {
     private $userHash = '$2y$10$.ILLLAUWkPEkcxrBK1kHtOTs/W9/9eh.W.jGszIZ0cJcWV257Nltq';
-    private $passwordHash = '$2y$10$ubB83my46u9wkIs7JAFd1eDiWn86IVP01WvMhqW89AHm.5qTYVHA6';
+    private $passwordHash = '$2y$10$VOE.2zzwpbb7Tm27IsUHj.ecgq1zyvJVH6n5R8Kp5v8yy.UHll/R.';
 
     function loginForm()
     {
