@@ -17,6 +17,11 @@ class CustomCredentials
         return true;
     }
 
+    function navigation()
+    {
+        return true;
+    }
+
     function credentials()
     {
         $password = get_password();
