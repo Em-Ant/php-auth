@@ -5,7 +5,7 @@ if (!(isset($login_id) && isset($realm))) {
 }
 
 $query = "q=$login_id";
-$action = ($sub_path ?? '') . "/realms/$realm/protocol/openid-connect/login-actions/authenticate?$query";
+$action = htmlspecialchars(($sub_path ?? '') . "/realms/$realm/protocol/openid-connect/login-actions/authenticate?$query", ENT_QUOTES, 'UTF-8');
 
 ?>
 <form method="POST" action="<?= $action ?>" autocomplete="off">
@@ -14,13 +14,13 @@ $action = ($sub_path ?? '') . "/realms/$realm/protocol/openid-connect/login-acti
     </div>
 
     <label>
-        <input type="email" name="email" value="<?= $email ?? '' ?>" placeholder="Email" aria-label="email" />
+        <input type="email" name="email" value="<?= htmlspecialchars($email ?? '', ENT_QUOTES, 'UTF-8') ?>" placeholder="Email" aria-label="email" />
     </label>
     <label>
-        <input type="password" name="password" value="<?= $password ?? '' ?>" placeholder="Password" aria-label="password" />
+        <input type="password" name="password" value="<?= htmlspecialchars($password ?? '', ENT_QUOTES, 'UTF-8') ?>" placeholder="Password" aria-label="password" />
     </label>
     <?php if (isset($error) && $error) : ?>
-        <p class="error"><?= $error ?> </p>
+        <p class="error"><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?> </p>
     <?php endif; ?>
     <button aria-label="submit" class="submit" type="submit">
         <span role="image" alt="open lock icon" class="icon">

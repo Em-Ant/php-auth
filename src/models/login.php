@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace AuthServer\Models;
 
 use DateTime;
@@ -55,10 +57,12 @@ class Login implements \JsonSerializable
         $this->created_at = is_null($created_at) ?
             date_create() :
             \DateTime::createFromFormat('Y-m-d H:i:s', $created_at, $utc);
-        $this->updated_at =
-            \DateTime::createFromFormat('Y-m-d H:i:s', $updated_at, $utc) ?: null;
-        $this->authenticated_at =
-            \DateTime::createFromFormat('Y-m-d H:i:s', $authenticated_at, $utc) ?: null;
+        $this->updated_at = is_null($updated_at)
+            ? null
+            : (\DateTime::createFromFormat('Y-m-d H:i:s', $updated_at, $utc) ?: null);
+        $this->authenticated_at = is_null($authenticated_at)
+            ? null
+            : (\DateTime::createFromFormat('Y-m-d H:i:s', $authenticated_at, $utc) ?: null);
         $this->status = is_null($status) ? '' : $status;
     }
 

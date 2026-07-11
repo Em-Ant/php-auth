@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace AuthServer\Lib;
 
 use AuthServer\Interfaces\Logger as ILogger;

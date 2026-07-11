@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace AuthServer\Middleware;
 
 use AuthServer\Interfaces\RealmRepository;

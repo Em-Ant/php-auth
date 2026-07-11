@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace AuthServer\Models;
 
 class Realm implements \JsonSerializable

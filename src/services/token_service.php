@@ -35,7 +35,7 @@ class TokenService
         $t = explode('.', $token);
         $header = json_decode(Base64Utils::b64UrlDecode($t[0]), true);
 
-        if ($header['alg'] != 'RS256') {
+        if ($header['alg'] !== 'RS256') {
             return 0;
         }
 

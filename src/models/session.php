@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace AuthServer\Models;
 
 use DateTime;
@@ -31,8 +33,9 @@ class Session implements \JsonSerializable
         $this->created_at = is_null($created_at) ?
             date_create() :
             \DateTime::createFromFormat('Y-m-d H:i:s', $created_at, $utc);
-        $this->updated_at =
-            \DateTime::createFromFormat('Y-m-d H:i:s', $updated_at, $utc) ?: null;
+        $this->updated_at = is_null($updated_at)
+            ? null
+            : (\DateTime::createFromFormat('Y-m-d H:i:s', $updated_at, $utc) ?: null);
         $this->status = is_null($status) ? 'ACTIVE' : $status;
     }
 

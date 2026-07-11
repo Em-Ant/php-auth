@@ -41,7 +41,7 @@ class UserRepository implements IUser
                 $r['password'],
                 $r['realm_roles'],
                 $r['created_at'],
-                $r['valid'] == 'TRUE'
+                $r['valid'] === 'TRUE'
             );
         } catch (\PDOException $e) {
             error_log($e->getMessage());
@@ -74,7 +74,7 @@ class UserRepository implements IUser
                 $r['password'],
                 $r['realm_roles'],
                 $r['created_at'],
-                $r['valid'] == 'TRUE'
+                $r['valid'] === 'TRUE'
             );
         } catch (\PDOException $e) {
             error_log($e->getMessage());

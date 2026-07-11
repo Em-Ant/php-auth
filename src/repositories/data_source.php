@@ -22,7 +22,7 @@ class DataSource
 
     public static function getInstance(): DataSource
     {
-        if (self::$instance == null) {
+        if (self::$instance === null) {
             self::$instance = new DataSource();
         }
         return self::$instance;

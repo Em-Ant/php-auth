@@ -58,7 +58,7 @@ class Authorize
                 );
             }
 
-            if (isset($session) && $session != null) {
+            if (isset($session) && $session !== null) {
                 $login = $this->auth_service->createAuthorizedLogin(
                     $session,
                     $realm,
@@ -286,7 +286,7 @@ class Authorize
             'expires' => 1,
             'path' => "$mount_path/realms/$realm_name",
             'domain' => $_SERVER['SERVER_NAME'],
-            'httponly' => true,
+            'httponly' => false,
             'secure' => true,
             'samesite' => 'None',
         ]);
@@ -301,7 +301,7 @@ class Authorize
         $append = '';
         $hash_pos = strpos($redirect_uri, '#');
 
-        if ($response_mode == 'query') {
+        if ($response_mode === 'query') {
             $char = strpos($redirect_uri, '?') ? '&' : '?';
             if ($hash_pos) {
                 $append = substr($redirect_uri, $hash_pos);
@@ -327,7 +327,7 @@ class Authorize
         $char = '';
         $hash_pos = strpos($redirect_uri, '#');
 
-        if ($response_mode == 'query') {
+        if ($response_mode === 'query') {
             $char = strpos($redirect_uri, '?') ? '&' : '?';
             if ($hash_pos) {
                 $append = substr($redirect_uri, $hash_pos);

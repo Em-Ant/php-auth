@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace AuthServer\Services;
 
 use AuthServer\Exceptions\InvalidInputException;
@@ -97,7 +99,7 @@ class AuthorizeService
         int $idle_session_expires_in
     ): ?Session {
         $session = $this->session_repository->findById($session_id);
-        if ($session == null || $session->getStatus() != 'ACTIVE') {
+        if ($session === null || $session->getStatus() !== 'ACTIVE') {
             return null;
         }
         $ok = $this->checkSessionValidity(
@@ -124,7 +126,7 @@ class AuthorizeService
         $user = $this->user_repository->findById($user_id);
 
         $session_id = $session->getId();
-        if ($user == null) {
+        if ($user === null) {
             throw new CriticalLoginErrorException(
                 "invalid user $user_id for session $session_id "
             );
@@ -167,7 +169,7 @@ class AuthorizeService
 
         $error = false;
         $user = $this->user_repository->findByEmailAndRealmId($email, $realm_id);
-        if ($user == null) {
+        if ($user === null) {
             $error = 'email not found';
         } else {
             $valid_pwd = $this->secrets_service->validatePassword(
@@ -368,7 +370,7 @@ class AuthorizeService
         $login = $this->login_repository->findByCode($code);
 
         $code_challenge = $login->getCodeChallenge();
-        if ($code_verifier != null || $code_challenge != null) {
+        if ($code_verifier !== null || $code_challenge !== null) {
             self::validateCodeChallenge($code_challenge, $code_verifier);
         }
 
@@ -376,7 +378,7 @@ class AuthorizeService
             $this->logger->error("invalid authorization code");
             throw new InvalidInputException('invalid code');
         }
-        if ($login->getStatus() != 'AUTHENTICATED') {
+        if ($login->getStatus() !== 'AUTHENTICATED') {
             $this->logger->error("code $code is expired");
             throw new InvalidInputException('code is expired');
         }
@@ -385,7 +387,7 @@ class AuthorizeService
 
         $session_id = $login->getSessionId();
         $session = $this->session_repository->findById($session_id);
-        if ($session == null) {
+        if ($session === null) {
             throw new StorageErrorException("invalid session $session_id");
         }
 
@@ -400,7 +402,7 @@ class AuthorizeService
         }
 
         $user = $this->user_repository->findById($session->getUserId());
-        if ($user == null) {
+        if ($user === null) {
             throw new StorageErrorException('invalid session');
         }
 
@@ -446,7 +448,7 @@ class AuthorizeService
             $this->logger->error("invalid refresh token");
             throw new InvalidInputException('invalid refresh token');
         }
-        if ($login->getStatus() != 'ACTIVE') {
+        if ($login->getStatus() !== 'ACTIVE') {
             $this->logger->error("login is in invalid status");
             throw new InvalidInputException('login is expired');
         }
@@ -466,10 +468,10 @@ class AuthorizeService
 
         $session_id = $login->getSessionId();
         $session = $this->session_repository->findById($session_id);
-        if ($session == null) {
+        if ($session === null) {
             throw new StorageErrorException("invalid session $session_id");
         }
-        if ($session->getStatus() != 'ACTIVE') {
+        if ($session->getStatus() !== 'ACTIVE') {
             $this->logger->error("invalid status for session $session_id - not active");
             throw new InvalidInputException('invalid session status');
         }
@@ -486,7 +488,7 @@ class AuthorizeService
         }
 
         $user = $this->user_repository->findById($session->getUserId());
-        if ($user == null) {
+        if ($user === null) {
             $this->logger->error("invalid user for active session $session_id");
             throw new StorageErrorException('invalid session');
         }
@@ -628,7 +630,7 @@ class AuthorizeService
         $valid = true;
         $required_found = false;
         foreach ($input_scope_array as $s) {
-            if ($s == 'openid') {
+            if ($s === 'openid') {
                 $required_found = true;
             }
             if (!in_array($s, $allowed_scope)) {
@@ -729,7 +731,7 @@ class AuthorizeService
         string $client_secret
     ) {
         if (
-            $client_secret == null ||
+            $client_secret === '' ||
             !$this->secrets_service->validatePassword(
                 $client_secret,
                 $hashed_secret
@@ -745,6 +747,6 @@ class AuthorizeService
     }
     private static function isEmpty(?string $param)
     {
-        return !isset($param) || $param == ' ';
+        return !isset($param) || $param === ' ';
     }
 }

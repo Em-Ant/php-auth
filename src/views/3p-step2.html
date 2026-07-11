@@ -8,7 +8,7 @@
 <body>
   <script type="module">
     // Check if the previously placed cookies exist to detect support for 3rd-party access.
-    const hasAccess = document.cookie.includes("KEYCLOAK_3P_COOKIE");
+    const hasAccess = document.cookie.includes("AUTH_3P_COOKIE");
 
     // If so, clear the cookies, so they can no longer be used.
     if (hasAccess) {
