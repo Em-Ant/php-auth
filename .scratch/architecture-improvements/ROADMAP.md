@@ -2,8 +2,7 @@
 
 ## Phase 0 — Foundation (structural changes + architecture modules)
 
-- [ ] **PSR-4 autoload + file renaming** — rename dirs to match PSR-4 case (`Services/`, `Models/`, `Repositories/`), rename files to PascalCase, update `composer.json`
-- [ ] **Migrate brownie-php → Slim 4** — rewrite `index.php`, replace `Utils::show_view` with PSR-7 Response rendering, replace `Utils::send_json`/`server_error`/etc. with PSR-7 equivalents, wire DI via Slim container. Keep simple PHP `include` views. Inline `get_guid()` as a standalone helper.
+
 - [ ] **KeyStore** — interface + `FilesystemKeyStore` / `InMemoryKeyStore`, inject into `TokenService` and `Authorize::sendKeys`
 - [ ] **RedirectUri** — value object for fragment vs query redirect construction
 - [ ] **LoginStateMachine** — state transitions (PENDING→AUTHENTICATED→ACTIVE→EXPIRED) + TTL rules in one place
@@ -11,6 +10,7 @@
 - [ ] **Database migrations** — migration runner + version table (schema evolution without manual SQL)
 - [ ] **Health endpoints** — `GET /health` (server alive), `GET /ready` (DB reachable)
 - [ ] **Dockerfile** — one-stage PHP + SQLite + composer, CMD `composer serve`
+- [ ] **Migrate brownie-php → Slim 4** — rewrite `index.php`, replace `Utils::show_view` with PSR-7 Response rendering, replace `Utils::send_json`/`server_error`/etc. with PSR-7 equivalents, wire DI via Slim container. Keep simple PHP `include` views. Inline `get_guid()` as a standalone helper.
 
 ## Phase 1 — Test Suite (high prio)
 
