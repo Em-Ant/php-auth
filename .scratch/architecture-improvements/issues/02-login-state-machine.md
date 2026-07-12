@@ -1,5 +1,7 @@
 # Login state machine
 
+**Status: Done**
+
 **PRD:** Architecture Deepening
 **Priority:** Medium
 
@@ -9,21 +11,17 @@ Login entity transitions through PENDING → AUTHENTICATED → ACTIVE → EXPIRE
 
 ## Solution
 
-Concentrate transition rules, TTL checks, and persistence into a `LoginStateMachine` module.
+Concentrate transition rules, TTL checks, and persistence into a `LoginStateMachine` module, backed by `LoginEvent` and `LoginStatus` enums.
 
-## Interface sketch
+## Created files
 
-```php
-class LoginStateMachine {
-    public function __construct(private ILoginRepo $repo, private Logger $logger);
+- `src/Interfaces/LoginStateMachine.php`
+- `src/Services/LoginStateMachine.php`
+- `src/Models/LoginEvent.php` (enum: Authenticate, Activate, Refresh, Expire, CheckExpiry)
+- `src/Models/LoginStatus.php` (enum: Pending, Authenticated, Active, Expired)
 
-    /** @throws InvalidInputException if transition not allowed or login expired */
-    public function transition(Login $login, string $event): Login;
-}
-```
+## Modified files
 
-Valid event list: `authenticate`, `activate`, `refresh`, `expire`.
-
-## Files
-
-`src/services/authorize_service.php`, `src/repositories/login_repository.php`, `src/interfaces/login_repository.php`, new file in `src/services/`
+- `src/Services/AuthorizeService.php` — inject LoginStateMachine, replace direct repo mutation calls
+- `src/Models/Login.php` — `getStatus()` returns `LoginStatus` instead of `string`
+- `index.php` — create `LoginStateMachine`, inject into `AuthorizeService`

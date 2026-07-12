@@ -2,15 +2,15 @@
 
 ## Phase 0 — Foundation (structural changes + architecture modules)
 
-
-- [ ] **KeyStore** — interface + `FilesystemKeyStore` / `InMemoryKeyStore`, inject into `TokenService` and `Authorize::sendKeys`
-- [ ] **RedirectUri** — value object for fragment vs query redirect construction
-- [ ] **LoginStateMachine** — state transitions (PENDING→AUTHENTICATED→ACTIVE→EXPIRED) + TTL rules in one place
-- [ ] **SessionCookieHandler** — interface + `HttpSessionCookieHandler` / `InMemorySessionCookieHandler`
+- [x] **PSR-4 autoload + file renaming** — rename dirs to match PSR-4 case (`Services/`, `Models/`, `Repositories/`), rename files to PascalCase, update `composer.json`
+- [ ] **Migrate brownie-php → Slim 4** — rewrite `index.php`, replace `Utils::show_view` with PSR-7 Response rendering, replace `Utils::send_json`/`server_error`/etc. with PSR-7 equivalents, wire DI via Slim container. Keep simple PHP `include` views. Inline `get_guid()` as a standalone helper.
+- [x] **KeyStore** — interface + `FilesystemKeyStore` / `InMemoryKeyStore`, inject into `TokenService` and `Authorize::sendKeys`
+- [x] **RedirectUri** — value object for fragment vs query redirect construction
+- [x] **LoginStateMachine** — state transitions (PENDING→AUTHENTICATED→ACTIVE→EXPIRED) + TTL rules in one place, backed by `LoginEvent` and `LoginStatus` enums
+- [x] **SessionCookieHandler** — interface + `HttpSessionCookieHandler` / `InMemorySessionCookieHandler`
 - [ ] **Database migrations** — migration runner + version table (schema evolution without manual SQL)
 - [ ] **Health endpoints** — `GET /health` (server alive), `GET /ready` (DB reachable)
 - [ ] **Dockerfile** — one-stage PHP + SQLite + composer, CMD `composer serve`
-- [ ] **Migrate brownie-php → Slim 4** — rewrite `index.php`, replace `Utils::show_view` with PSR-7 Response rendering, replace `Utils::send_json`/`server_error`/etc. with PSR-7 equivalents, wire DI via Slim container. Keep simple PHP `include` views. Inline `get_guid()` as a standalone helper.
 
 ## Phase 1 — Test Suite (high prio)
 
@@ -50,7 +50,8 @@
 
 ## Phase 6 — PHP 8 + PHPStan 9 (low prio)
 
-- [ ] Enums (LoginStatus, GrantType, ResponseMode, etc.)
+- [x] Enums (LoginStatus, LoginEvent)
+- [ ] Enums for remaining domain concepts (GrantType, ResponseMode, etc.)
 - [ ] Readonly properties, constructor promotion
 - [ ] Named arguments, match expressions
 - [ ] PHPStan level 5 → 6 → 7 → 8 → 9 (incrementally)

@@ -1,5 +1,7 @@
 # Redirect URI value object
 
+**Status: Done**
+
 **PRD:** Architecture Deepening
 **Priority:** Low
 
@@ -11,20 +13,10 @@
 
 Replace with a `RedirectUri` value object.
 
-## Interface sketch
+## Created files
 
-```php
-class RedirectUri {
-    public function __construct(
-        private string $baseUri,
-        private string $responseMode, // 'query' | 'fragment'
-    );
+- `src/Models/RedirectUri.php`
 
-    public function withParam(string $key, string $value): self;
-    public function __toString(): string;
-}
-```
+## Modified files
 
-## Files
-
-`src/controllers/authorize.php`, new file in `src/models/` or `src/services/`
+- `src/Controllers/Authorize.php` — replace both redirect methods with `RedirectUri`, remove duplicated code

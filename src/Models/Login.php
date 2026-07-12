@@ -24,7 +24,7 @@ class Login implements \JsonSerializable
     private ?DateTime $authenticated_at;
     private ?string $refresh_token;
     private ?DateTime $updated_at;
-    private string $status;
+    private LoginStatus $status;
 
     public function __construct(
         string $id,
@@ -66,7 +66,7 @@ class Login implements \JsonSerializable
         $this->authenticated_at = is_null($authenticated_at)
             ? null
             : (\DateTime::createFromFormat('Y-m-d H:i:s', $authenticated_at, $utc) ?: null);
-        $this->status = is_null($status) ? '' : $status;
+        $this->status = LoginStatus::from($status ?? 'PENDING');
     }
 
     public function getId(): string
@@ -129,7 +129,7 @@ class Login implements \JsonSerializable
     {
         return $this->updated_at;
     }
-    public function getStatus(): string
+    public function getStatus(): LoginStatus
     {
         return $this->status;
     }
@@ -137,6 +137,7 @@ class Login implements \JsonSerializable
     public function jsonSerialize(): array
     {
         $data = get_object_vars($this);
+        $data['status'] = $this->status->value;
         $data['created_at'] = $data['created_at']->format('Y-m-d H:i:s');
         $data['authenticated_at'] = isset($data['authenticated_at']) ?
             $data['authenticated_at']->format('Y-m-d H:i:s') :

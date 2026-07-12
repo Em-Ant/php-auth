@@ -1,5 +1,7 @@
 # Session cookie handler
 
+**Status: Done**
+
 **PRD:** Architecture Deepening
 **Priority:** Low
 
@@ -11,18 +13,13 @@ Session cookie encode/decode/set/delete is inline in `Authorize` controller via 
 
 Extract a `SessionCookieHandler` adapter behind a narrow seam.
 
-## Interface sketch
+## Created files
 
-```php
-interface SessionCookieHandler {
-    public function read(string $realmName): ?string; // returns session_id or null
-    public function write(Realm $realm, string $sessionId): void;
-    public function delete(Realm $realm): void;
-}
-```
+- `src/Interfaces/SessionCookieHandler.php`
+- `src/Services/HttpSessionCookieHandler.php`
+- `src/Services/InMemorySessionCookieHandler.php`
 
-Two adapters: `HttpSessionCookieHandler` (uses `$_COOKIE`/`setcookie()`), `InMemorySessionCookieHandler` for tests.
+## Modified files
 
-## Files
-
-`src/controllers/authorize.php`, new files in `src/services/` or `src/lib/`
+- `src/Controllers/Authorize.php` — inject handler, replace cookie methods
+- `index.php` — create `HttpSessionCookieHandler`, inject into controller

@@ -15,6 +15,7 @@ use AuthServer\Repositories\UserRepository;
 use AuthServer\Services\AuthorizeService;
 use AuthServer\Services\FilesystemKeyStore;
 use AuthServer\Services\HttpSessionCookieHandler;
+use AuthServer\Services\LoginStateMachine;
 use AuthServer\Services\SecretsService;
 use AuthServer\Services\TokenService;
 use AuthServer\Lib\Logger;
@@ -63,11 +64,17 @@ $user_repo = new UserRepository(DataSource::getInstance(), $logger);
 $realm_repo = new RealmRepository(DataSource::getInstance(), $logger);
 $realm_provider = new RealmProvider($realm_repo);
 
+$login_state_machine = new LoginStateMachine(
+    $login_repo,
+    $logger
+);
+
 $auth_service = new AuthorizeService(
     $client_repo,
     $session_repo,
     $user_repo,
     $login_repo,
+    $login_state_machine,
     $secrets_service,
     $token_service,
     $logger

@@ -1,5 +1,7 @@
 # KeyStore module
 
+**Status: Done**
+
 **PRD:** Architecture Deepening
 **Priority:** High
 
@@ -11,23 +13,14 @@ Key loading is four raw `file_get_contents()` calls across `TokenService::valida
 
 Introduce a `KeyStore` interface with `findKeys(kid): KeySet`. `FilesystemKeyStore` reads from `keys/<kid>/`; `InMemoryKeyStore` accepts keys in constructor for tests. Inject into `TokenService` and `Authorize` controller.
 
-## Interface sketch
+## Created files
 
-```php
-interface KeyStore {
-    public function findKeys(string $kid): KeySet;
-}
+- `src/Interfaces/KeyStore.php`
+- `src/Models/KeySet.php`
+- `src/Services/FilesystemKeyStore.php`
 
-class KeySet {
-    public function __construct(
-        public readonly string $publicKey,
-        public readonly string $privateKey,
-        public readonly string $cert,
-        public readonly array $jwks,
-    );
-}
-```
+## Modified files
 
-## Files
-
-`src/services/token_service.php`, `src/controllers/authorize.php`, `index.php`, new files in `src/services/`
+- `src/Services/TokenService.php` — inject KeyStore, replace `file_get_contents()`
+- `src/Controllers/Authorize.php` — inject KeyStore, replace `file_get_contents()` in `sendKeys()`
+- `index.php` — create `FilesystemKeyStore`, inject into both services
