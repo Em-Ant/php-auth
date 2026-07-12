@@ -48,7 +48,8 @@ $logHttpRequest = function () use ($logger) {
     $logger->info($logMessage);
 };
 
-$secrets_service = new SecretsService();
+$password_hashing = $config['password_hashing'] ?? [];
+$secrets_service = new SecretsService($password_hashing);
 
 $client_repo = new ClientRepository(DataSource::getInstance());
 $session_repo = new SessionRepository(DataSource::getInstance());
