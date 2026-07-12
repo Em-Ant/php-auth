@@ -14,6 +14,7 @@ use AuthServer\Repositories\SessionRepository;
 use AuthServer\Repositories\UserRepository;
 use AuthServer\Services\AuthorizeService;
 use AuthServer\Services\FilesystemKeyStore;
+use AuthServer\Services\HttpSessionCookieHandler;
 use AuthServer\Services\SecretsService;
 use AuthServer\Services\TokenService;
 use AuthServer\Lib\Logger;
@@ -72,11 +73,17 @@ $auth_service = new AuthorizeService(
     $logger
 );
 
+$session_cookie_handler = new HttpSessionCookieHandler(
+    $sub_path,
+    $_SERVER['SERVER_NAME']
+);
+
 $auth_controller = new Controllers\Authorize(
     $auth_service,
     $issuer,
     $sub_path,
-    $key_store
+    $key_store,
+    $session_cookie_handler
 );
 
 $check_3rd_party_cookies = function (array $ctx) {

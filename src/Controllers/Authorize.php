@@ -6,6 +6,7 @@ namespace AuthServer\Controllers;
 
 use AuthServer\Exceptions\CriticalLoginErrorException;
 use AuthServer\Interfaces\KeyStore;
+use AuthServer\Interfaces\SessionCookieHandler;
 use AuthServer\Models\RedirectUri;
 use Emant\BrowniePhp\Utils;
 use AuthServer\Exceptions\InvalidInputException;
@@ -19,6 +20,7 @@ class Authorize
     private string $issuer;
     private string $mount_path;
     private KeyStore $keyStore;
+    private SessionCookieHandler $sessionCookie;
 
     public const INVALID_REQUEST = 'Invalid request';
     public const INVALID_TOKEN = 'Invalid token';
@@ -28,12 +30,14 @@ class Authorize
         AuthorizeService $service,
         string $issuer,
         string $mount_path,
-        KeyStore $keyStore
+        KeyStore $keyStore,
+        SessionCookieHandler $sessionCookie,
     ) {
         $this->auth_service = $service;
         $this->issuer = $issuer;
         $this->mount_path = $mount_path;
         $this->keyStore = $keyStore;
+        $this->sessionCookie = $sessionCookie;
     }
 
     public function authorize(array $ctx)
@@ -43,7 +47,7 @@ class Authorize
 
         $realm_name = $realm->getName();
         $current_session_id =
-            self::getSessionIdFromCookie($realm_name);
+            $this->sessionCookie->read($realm_name);
 
         try {
             $query = $ctx['query'];
@@ -80,7 +84,7 @@ class Authorize
                     ]
                 );
 
-                $this->setSessionCookie($realm, $current_session_id);
+                $this->sessionCookie->write($realm, $current_session_id);
                 header("location: $redirect_uri", true, 302);
                 die();
             } elseif ($prompt === 'none') {
@@ -182,7 +186,7 @@ class Authorize
                 ]
             );
 
-            $this->setSessionCookie($realm, $session_id);
+            $this->sessionCookie->write($realm, $session_id);
 
             header("location: $redirect_uri", true, 302);
             die();
@@ -236,7 +240,7 @@ class Authorize
         $id_token = $query['id_token_hint'];
         try {
             $this->auth_service->logout($id_token, $realm);
-            $this->deleteSessionCookie($realm);
+            $this->sessionCookie->delete($realm);
             header("location: $redirect", true, 302);
             die();
         } catch (InvalidInputException $e) {
@@ -266,61 +270,6 @@ class Authorize
         Utils::enable_cors();
         echo str_replace('<<ISSUER>>', $this->issuer . "/realms/$realm_name", $data);
         die();
-    }
-
-    private static function getSessionIdFromCookie(
-        string $realm_name
-    ): ?string {
-        $session_cookie = isset($_COOKIE['AUTH_SESSION'])
-            ? $_COOKIE['AUTH_SESSION']
-            : null;
-
-        if (!$session_cookie) {
-            return null;
-        }
-
-        $parts = explode('\\', $session_cookie);
-        $cookie_realm_name = $parts[0];
-        $session_id = $parts[1];
-
-        if ($realm_name != $cookie_realm_name) {
-            return null;
-        }
-
-        return $session_id;
-    }
-
-    private function setSessionCookie(
-        Realm $realm,
-        string $session_id
-    ) {
-        $realm_name = $realm->getName();
-        $mount_path = $this->mount_path ?: '';
-
-        setcookie('AUTH_SESSION', "$realm_name\\$session_id", [
-            'expires' => time() + $realm->getSessionExpiresIn(),
-            'path' => "$mount_path/realms/$realm_name",
-            'domain' => $_SERVER['SERVER_NAME'],
-            'httponly' => false,
-            'secure' => true,
-            'samesite' => 'None',
-        ]);
-    }
-
-
-    private function deleteSessionCookie(Realm $realm)
-    {
-        $realm_name = $realm->getName();
-        $mount_path = $this->mount_path ?: '';
-
-        setcookie('AUTH_SESSION', "", [
-            'expires' => 1,
-            'path' => "$mount_path/realms/$realm_name",
-            'domain' => $_SERVER['SERVER_NAME'],
-            'httponly' => false,
-            'secure' => true,
-            'samesite' => 'None',
-        ]);
     }
 
     private function redirectToError($realm_name, $message)
