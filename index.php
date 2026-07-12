@@ -51,11 +51,11 @@ $logHttpRequest = function () use ($logger) {
 $password_hashing = $config['password_hashing'] ?? [];
 $secrets_service = new SecretsService($password_hashing);
 
-$client_repo = new ClientRepository(DataSource::getInstance());
-$session_repo = new SessionRepository(DataSource::getInstance());
-$login_repo = new LoginRepository(DataSource::getInstance());
-$user_repo = new UserRepository(DataSource::getInstance());
-$realm_repo = new RealmRepository(DataSource::getInstance());
+$client_repo = new ClientRepository(DataSource::getInstance(), $logger);
+$session_repo = new SessionRepository(DataSource::getInstance(), $logger);
+$login_repo = new LoginRepository(DataSource::getInstance(), $logger);
+$user_repo = new UserRepository(DataSource::getInstance(), $logger);
+$realm_repo = new RealmRepository(DataSource::getInstance(), $logger);
 $realm_provider = new RealmProvider($realm_repo);
 
 $auth_service = new AuthorizeService(

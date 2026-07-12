@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AuthServer\Repositories;
 
+use AuthServer\Interfaces\Logger;
 use AuthServer\Interfaces\UserRepository as IUser;
 use AuthServer\Models\User;
 use AuthServer\Repositories\DataSource;
@@ -11,10 +12,12 @@ use AuthServer\Repositories\DataSource;
 class UserRepository implements IUser
 {
     private \PDO $db;
+    private Logger $logger;
 
-    public function __construct(DataSource $data_source)
+    public function __construct(DataSource $data_source, Logger $logger)
     {
         $this->db = $data_source->getDb();
+        $this->logger = $logger;
     }
 
     public function findById(string $id): ?User
@@ -44,7 +47,7 @@ class UserRepository implements IUser
                 $r['valid'] === 'TRUE'
             );
         } catch (\PDOException $e) {
-            error_log($e->getMessage());
+            $this->logger->error($e->getMessage());
             return null;
         }
     }
@@ -77,7 +80,7 @@ class UserRepository implements IUser
                 $r['valid'] === 'TRUE'
             );
         } catch (\PDOException $e) {
-            error_log($e->getMessage());
+            $this->logger->error($e->getMessage());
             return null;
         }
     }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AuthServer\Repositories;
 
+use AuthServer\Interfaces\Logger;
 use AuthServer\Interfaces\RealmRepository as IRepo;
 use AuthServer\Models\Realm;
 use AuthServer\Repositories\DataSource;
@@ -12,10 +13,12 @@ use Error;
 class RealmRepository implements IRepo
 {
     private \PDO $db;
+    private Logger $logger;
 
-    public function __construct(DataSource $data_source)
+    public function __construct(DataSource $data_source, Logger $logger)
     {
         $this->db = $data_source->getDb();
+        $this->logger = $logger;
     }
 
     public function findById(string $id): ?Realm
@@ -48,7 +51,7 @@ class RealmRepository implements IRepo
                 $r['created_at']
             );
         } catch (\PDOException $e) {
-            error_log($e->getMessage());
+            $this->logger->error($e->getMessage());
             return null;
         }
     }
@@ -83,7 +86,7 @@ class RealmRepository implements IRepo
                 $r['created_at']
             );
         } catch (\PDOException $e) {
-            error_log($e->getMessage());
+            $this->logger->error($e->getMessage());
             return null;
         }
     }

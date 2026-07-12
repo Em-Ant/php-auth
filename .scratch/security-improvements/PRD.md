@@ -6,28 +6,25 @@ The auth server has several security gaps in the HTTP/session layer that comprom
 
 - The login POST endpoint has no anti-CSRF mechanism, allowing cross-site login forgeries.
 - The 3p-cookies endpoint includes a file from a URL parameter without validation.
-- DB errors bypass the application logger, vanishing silently in production.
 
 
 ## Solution
 
-Harden the HTTP boundary: add CSRF protection, validate all user-controlled inputs, and consolidate error reporting so security-relevant failures are visible.
+Add CSRF protection to the login form.
 
 ## User Stories
 
 1. As a user, I want the login form to be protected against cross-site request forgery, so that an attacker cannot log me into their account or trigger authentication side effects without my knowledge.
-2. As an operator, I want all database errors to be logged through the application logger, so that I can detect storage failures in production monitoring.
-3. As an operator, I want the 3p-cookies endpoint to validate its step parameter against a whitelist, so that unexpected values are rejected rather than passed to an include.
+2. As an operator, I want the 3p-cookies endpoint to validate its step parameter against a whitelist, so that unexpected values are rejected rather than passed to an include.
 
 ## Implementation Decisions
 
 - **CSRF**: The login form will include a hidden token field. The server will validate the token on `POST /login-actions/authenticate`. The token is bound to the login session (the pending `login_id`) — generated during login initialization, stored in the `logins` table, and verified before credential validation.
-- **Logger consolidation**: Repository catch blocks will receive the application `Logger` via constructor injection instead of calling `error_log()`. This requires adding `Logger` as a constructor parameter to all five repositories.
+
 
 ## Testing Decisions
 
 - CSRF token generation and validation are pure functions — testable without HTTP.
-- Repository logger injection — verify via PHPStan (constructor parameter compliance). No test suite exists; manual verification via login flow.
 
 ## Out of Scope
 

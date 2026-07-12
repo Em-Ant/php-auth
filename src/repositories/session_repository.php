@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AuthServer\Repositories;
 
+use AuthServer\Interfaces\Logger;
 use AuthServer\Interfaces\SessionRepository as IRepo;
 use Emant\BrowniePhp\Utils;
 use AuthServer\Models\Session;
@@ -12,10 +13,12 @@ use AuthServer\Repositories\DataSource;
 class SessionRepository implements IRepo
 {
     private \PDO $db;
+    private Logger $logger;
 
-    public function __construct(DataSource $data_source)
+    public function __construct(DataSource $data_source, Logger $logger)
     {
         $this->db = $data_source->getDb();
+        $this->logger = $logger;
     }
 
     public function findById(string $id): ?Session
@@ -36,7 +39,7 @@ class SessionRepository implements IRepo
 
             return self::buildFromData($r);
         } catch (\PDOException $e) {
-            error_log($e->getMessage());
+            $this->logger->error($e->getMessage());
             return null;
         }
     }
@@ -64,7 +67,7 @@ class SessionRepository implements IRepo
 
             return $this->findById($uid);
         } catch (\PDOException $e) {
-            error_log($e->getMessage());
+            $this->logger->error($e->getMessage());
             return null;
         }
     }
@@ -83,7 +86,7 @@ class SessionRepository implements IRepo
 
             return $q->execute();
         } catch (\PDOException $e) {
-            error_log($e->getMessage());
+            $this->logger->error($e->getMessage());
             return false;
         }
     }
@@ -101,7 +104,7 @@ class SessionRepository implements IRepo
 
             return $q->execute();
         } catch (\PDOException $e) {
-            error_log($e->getMessage());
+            $this->logger->error($e->getMessage());
             return false;
         }
     }
