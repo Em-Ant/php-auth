@@ -6,6 +6,7 @@ namespace AuthServer\Controllers;
 
 use AuthServer\Exceptions\CriticalLoginErrorException;
 use AuthServer\Interfaces\KeyStore;
+use AuthServer\Models\RedirectUri;
 use Emant\BrowniePhp\Utils;
 use AuthServer\Exceptions\InvalidInputException;
 use AuthServer\Models\Login;
@@ -69,16 +70,27 @@ class Authorize
                     $query
                 );
 
-                $redirect_uri = self::getRedirectUri($login, $session->getId());
+                $redirect_uri = new RedirectUri(
+                    $login->getRedirectUri(),
+                    $login->getResponseMode(),
+                    [
+                        'code' => $login->getCode(),
+                        'state' => $login->getState(),
+                        'session_state' => $session->getId(),
+                    ]
+                );
 
                 $this->setSessionCookie($realm, $current_session_id);
                 header("location: $redirect_uri", true, 302);
                 die();
             } elseif ($prompt === 'none') {
-                $redirect_uri = self::getLoginRequiredRedirectUri(
+                $redirect_uri = new RedirectUri(
                     $query['redirect_uri'],
                     $query['response_mode'],
-                    $query['state']
+                    [
+                        'error' => 'login_required',
+                        'state' => $query['state'],
+                    ]
                 );
                 header("location: $redirect_uri", true, 302);
                 die();
@@ -160,7 +172,15 @@ class Authorize
             $session_id = (string) $data['session']->getId();
             /** @var Login */
             $login = $data['login'];
-            $redirect_uri = self::getRedirectUri($login, $session_id);
+            $redirect_uri = new RedirectUri(
+                $login->getRedirectUri(),
+                $login->getResponseMode(),
+                [
+                    'code' => $login->getCode(),
+                    'state' => $login->getState(),
+                    'session_state' => $session_id,
+                ]
+            );
 
             $this->setSessionCookie($realm, $session_id);
 
@@ -301,58 +321,6 @@ class Authorize
             'secure' => true,
             'samesite' => 'None',
         ]);
-    }
-
-    private static function getLoginRequiredRedirectUri(
-        string $redirect_uri,
-        string $response_mode,
-        string $state
-    ) {
-        $char = '';
-        $append = '';
-        $hash_pos = strpos($redirect_uri, '#');
-
-        if ($response_mode === 'query') {
-            $char = strpos($redirect_uri, '?') ? '&' : '?';
-            if ($hash_pos) {
-                $append = substr($redirect_uri, $hash_pos);
-                $redirect_uri = substr($redirect_uri, 0, $hash_pos);
-            }
-        } else {
-            $char = $hash_pos ? '&' : '#';
-        }
-
-        return $redirect_uri . $char .
-            'error=login_required' .
-            '&state=' . $state .
-            $append;
-    }
-
-    private static function getRedirectUri(
-        Login $login,
-        string $session_id
-    ): string {
-        $redirect_uri = $login->getRedirectUri();
-        $response_mode = $login->getResponseMode();
-        $append = '';
-        $char = '';
-        $hash_pos = strpos($redirect_uri, '#');
-
-        if ($response_mode === 'query') {
-            $char = strpos($redirect_uri, '?') ? '&' : '?';
-            if ($hash_pos) {
-                $append = substr($redirect_uri, $hash_pos);
-                $redirect_uri = substr($redirect_uri, 0, $hash_pos);
-            }
-        } else {
-            $char = $hash_pos ? '&' : '#';
-        }
-
-        return $redirect_uri . $char .
-            'code=' . $login->getCode() .
-            '&state=' . $login->getState() .
-            '&session_state=' . $session_id .
-            $append;
     }
 
     private function redirectToError($realm_name, $message)

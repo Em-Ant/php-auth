@@ -1,8 +1,8 @@
 {
   "autoload": {
-    "classmap": [
-      "src/"
-    ]
+    "psr-4": {
+      "AuthServer\\": "src/"
+    }
   },
   "repositories": {},
   "require": {
