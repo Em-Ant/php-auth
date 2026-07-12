@@ -79,7 +79,7 @@ class Authorize
                 header("location: $redirect_uri", true, 302);
                 die();
             } else {
-                $pending_login_id = $this->auth_service->initializeLogin(
+                $pending = $this->auth_service->initializeLogin(
                     $realm->getId(),
                     $query
                 );
@@ -87,7 +87,8 @@ class Authorize
                     'login_form',
                     [
                         'title' => 'Login',
-                        'login_id' => $pending_login_id,
+                        'login_id' => $pending['login_id'],
+                        'csrf_token' => $pending['csrf_token'],
                         'realm' => $realm_name,
                         'email' => '',
                         'password' => '',
@@ -115,6 +116,14 @@ class Authorize
         $password = $body['password'];
 
         $login_id = $query['q'];
+        $csrf_token = $body['csrf_token'] ?? '';
+
+        try {
+            $this->auth_service->validateCsrfToken($login_id, $csrf_token);
+        } catch (InvalidInputException $e) {
+            Utils::server_error('Invalid request', 'CSRF validation failed', 400);
+            die();
+        }
 
         $result = $this->auth_service->ensureValidCredentials(
             $realm->getId(),
@@ -127,6 +136,7 @@ class Authorize
                 [
                     'title' => 'Login',
                     'login_id' => $login_id,
+                    'csrf_token' => $csrf_token,
                     'realm' => $realm->getName(),
                     'email' => $email,
                     'password' => $password,

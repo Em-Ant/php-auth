@@ -63,13 +63,15 @@ class AuthorizeService
     public function initializeLogin(
         string $realm_id,
         array $query
-    ): string {
+    ): array {
         $client_name = $query['client_id'];
         $this->logger->info("initializing login for client $client_name");
 
         self::validateQueryParams($query);
 
         $client = $this->ensureValidClient($client_name, $realm_id, $query['redirect_uri']);
+
+        $csrf_token = $this->secrets_service->generateCode();
 
         $login = $this->login_repository->createPending(
             $client->getId(),
@@ -78,7 +80,8 @@ class AuthorizeService
             $query['scope'],
             $query['redirect_uri'],
             $query['response_mode'],
-            $query['code_challenge']
+            $query['code_challenge'],
+            $csrf_token
         );
 
         if ($login === null) {
@@ -90,7 +93,19 @@ class AuthorizeService
         $login_id = $login->getId();
         $this->logger->info("pending login $login_id created");
 
-        return $login->getId();
+        return [
+            'login_id' => $login_id,
+            'csrf_token' => $csrf_token,
+        ];
+    }
+
+    public function validateCsrfToken(string $login_id, string $csrf_token): void
+    {
+        $login = $this->login_repository->findById($login_id);
+        if ($login === null || $login->getCsrfToken() !== $csrf_token) {
+            $this->logger->info("CSRF validation failed for login $login_id");
+            throw new InvalidInputException('CSRF validation failed');
+        }
     }
 
     public function ensureValidSession(

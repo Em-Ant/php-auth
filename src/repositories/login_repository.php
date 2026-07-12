@@ -97,7 +97,8 @@ class LoginRepository implements IRepo
         string $scope,
         string $redirect_uri,
         string $response_mode,
-        ?string $code_challenge
+        ?string $code_challenge,
+        ?string $csrf_token
     ): ?Login {
         try {
             $uid = Utils::get_guid();
@@ -105,10 +106,10 @@ class LoginRepository implements IRepo
             $q = $this->db->prepare(
                 "INSERT INTO logins (
           'id', 'client_id', 'state', 'nonce', 'scope', 
-          'redirect_uri', 'response_mode', 'code_challenge', 'status'
+          'redirect_uri', 'response_mode', 'code_challenge', 'csrf_token', 'status'
         ) VALUES (
           :id, :client_id, :state, :nonce, :scope, 
-          :redirect_uri, :response_mode, :code_challenge, 'PENDING'
+          :redirect_uri, :response_mode, :code_challenge, :csrf_token, 'PENDING'
         )"
             );
 
@@ -120,6 +121,7 @@ class LoginRepository implements IRepo
             $q->bindValue(':redirect_uri', $redirect_uri);
             $q->bindValue(':response_mode', $response_mode);
             $q->bindValue(':code_challenge', $code_challenge);
+            $q->bindValue(':csrf_token', $csrf_token);
 
             $q->execute();
 
@@ -275,6 +277,7 @@ class LoginRepository implements IRepo
             $r['authenticated_at'],
             $r['code'],
             $r['code_challenge'],
+            $r['csrf_token'],
             $r['updated_at'],
             $r['refresh_token'],
             $r['status']

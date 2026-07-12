@@ -30,8 +30,7 @@
 ## Conventions & quirks
 
 - **No test suite** — no PHPUnit. Manual testing via `test.http` (VS Code REST Client format)
-- **No CI workflows** — `.github/workflows/` is empty despite README badge
-- **`declare(strict_types=1)`** — used inconsistently. Match each file's existing convention
+- **`declare(strict_types=1)`** — used consistently across all `src/` files
 - **`$sub_path` global** — set in `index.php` from `config.ini` `base_path`, used in views for URL prefixing behind reverse proxies
 - **`AUTH_SESSION` cookie** format: `{realm}\{session_id}` (backslash-separated)
 - **`md5` used for `at_hash`** in ID tokens — non-standard but intentional

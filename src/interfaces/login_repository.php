@@ -17,7 +17,8 @@ interface LoginRepository
         string $scope,
         string $redirect_uri,
         string $response_mode,
-        ?string $code_challenge
+        ?string $code_challenge,
+        ?string $csrf_token
     ): ?Login;
 
     public function createAuthenticated(
