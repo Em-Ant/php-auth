@@ -16,21 +16,23 @@
 2. Run `db/init_v1.sql` to create schema
 3. Run `db/seed.sql` for seed data (realms `web`, `test`, users, clients)
 4. Generate RSA key pairs in `keys/<kid>/` (call `TokenService::createKeys()` or manually)
-5. `composer dump-autoload` after adding new classes (classmap, not PSR-4)
+5. `composer dump-autoload` after adding new classes (PSR-4, not classmap)
 
 ## Architecture
 
 - **Sole entrypoint**: `index.php` — all routes, DI wiring, and config loading happen here
-- **Router**: `emant/brownie-php` (tiny Express-like custom framework, not Symfony/Laravel)
-- **DB**: SQLite via PDO singleton in `src/repositories/data_source.php`
+- **Router**: Slim 4 (PSR-7/PSR-15), replacing `emant/brownie-php`
+- **DB**: SQLite via PDO singleton in `src/Repositories/DataSource.php`
+- **DI**: Slim's built-in container (PHP-DI or Pimple)
 - **Auth flow**: Authorization Code Grant + PKCE + Refresh Token (OIDC-like)
 - **No user registration, password reset, or admin API** — pure auth server only
 - **Adminer** bundled at `/admin` path
 
 ## Conventions & quirks
 
-- **No test suite** — no PHPUnit. Manual testing via `test.http` (VS Code REST Client format)
 - **`declare(strict_types=1)`** — used consistently across all `src/` files
+- **PHP 8 features for NEW code** — enums, readonly properties, constructor promotion, named arguments, match expressions, union types. Do NOT rewrite existing code that isn't being touched; only use new features in new/modified files.
+- **Accurate typing** — typed properties, typed params and return types everywhere, avoid `mixed` where possible, use `|null` unions explicitly (no nullable `?type` in new code). This makes PHPStan level bumps mechanical.
 - **`$sub_path` global** — set in `index.php` from `config.ini` `base_path`, used in views for URL prefixing behind reverse proxies
 - **`AUTH_SESSION` cookie** format: `{realm}\{session_id}` (backslash-separated)
 - **`md5` used for `at_hash`** in ID tokens — non-standard but intentional
