@@ -167,6 +167,14 @@ class AuthorizeService
     ): array {
         $this->logger->info("validating user credentials for $email");
 
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $this->logger->info("invalid email format for $email");
+            return [
+                'user' => null,
+                'error' => 'invalid email'
+            ];
+        }
+
         $error = false;
         $user = $this->user_repository->findByEmailAndRealmId($email, $realm_id);
         if ($user === null) {

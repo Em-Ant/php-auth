@@ -76,6 +76,12 @@ $auth_controller = new Controllers\Authorize(
 
 $check_3rd_party_cookies = function (array $ctx) {
     $params = $ctx['params'];
+    $allowed = ['step1.html', 'step2.html'];
+    if (!in_array($params['step'], $allowed, true)) {
+        http_response_code(400);
+        echo 'Invalid step';
+        die();
+    }
     include("./src/views/3p-{$params['step']}");
     die();
 };
