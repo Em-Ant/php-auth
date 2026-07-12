@@ -13,6 +13,7 @@ use AuthServer\Repositories\RealmRepository;
 use AuthServer\Repositories\SessionRepository;
 use AuthServer\Repositories\UserRepository;
 use AuthServer\Services\AuthorizeService;
+use AuthServer\Services\FilesystemKeyStore;
 use AuthServer\Services\SecretsService;
 use AuthServer\Services\TokenService;
 use AuthServer\Lib\Logger;
@@ -25,8 +26,11 @@ $server = $config['server'];
 $issuer = $server['issuer'];
 $sub_path = $server['base_path'];
 
+$key_store = new FilesystemKeyStore(__DIR__ . '/keys');
+
 $token_service = new TokenService(
-    $issuer
+    $issuer,
+    $key_store
 );
 
 $log = $config['log'];
@@ -71,7 +75,8 @@ $auth_service = new AuthorizeService(
 $auth_controller = new Controllers\Authorize(
     $auth_service,
     $issuer,
-    $sub_path
+    $sub_path,
+    $key_store
 );
 
 $check_3rd_party_cookies = function (array $ctx) {

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AuthServer\Controllers;
 
 use AuthServer\Exceptions\CriticalLoginErrorException;
+use AuthServer\Interfaces\KeyStore;
 use Emant\BrowniePhp\Utils;
 use AuthServer\Exceptions\InvalidInputException;
 use AuthServer\Models\Login;
@@ -16,6 +17,7 @@ class Authorize
     private AuthorizeService $auth_service;
     private string $issuer;
     private string $mount_path;
+    private KeyStore $keyStore;
 
     public const INVALID_REQUEST = 'Invalid request';
     public const INVALID_TOKEN = 'Invalid token';
@@ -24,11 +26,13 @@ class Authorize
     public function __construct(
         AuthorizeService $service,
         string $issuer,
-        string $mount_path
+        string $mount_path,
+        KeyStore $keyStore
     ) {
         $this->auth_service = $service;
         $this->issuer = $issuer;
         $this->mount_path = $mount_path;
+        $this->keyStore = $keyStore;
     }
 
     public function authorize(array $ctx)
@@ -225,13 +229,10 @@ class Authorize
         /** @var Realm */
         $realm = $ctx['realm'];
         $kid = $realm->getKeysId();
-        $keys = file_get_contents("keys/$kid/keys.json", true);
-        if (!$keys) {
-            throw new InvalidInputException('keys not found');
-        }
+        $keySet = $this->keyStore->findKeys($kid);
         header('Content-Type: application/json; charset=utf-8');
         Utils::enable_cors();
-        echo $keys;
+        echo json_encode($keySet->jwks);
         die();
     }
 

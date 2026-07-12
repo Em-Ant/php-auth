@@ -7,6 +7,7 @@ namespace AuthServer\Services;
 use AuthServer\Models\Session;
 use AuthServer\Models\Client;
 use AuthServer\Models\User;
+use AuthServer\Interfaces\KeyStore;
 use Emant\BrowniePhp\Utils;
 use AuthServer\Models\Login;
 use AuthServer\Models\Realm;
@@ -15,22 +16,22 @@ use AuthServer\Services\Base64Utils;
 class TokenService
 {
     private string $issuer;
+    private KeyStore $keyStore;
 
     public function __construct(
-        string $issuer
+        string $issuer,
+        KeyStore $keyStore
     ) {
         $this->issuer = $issuer;
+        $this->keyStore = $keyStore;
     }
 
     public function validateToken(string $token, Realm $realm): int
     {
 
         $kid = $realm->getKeysId();
-        $public_key = file_get_contents("keys/$kid/public_key.pem");
-
-        if (!$public_key) {
-            throw new \RuntimeException('keys not found');
-        }
+        $keySet = $this->keyStore->findKeys($kid);
+        $public_key = $keySet->publicKey;
 
         $t = explode('.', $token);
         $header = json_decode(Base64Utils::b64UrlDecode($t[0]), true);
@@ -56,13 +57,10 @@ class TokenService
         return $decoded['exp'] < time();
     }
 
-    public function createToken(array $payload, $keys_id): string
+    public function createToken(array $payload, string $keys_id): string
     {
-        $private_key = file_get_contents("keys/$keys_id/private_key.pem");
-
-        if (!$private_key) {
-            throw new \RuntimeException('keys not found');
-        }
+        $keySet = $this->keyStore->findKeys($keys_id);
+        $private_key = $keySet->privateKey;
 
         $header = json_encode([
             'typ' => 'JWT',
