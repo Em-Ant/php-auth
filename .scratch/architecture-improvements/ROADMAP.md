@@ -3,7 +3,12 @@
 ## Phase 0 — Foundation (structural changes + architecture modules)
 
 - [x] **PSR-4 autoload + file renaming** — rename dirs to match PSR-4 case (`Services/`, `Models/`, `Repositories/`), rename files to PascalCase, update `composer.json`
-- [ ] **Migrate brownie-php → Slim 4** — rewrite `index.php`, replace `Utils::show_view` with PSR-7 Response rendering, replace `Utils::send_json`/`server_error`/etc. with PSR-7 equivalents, wire DI via Slim container. Keep simple PHP `include` views. Inline `get_guid()` as a standalone helper.
+- [ ] **Migrate brownie-php → Slim 4** — 4 phases tracked in [issue #05](issues/05-slim-migration.md).
+
+  - [ ] Phase 1 — Foundation: Slim bootstrap + DI + PSR-7 conversion
+  - [ ] Phase 2 — Views + JSON rendering (PhpRenderer, JsonResponse)
+  - [ ] Phase 3 — PSR-15 middleware stack (CORS, RealmProvider, static files, logging, Adminer, 3p/iframe)
+  - [ ] Phase 4 — Cleanup (get_guid standalone, remove brownie-php)
 - [x] **KeyStore** — interface + `FilesystemKeyStore` / `InMemoryKeyStore`, inject into `TokenService` and `Authorize::sendKeys`
 - [x] **RedirectUri** — value object for fragment vs query redirect construction
 - [x] **LoginStateMachine** — state transitions (PENDING→AUTHENTICATED→ACTIVE→EXPIRED) + TTL rules in one place, backed by `LoginEvent` and `LoginStatus` enums

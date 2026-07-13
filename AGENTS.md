@@ -18,6 +18,18 @@
 4. Generate RSA key pairs in `keys/<kid>/` (call `TokenService::createKeys()` or manually)
 5. `composer dump-autoload` after adding new classes (PSR-4, not classmap)
 
+## Agent skills
+
+### Issue tracker
+
+This repo uses **local markdown issue tracking** under `.scratch/`. See `.agent/docs/issue-tracker.md`.
+
+Do NOT run `gh` or any other remote issue-tracker CLI — there is no GitHub/GitLab issue tracker configured.
+
+### Domain docs
+
+Single-context. See `.agent/docs/domain.md`.
+
 ## Architecture
 
 - **Sole entrypoint**: `index.php` — all routes, DI wiring, and config loading happen here
@@ -27,6 +39,14 @@
 - **Auth flow**: Authorization Code Grant + PKCE + Refresh Token (OIDC-like)
 - **No user registration, password reset, or admin API** — pure auth server only
 - **Adminer** bundled at `/admin` path
+
+## Design principles
+Apply these almost religiously. If a pragmatic violation is needed, consult the user first:
+- **SOLID** — Single Responsibility, Open/Closed, Liskov Substitution, Interface Segregation, Dependency Inversion
+- **DRY** — don't repeat logic. Extract shared logic into domain services or helper methods.
+- **KISS** — simple over clever. Favor flat structures over deep inheritance.
+- **Law of Demeter** — talk only to your immediate dependencies. No method chaining across layer boundaries.
+
 
 ## Conventions & quirks
 

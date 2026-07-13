@@ -1,0 +1,20 @@
+# Issue tracker: Local Markdown
+
+**This repo does NOT use GitHub Issues, GitLab Issues, or any remote issue tracker.** Do not run `gh` or any other CLI tool to create/find issues.
+
+Issues are local markdown files under `.scratch/`.
+
+## Conventions
+
+- One feature per directory: `.scratch/<feature-slug>/`
+- The PRD is `.scratch/<feature-slug>/PRD.md`
+- Implementation issues are `.scratch/<feature-slug>/issues/<NN>-<slug>.md`, numbered from `01`
+- Comments and conversation history append to the bottom of the file under a `## Comments` heading
+
+## When a skill says "publish to the issue tracker"
+
+Create a new file under `.scratch/<feature-slug>/` (creating the directory if needed).
+
+## When a skill says "fetch the relevant ticket"
+
+Read the file at the referenced path. The user will normally pass the path or the issue number directly.

@@ -6,7 +6,12 @@
   },
   "repositories": {},
   "require": {
-    "emant/brownie-php": "0.0.2"
+    "emant/brownie-php": "0.0.2",
+    "slim/slim": "^4.0",
+    "slim/psr7": "^1.0",
+    "slim/php-view": "^3.0",
+    "php-di/slim-bridge": "^3.0",
+    "monolog/monolog": "^3.0"
   },
   "require-dev": {
     "phpstan/phpstan": "^1.10",
