@@ -7,17 +7,17 @@ namespace AuthServer\Services;
 use AuthServer\Exceptions\InvalidInputException;
 use AuthServer\Interfaces\LoginRepository as ILoginRepo;
 use AuthServer\Interfaces\LoginStateMachine as ILoginStateMachine;
-use AuthServer\Interfaces\Logger;
 use AuthServer\Models\Login;
 use AuthServer\Models\LoginEvent;
 use AuthServer\Models\LoginStatus;
 use AuthServer\Models\Realm;
+use Psr\Log\LoggerInterface;
 
 class LoginStateMachine implements ILoginStateMachine
 {
     public function __construct(
         private readonly ILoginRepo $loginRepository,
-        private readonly Logger $logger,
+        private readonly LoggerInterface $logger,
     ) {
     }
 

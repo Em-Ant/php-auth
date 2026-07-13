@@ -6,11 +6,14 @@ namespace AuthServer\Middleware;
 
 use AuthServer\Interfaces\RealmRepository;
 use AuthServer\Models\Realm;
+use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Server\MiddlewareInterface;
+use Psr\Http\Server\RequestHandlerInterface;
 use Slim\Exception\HttpNotFoundException;
 use Slim\Routing\RouteContext;
 
-class RealmProvider
+class RealmProvider implements MiddlewareInterface
 {
     private RealmRepository $realms;
 
@@ -19,7 +22,7 @@ class RealmProvider
         $this->realms = $repo;
     }
 
-    public function provideRealm(ServerRequestInterface $request): ServerRequestInterface
+    public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
         $route = $request->getAttribute(RouteContext::ROUTE);
         $realm_name = $route !== null ? $route->getArgument('realm') : null;
@@ -34,6 +37,6 @@ class RealmProvider
             throw new HttpNotFoundException($request, 'realm not found');
         }
 
-        return $request->withAttribute(Realm::class, $realm);
+        return $handler->handle($request->withAttribute(Realm::class, $realm));
     }
 }

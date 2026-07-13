@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace AuthServer\Services;
 
-use Emant\BrowniePhp\Utils;
+use function AuthServer\get_guid;
 
 class SecretsService
 {
@@ -17,7 +17,7 @@ class SecretsService
 
     public function generateCode(): string
     {
-        return join('.', [Utils::get_guid(), Utils::get_guid(), Utils::get_guid()]);
+        return join('.', [get_guid(), get_guid(), get_guid()]);
     }
 
     public function hashPassword(string $password): string

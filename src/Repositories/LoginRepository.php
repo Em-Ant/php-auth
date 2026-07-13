@@ -4,18 +4,19 @@ declare(strict_types=1);
 
 namespace AuthServer\Repositories;
 
-use AuthServer\Interfaces\Logger;
+use Psr\Log\LoggerInterface;
 use AuthServer\Interfaces\LoginRepository as IRepo;
-use Emant\BrowniePhp\Utils;
 use AuthServer\Models\Login;
 use AuthServer\Repositories\DataSource;
+
+use function AuthServer\get_guid;
 
 class LoginRepository implements IRepo
 {
     private \PDO $db;
-    private Logger $logger;
+    private LoggerInterface $logger;
 
-    public function __construct(DataSource $data_source, Logger $logger)
+    public function __construct(DataSource $data_source, LoggerInterface $logger)
     {
         $this->db = $data_source->getDb();
         $this->logger = $logger;
@@ -101,7 +102,7 @@ class LoginRepository implements IRepo
         ?string $csrf_token
     ): ?Login {
         try {
-            $uid = Utils::get_guid();
+            $uid = get_guid();
 
             $q = $this->db->prepare(
                 "INSERT INTO logins (
@@ -144,7 +145,7 @@ class LoginRepository implements IRepo
         ?string $code_challenge
     ): ?Login {
         try {
-            $uid = Utils::get_guid();
+            $uid = get_guid();
 
             $q = $this->db->prepare(
                 "INSERT INTO logins (

@@ -2,11 +2,13 @@
   "autoload": {
     "psr-4": {
       "AuthServer\\": "src/"
-    }
+    },
+    "files": [
+      "src/functions.php"
+    ]
   },
   "repositories": {},
   "require": {
-    "emant/brownie-php": "0.0.2",
     "slim/slim": "^4.0",
     "slim/psr7": "^1.0",
     "slim/php-view": "^3.0",
@@ -20,11 +22,11 @@
   "scripts": {
     "serve": [
       "Composer\\Config::disableProcessTimeout",
-      "php -S localhost:8000 index.php"
+      "php -S localhost:8000 -t public router.php"
     ],
-    "stan": "phpstan analyse -l 5 src index.php",
-    "cs_check": "phpcs src index.php --standard=PSR12",
-    "cs_fix": "phpcbf src index.php --standard=PSR12",
+    "stan": "phpstan analyse -l 5 src public/index.php",
+    "cs_check": "phpcs src public/index.php --standard=PSR12",
+    "cs_fix": "phpcbf src public/index.php --standard=PSR12",
     "check": [
       "@stan",
       "@cs_check"

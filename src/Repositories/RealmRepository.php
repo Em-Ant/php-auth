@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace AuthServer\Repositories;
 
-use AuthServer\Interfaces\Logger;
+use Psr\Log\LoggerInterface;
 use AuthServer\Interfaces\RealmRepository as IRepo;
 use AuthServer\Models\Realm;
 use AuthServer\Repositories\DataSource;
@@ -13,9 +13,9 @@ use Error;
 class RealmRepository implements IRepo
 {
     private \PDO $db;
-    private Logger $logger;
+    private LoggerInterface $logger;
 
-    public function __construct(DataSource $data_source, Logger $logger)
+    public function __construct(DataSource $data_source, LoggerInterface $logger)
     {
         $this->db = $data_source->getDb();
         $this->logger = $logger;

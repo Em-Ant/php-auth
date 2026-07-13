@@ -4,14 +4,15 @@ declare(strict_types=1);
 
 namespace AuthServer\Services;
 
-use AuthServer\Models\Session;
-use AuthServer\Models\Client;
-use AuthServer\Models\User;
 use AuthServer\Interfaces\KeyStore;
-use Emant\BrowniePhp\Utils;
+use AuthServer\Models\Client;
 use AuthServer\Models\Login;
 use AuthServer\Models\Realm;
+use AuthServer\Models\Session;
+use AuthServer\Models\User;
 use AuthServer\Services\Base64Utils;
+
+use function AuthServer\get_guid;
 
 class TokenService
 {
@@ -127,7 +128,7 @@ class TokenService
 
         $details = openssl_pkey_get_details($new_key_pair);
         $public_key_pem = $details['key'];
-        $kid = $kid ?? Utils::get_guid();
+        $kid = $kid ?? get_guid();
         $keys = [
             "keys" => [
                 [
@@ -224,7 +225,7 @@ class TokenService
             [
                 "exp" => $exp,
                 "iat" => $now,
-                "jti" => Utils::get_guid(),
+                "jti" => get_guid(),
                 "iss" => $this->issuer . "/realms/$realm_name",
                 "aud" => $this->issuer,
                 "sub" => $session->getUserId(),
@@ -258,7 +259,7 @@ class TokenService
                 "exp" => $exp,
                 "iat" => $now,
                 "auth_time" => date_timestamp_get($login->getAuthenticatedAt()),
-                "jti" => Utils::get_guid(),
+                "jti" => get_guid(),
                 "iss" => $this->issuer . "/realms/$realm_name",
                 "aud" => $client->getName(),
                 "sub" => $session->getUserId(),
@@ -298,7 +299,7 @@ class TokenService
                 "exp" => $exp,
                 "iat" => $now,
                 "auth_time" => date_timestamp_get($login->getAuthenticatedAt()),
-                "jti" => Utils::get_guid(),
+                "jti" => get_guid(),
                 "iss" => $this->issuer . "/realms/$realm_name",
                 "aud" => $client->getName(),
                 "sub" => $session->getUserId(),

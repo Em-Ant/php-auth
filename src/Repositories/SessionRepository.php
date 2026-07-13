@@ -4,18 +4,19 @@ declare(strict_types=1);
 
 namespace AuthServer\Repositories;
 
-use AuthServer\Interfaces\Logger;
+use Psr\Log\LoggerInterface;
 use AuthServer\Interfaces\SessionRepository as IRepo;
-use Emant\BrowniePhp\Utils;
 use AuthServer\Models\Session;
 use AuthServer\Repositories\DataSource;
+
+use function AuthServer\get_guid;
 
 class SessionRepository implements IRepo
 {
     private \PDO $db;
-    private Logger $logger;
+    private LoggerInterface $logger;
 
-    public function __construct(DataSource $data_source, Logger $logger)
+    public function __construct(DataSource $data_source, LoggerInterface $logger)
     {
         $this->db = $data_source->getDb();
         $this->logger = $logger;
@@ -50,7 +51,7 @@ class SessionRepository implements IRepo
         string $acr
     ): ?Session {
         try {
-            $uid = Utils::get_guid();
+            $uid = get_guid();
 
             $q = $this->db->prepare(
                 "INSERT INTO sessions (

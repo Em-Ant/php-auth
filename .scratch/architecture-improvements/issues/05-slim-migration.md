@@ -80,7 +80,7 @@ Replace brownie-php with Slim 4, PHP-DI, PSR-7/PSR-15 throughout. Four phases, e
 - [x] Phase 1: No die()/header() calls in controllers
 - [x] Phase 1: All request input via PSR-7 ($request methods)
 - [x] Phase 2: Views render with PhpRenderer using template.php layout
-- [ ] Phase 3: All PSR-15 middlewares registered and working
-- [ ] Phase 3: CORS, static files, logging, Adminer, 3p/iframe all functional
-- [ ] Phase 4: No emant/brownie-php references remain
-- [ ] Phase 4: `composer check` passes
+- [x] Phase 3: All PSR-15 middlewares registered and working
+- [x] Phase 3: CORS, static files, logging, Adminer, 3p/iframe all functional
+- [x] Phase 4: No emant/brownie-php references remain
+- [x] Phase 4: `composer check` passes

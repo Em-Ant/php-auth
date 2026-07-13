@@ -4,7 +4,7 @@
 
 | Command | Action |
 |---|---|
-| `composer serve` | Dev server at `localhost:8000` (PHP built-in, `index.php` as router) |
+| `composer serve` | Dev server at `localhost:8000` (PHP built-in, `public/` as doc root via `router.php`) |
 | `composer stan` | PHPStan level 5 on `src/` and `index.php` |
 | `composer cs_check` | PHPCS PSR12 on `src/` and `index.php` |
 | `composer cs_fix` | phpcbf auto-fix PSR12 |

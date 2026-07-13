@@ -5,16 +5,16 @@ declare(strict_types=1);
 namespace AuthServer\Repositories;
 
 use AuthServer\Interfaces\ClientRepository as IRepo;
-use AuthServer\Interfaces\Logger;
+use Psr\Log\LoggerInterface;
 use AuthServer\Models\Client;
 use AuthServer\Repositories\DataSource;
 
 class ClientRepository implements IRepo
 {
     private \PDO $db;
-    private Logger $logger;
+    private LoggerInterface $logger;
 
-    public function __construct(DataSource $data_source, Logger $logger)
+    public function __construct(DataSource $data_source, LoggerInterface $logger)
     {
         $this->db = $data_source->getDb();
         $this->logger = $logger;

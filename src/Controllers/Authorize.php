@@ -15,8 +15,6 @@ use AuthServer\Services\AuthorizeService;
 use AuthServer\Services\ViewRenderer;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
-use Psr\Http\Server\RequestHandlerInterface;
-use Slim\Psr7\Response;
 
 class Authorize
 {
@@ -28,7 +26,6 @@ class Authorize
     private ViewRenderer $view;
 
     public const INVALID_REQUEST = 'Invalid request';
-    public const INVALID_TOKEN = 'Invalid token';
 
     public function __construct(
         AuthorizeService $service,
@@ -297,47 +294,18 @@ class Authorize
         ServerRequestInterface $request,
         ResponseInterface $response
     ): ResponseInterface {
-        $realm_name = $request->getAttribute('realm');
+        /** @var Realm */
+        $realm = $request->getAttribute(Realm::class);
 
         $data = file_get_contents(__DIR__ . '/../../static/well-known.json');
         $data = str_replace(
             '<<ISSUER>>',
-            $this->issuer . "/realms/$realm_name",
+            $this->issuer . '/realms/' . $realm->getName(),
             $data
         );
 
         $response->getBody()->write($data);
-        return $response
-            ->withHeader('Content-Type', 'application/json')
-            ->withHeader('Access-Control-Allow-Origin', '*');
-    }
-
-    public function validateAccessTokenMiddleware(
-        ServerRequestInterface $request,
-        RequestHandlerInterface $handler
-    ): ResponseInterface {
-        /** @var Realm */
-        $realm = $request->getAttribute(Realm::class);
-
-        $token = '';
-        $authHeader = $request->getHeaderLine('Authorization');
-        if ($authHeader !== '') {
-            $token = str_replace('Bearer ', '', $authHeader);
-        }
-
-        try {
-            $parsed = $this->auth_service->parseValidToken($token, $realm);
-            $request = $request->withAttribute('accessTokenParsed', $parsed);
-            return $handler->handle($request);
-        } catch (InvalidInputException $e) {
-            $response = new Response();
-            return JsonResponse::error(
-                $response,
-                self::INVALID_TOKEN,
-                $e->getMessage(),
-                400
-            );
-        }
+        return $response->withHeader('Content-Type', 'application/json');
     }
 
     public function sendUserInfo(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface

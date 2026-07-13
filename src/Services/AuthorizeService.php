@@ -12,7 +12,7 @@ use AuthServer\Interfaces\LoginStateMachine as ILoginStateMachine;
 use AuthServer\Interfaces\SessionRepository as ISessionRepo;
 use AuthServer\Interfaces\UserRepository as IUserRepo;
 use AuthServer\Interfaces\LoginRepository as ILoginRepo;
-use AuthServer\Interfaces\Logger;
+use Psr\Log\LoggerInterface;
 use AuthServer\Models\Client;
 use AuthServer\Models\Login;
 use AuthServer\Models\LoginEvent;
@@ -32,7 +32,7 @@ class AuthorizeService
     private ILoginStateMachine $loginStateMachine;
     private SecretsService $secrets_service;
     private TokenService $token_service;
-    private Logger $logger;
+    private LoggerInterface $logger;
 
     public function __construct(
         IClientRepo $client_repo,
@@ -42,7 +42,7 @@ class AuthorizeService
         ILoginStateMachine $loginStateMachine,
         SecretsService $secrets_service,
         TokenService $token_service,
-        Logger $logger
+        LoggerInterface $logger
     ) {
         $this->client_repository = $client_repo;
         $this->session_repository = $session_repo;
