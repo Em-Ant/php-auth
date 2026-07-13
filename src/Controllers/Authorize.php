@@ -12,6 +12,7 @@ use AuthServer\Models\Realm;
 use AuthServer\Models\RedirectUri;
 use AuthServer\Response\JsonResponse;
 use AuthServer\Services\AuthorizeService;
+use AuthServer\Services\ViewRenderer;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
@@ -24,6 +25,7 @@ class Authorize
     private string $mount_path;
     private KeyStore $keyStore;
     private SessionCookieHandler $sessionCookie;
+    private ViewRenderer $view;
 
     public const INVALID_REQUEST = 'Invalid request';
     public const INVALID_TOKEN = 'Invalid token';
@@ -34,12 +36,14 @@ class Authorize
         string $mount_path,
         KeyStore $keyStore,
         SessionCookieHandler $sessionCookie,
+        ViewRenderer $view,
     ) {
         $this->auth_service = $service;
         $this->issuer = $issuer;
         $this->mount_path = $mount_path;
         $this->keyStore = $keyStore;
         $this->sessionCookie = $sessionCookie;
+        $this->view = $view;
     }
 
     public function authorize(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
@@ -106,7 +110,7 @@ class Authorize
                     $query
                 );
 
-                return $this->renderView($response, 'login_form', [
+                return $this->view->render($response, 'login_form.php', [
                     'title' => 'Login',
                     'login_id' => $pending['login_id'],
                     'csrf_token' => $pending['csrf_token'],
@@ -160,7 +164,7 @@ class Authorize
         );
 
         if ($result['error']) {
-            return $this->renderView($response, 'login_form', [
+            return $this->view->render($response, 'login_form.php', [
                 'title' => 'Login',
                 'login_id' => $login_id,
                 'csrf_token' => $csrf_token,
@@ -244,7 +248,7 @@ class Authorize
         $query = $request->getQueryParams();
         $message = $query['e'] ?? '';
 
-        return $this->renderView($response, 'error', [
+        return $this->view->render($response, 'error.php', [
             'title' => 'Error',
             'error' => $message,
         ]);
@@ -344,24 +348,6 @@ class Authorize
         $user['preferred_username'] = $token['preferred_username'];
 
         return JsonResponse::create($response, $user, 200, '*');
-    }
-
-    private function renderView(ResponseInterface $response, string $view, array $params): ResponseInterface
-    {
-        $viewFile = __DIR__ . '/../views/' . $view . '.php';
-        $templateFile = __DIR__ . '/../views/template.php';
-
-        $params['view'] = $viewFile;
-
-        extract($params);
-        unset($params);
-
-        ob_start();
-        include $templateFile;
-        $html = ob_get_clean();
-
-        $response->getBody()->write($html);
-        return $response->withHeader('Content-Type', 'text/html; charset=utf-8');
     }
 
     private function redirectToError(

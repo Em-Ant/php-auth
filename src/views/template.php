@@ -1,9 +1,9 @@
 <?php
-$sub_path = $GLOBALS['sub_path'] ?: '';
-$title = htmlspecialchars($title ?? 'Auth', ENT_QUOTES, 'UTF-8');
-$sp = htmlspecialchars($sub_path, ENT_QUOTES, 'UTF-8');
-?>
 
+$content ??= '';
+$title = htmlspecialchars($title ?? 'Auth', ENT_QUOTES, 'UTF-8');
+$sp = htmlspecialchars($sub_path ?? '', ENT_QUOTES, 'UTF-8');
+?>
 <!DOCTYPE html>
 <html lang="en">
 
@@ -16,11 +16,7 @@ $sp = htmlspecialchars($sub_path, ENT_QUOTES, 'UTF-8');
 </head>
 
 <body>
-  <?php
-    if (isset($view)) {
-        include $view;
-    }
-    ?>
+  <?= $content ?>
 </body>
 
 </html>

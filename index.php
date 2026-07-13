@@ -71,12 +71,18 @@ $session_cookie_handler = new Services\HttpSessionCookieHandler(
     $_SERVER['SERVER_NAME']
 );
 
+$view_renderer = new Services\ViewRenderer(
+    __DIR__ . '/src/views',
+    'template.php'
+);
+
 $auth_controller = new Controllers\Authorize(
     $auth_service,
     $issuer,
     $GLOBALS['sub_path'],
     $key_store,
-    $session_cookie_handler
+    $session_cookie_handler,
+    $view_renderer
 );
 
 // -- Slim 4 bootstrap --
