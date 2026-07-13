@@ -99,6 +99,7 @@ $container = new \DI\Container();
 $container->set(Controllers\Authorize::class, $auth_controller);
 
 $app = Bridge::create($container);
+$app->setBasePath($server['base_path']);
 
 // -- Middleware (LIFO: last added runs first) --
 

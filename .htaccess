@@ -1,12 +1,17 @@
 RewriteEngine On
-RewriteBase /auth/
+RewriteBase /id/
 
+# Block sensitive directories and files — redirect to /id
+RewriteRule ^(db|src|keys)(/|$) /id [R,L]
+RewriteRule ^(.*)\.(log|ini)$ /id [R,L]
+
+# Serve static files from public/ (css, js, images, fonts, etc.)
+RewriteRule ^(.+\.(css|js|ico|svg|png|jpg|jpeg|gif|webp|woff2?|ttf|eot|pdf|txt|xml|json))$ public/$1 [END]
+
+# Route everything else through Slim 4 entry point
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
-
-RewriteRule ^(.*) index.php/$1 [QSA,L]
-
-RewriteRule  ^(db|src|keys)(.*) / [F]
+RewriteRule ^ public/index.php [QSA,L]
 
 # # av:php5-engine
 AddHandler av-php8 .php
