@@ -6,6 +6,7 @@ namespace AuthServer\Services;
 
 use AuthServer\Interfaces\SessionCookieHandler;
 use AuthServer\Models\Realm;
+use Psr\Http\Message\ResponseInterface;
 
 class InMemorySessionCookieHandler implements SessionCookieHandler
 {
@@ -28,13 +29,15 @@ class InMemorySessionCookieHandler implements SessionCookieHandler
         return $sessionId;
     }
 
-    public function write(Realm $realm, string $sessionId): void
+    public function write(Realm $realm, string $sessionId, ResponseInterface $response): ResponseInterface
     {
         $this->data = $realm->getName() . '\\' . $sessionId;
+        return $response;
     }
 
-    public function delete(Realm $realm): void
+    public function delete(Realm $realm, ResponseInterface $response): ResponseInterface
     {
         $this->data = null;
+        return $response;
     }
 }

@@ -77,8 +77,8 @@ Replace brownie-php with Slim 4, PHP-DI, PSR-7/PSR-15 throughout. Four phases, e
 ## Acceptance criteria
 
 - [x] Phase 1: Slim bootstraps, all auth routes respond correctly
-- [ ] Phase 1: No die()/header() calls in controllers
-- [ ] Phase 1: All request input via PSR-7 ($request methods)
+- [x] Phase 1: No die()/header() calls in controllers
+- [x] Phase 1: All request input via PSR-7 ($request methods)
 - [ ] Phase 2: Views render with PhpRenderer using template.php layout
 - [ ] Phase 3: All PSR-15 middlewares registered and working
 - [ ] Phase 3: CORS, static files, logging, Adminer, 3p/iframe all functional

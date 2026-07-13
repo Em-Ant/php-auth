@@ -6,6 +6,7 @@ namespace AuthServer\Services;
 
 use AuthServer\Interfaces\SessionCookieHandler;
 use AuthServer\Models\Realm;
+use Psr\Http\Message\ResponseInterface;
 
 class HttpSessionCookieHandler implements SessionCookieHandler
 {
@@ -34,31 +35,31 @@ class HttpSessionCookieHandler implements SessionCookieHandler
         return $sessionId;
     }
 
-    public function write(Realm $realm, string $sessionId): void
+    public function write(Realm $realm, string $sessionId, ResponseInterface $response): ResponseInterface
     {
         $path = ($this->mountPath ?: '') . '/realms/' . $realm->getName();
 
-        setcookie('AUTH_SESSION', $realm->getName() . '\\' . $sessionId, [
-            'expires' => time() + $realm->getSessionExpiresIn(),
-            'path' => $path,
-            'domain' => $this->serverName,
-            'httponly' => false,
-            'secure' => true,
-            'samesite' => 'None',
-        ]);
+        $value = 'AUTH_SESSION=' . rawurlencode($realm->getName() . '\\' . $sessionId)
+            . '; Expires=' . gmdate('D, d M Y H:i:s T', time() + $realm->getSessionExpiresIn())
+            . '; Path=' . $path
+            . '; Domain=' . $this->serverName
+            . '; Secure'
+            . '; SameSite=None';
+
+        return $response->withAddedHeader('Set-Cookie', $value);
     }
 
-    public function delete(Realm $realm): void
+    public function delete(Realm $realm, ResponseInterface $response): ResponseInterface
     {
         $path = ($this->mountPath ?: '') . '/realms/' . $realm->getName();
 
-        setcookie('AUTH_SESSION', '', [
-            'expires' => 1,
-            'path' => $path,
-            'domain' => $this->serverName,
-            'httponly' => false,
-            'secure' => true,
-            'samesite' => 'None',
-        ]);
+        $value = 'AUTH_SESSION='
+            . '; Expires=' . gmdate('D, d M Y H:i:s T', 1)
+            . '; Path=' . $path
+            . '; Domain=' . $this->serverName
+            . '; Secure'
+            . '; SameSite=None';
+
+        return $response->withAddedHeader('Set-Cookie', $value);
     }
 }

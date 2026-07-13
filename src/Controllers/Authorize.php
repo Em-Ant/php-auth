@@ -5,14 +5,17 @@ declare(strict_types=1);
 namespace AuthServer\Controllers;
 
 use AuthServer\Exceptions\CriticalLoginErrorException;
+use AuthServer\Exceptions\InvalidInputException;
 use AuthServer\Interfaces\KeyStore;
 use AuthServer\Interfaces\SessionCookieHandler;
-use AuthServer\Models\RedirectUri;
-use Emant\BrowniePhp\Utils;
-use AuthServer\Exceptions\InvalidInputException;
-use AuthServer\Models\Login;
 use AuthServer\Models\Realm;
+use AuthServer\Models\RedirectUri;
+use AuthServer\Response\JsonResponse;
 use AuthServer\Services\AuthorizeService;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Server\RequestHandlerInterface;
+use Slim\Psr7\Response;
 
 class Authorize
 {
@@ -24,7 +27,6 @@ class Authorize
 
     public const INVALID_REQUEST = 'Invalid request';
     public const INVALID_TOKEN = 'Invalid token';
-
 
     public function __construct(
         AuthorizeService $service,
@@ -40,17 +42,15 @@ class Authorize
         $this->sessionCookie = $sessionCookie;
     }
 
-    public function authorize(array $ctx)
+    public function authorize(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
         /** @var Realm */
-        $realm = $ctx['realm'];
-
+        $realm = $request->getAttribute(Realm::class);
         $realm_name = $realm->getName();
-        $current_session_id =
-            $this->sessionCookie->read($realm_name);
+        $current_session_id = $this->sessionCookie->read($realm_name);
 
         try {
-            $query = $ctx['query'];
+            $query = $request->getQueryParams();
             $scope = $query['scope'];
             $prompt = $query['prompt'] ?? '';
 
@@ -84,9 +84,10 @@ class Authorize
                     ]
                 );
 
-                $this->sessionCookie->write($realm, $current_session_id);
-                header("location: $redirect_uri", true, 302);
-                die();
+                $response = $this->sessionCookie->write($realm, $session->getId(), $response);
+                return $response
+                    ->withHeader('Location', (string) $redirect_uri)
+                    ->withStatus(302);
             } elseif ($prompt === 'none') {
                 $redirect_uri = new RedirectUri(
                     $query['redirect_uri'],
@@ -96,53 +97,60 @@ class Authorize
                         'state' => $query['state'],
                     ]
                 );
-                header("location: $redirect_uri", true, 302);
-                die();
+                return $response
+                    ->withHeader('Location', (string) $redirect_uri)
+                    ->withStatus(302);
             } else {
                 $pending = $this->auth_service->initializeLogin(
                     $realm->getId(),
                     $query
                 );
-                Utils::show_view(
-                    'login_form',
-                    [
-                        'title' => 'Login',
-                        'login_id' => $pending['login_id'],
-                        'csrf_token' => $pending['csrf_token'],
-                        'realm' => $realm_name,
-                        'email' => '',
-                        'password' => '',
-                        'error' => false
-                    ]
-                );
-                die();
+
+                return $this->renderView($response, 'login_form', [
+                    'title' => 'Login',
+                    'login_id' => $pending['login_id'],
+                    'csrf_token' => $pending['csrf_token'],
+                    'realm' => $realm_name,
+                    'email' => '',
+                    'password' => '',
+                    'error' => false,
+                ]);
             }
         } catch (InvalidInputException $e) {
-            Utils::server_error(self::INVALID_REQUEST, $e->getMessage(), 400);
+            return JsonResponse::error(
+                $response,
+                self::INVALID_REQUEST,
+                $e->getMessage(),
+                400
+            );
         } catch (CriticalLoginErrorException $e) {
-            $this->redirectToError($realm->getName(), $e->getMessage());
+            return $this->redirectToError($response, $realm->getName(), $e->getMessage());
         }
     }
 
-    public function login(array $ctx)
+    public function login(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
-        $query = $ctx['query'];
-        $body = $ctx['body'];
+        $query = $request->getQueryParams();
+        $body = $request->getParsedBody() ?? [];
 
         /** @var Realm */
-        $realm = $ctx['realm'];
+        $realm = $request->getAttribute(Realm::class);
 
-        $email = $body['email'];
-        $password = $body['password'];
+        $email = $body['email'] ?? '';
+        $password = $body['password'] ?? '';
 
-        $login_id = $query['q'];
+        $login_id = $query['q'] ?? '';
         $csrf_token = $body['csrf_token'] ?? '';
 
         try {
             $this->auth_service->validateCsrfToken($login_id, $csrf_token);
         } catch (InvalidInputException $e) {
-            Utils::server_error('Invalid request', 'CSRF validation failed', 400);
-            die();
+            return JsonResponse::error(
+                $response,
+                'Invalid request',
+                'CSRF validation failed',
+                400
+            );
         }
 
         $result = $this->auth_service->ensureValidCredentials(
@@ -150,20 +158,17 @@ class Authorize
             $email,
             $password,
         );
+
         if ($result['error']) {
-            Utils::show_view(
-                'login_form',
-                [
-                    'title' => 'Login',
-                    'login_id' => $login_id,
-                    'csrf_token' => $csrf_token,
-                    'realm' => $realm->getName(),
-                    'email' => $email,
-                    'password' => $password,
-                    'error' => $result['error']
-                ]
-            );
-            die();
+            return $this->renderView($response, 'login_form', [
+                'title' => 'Login',
+                'login_id' => $login_id,
+                'csrf_token' => $csrf_token,
+                'realm' => $realm->getName(),
+                'email' => $email,
+                'password' => $password,
+                'error' => $result['error'],
+            ]);
         }
 
         try {
@@ -174,7 +179,7 @@ class Authorize
             );
 
             $session_id = (string) $data['session']->getId();
-            /** @var Login */
+            /** @var \AuthServer\Models\Login */
             $login = $data['login'];
             $redirect_uri = new RedirectUri(
                 $login->getRedirectUri(),
@@ -186,126 +191,188 @@ class Authorize
                 ]
             );
 
-            $this->sessionCookie->write($realm, $session_id);
+            $response = $this->sessionCookie->write($realm, $session_id, $response);
 
-            header("location: $redirect_uri", true, 302);
-            die();
+            return $response
+                ->withHeader('Location', (string) $redirect_uri)
+                ->withStatus(302);
         } catch (CriticalLoginErrorException $e) {
-            $this->redirectToError($realm->getName(), $e->getMessage());
+            return $this->redirectToError($response, $realm->getName(), $e->getMessage());
         }
     }
 
-    public function token(array $ctx)
+    public function token(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
-        $body = $ctx['body'];
-        if (!isset($body['client_id'])) {
-            $body['client_id'] = isset($ctx['basic_auth_user'])
-                ? $ctx['basic_auth_user']
-                : null;
-        }
+        $body = $request->getParsedBody() ?? [];
 
-        if (!isset($body['client_secret'])) {
-            $body['client_secret'] = isset($ctx['basic_auth_pwd'])
-                ? $ctx['basic_auth_pwd']
-                : null;
+        $authHeader = $request->getHeaderLine('Authorization');
+        if (str_starts_with($authHeader, 'Basic ')) {
+            $cred = explode(':', base64_decode(substr($authHeader, 6)));
+            if (!isset($body['client_id'])) {
+                $body['client_id'] = $cred[0] ?? null;
+            }
+            if (!isset($body['client_secret'])) {
+                $body['client_secret'] = $cred[1] ?? null;
+            }
         }
 
         try {
-            $realm = $ctx['realm'];
-            $headers = $ctx['headers'];
-            $origin = $headers['origin'] ??
-                $this->auth_service->getClientUri($body['client_id']);
-            Utils::enable_cors($origin);
-            Utils::send_json($this->auth_service->getTokens($body, $realm));
+            /** @var Realm */
+            $realm = $request->getAttribute(Realm::class);
+
+            $origin = $request->getHeaderLine('Origin')
+                ?: $this->auth_service->getClientUri($body['client_id'] ?? '');
+
+            return JsonResponse::create(
+                $response,
+                $this->auth_service->getTokens($body, $realm),
+                200,
+                $origin
+            );
         } catch (InvalidInputException $e) {
-            Utils::server_error(self::INVALID_REQUEST, $e->getMessage(), 400);
+            return JsonResponse::error(
+                $response,
+                self::INVALID_REQUEST,
+                $e->getMessage(),
+                400
+            );
         }
     }
 
-    public function error(array $ctx)
+    public function error(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
-        $message = $ctx['query']['e'];
-        Utils::show_view('error', [
+        $query = $request->getQueryParams();
+        $message = $query['e'] ?? '';
+
+        return $this->renderView($response, 'error', [
             'title' => 'Error',
-            'error' => $message
+            'error' => $message,
         ]);
     }
 
-    public function logout(array $ctx)
+    public function logout(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
         /** @var Realm */
-        $realm = $ctx['realm'];
-        $query = $ctx['query'];
-        $redirect = $query['post_logout_redirect_uri'];
-        $id_token = $query['id_token_hint'];
+        $realm = $request->getAttribute(Realm::class);
+        $query = $request->getQueryParams();
+        $redirect = $query['post_logout_redirect_uri'] ?? '';
+        $id_token = $query['id_token_hint'] ?? '';
+
         try {
             $this->auth_service->logout($id_token, $realm);
-            $this->sessionCookie->delete($realm);
-            header("location: $redirect", true, 302);
-            die();
+            $response = $this->sessionCookie->delete($realm, $response);
+            return $response
+                ->withHeader('Location', $redirect)
+                ->withStatus(302);
         } catch (InvalidInputException $e) {
-            Utils::server_error(self::INVALID_REQUEST, $e->getMessage(), 400);
+            return JsonResponse::error(
+                $response,
+                self::INVALID_REQUEST,
+                $e->getMessage(),
+                400
+            );
         }
     }
 
-    public function sendKeys(array $ctx)
+    public function sendKeys(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
         /** @var Realm */
-        $realm = $ctx['realm'];
+        $realm = $request->getAttribute(Realm::class);
         $kid = $realm->getKeysId();
         $keySet = $this->keyStore->findKeys($kid);
-        header('Content-Type: application/json; charset=utf-8');
-        Utils::enable_cors();
-        echo json_encode($keySet->jwks);
-        die();
-    }
 
-    public function sendConfig(array $ctx)
-    {
-        /** @var Realm */
-        $params = $ctx['params'];
-        $realm_name = $params['realm'];
-        $data = file_get_contents('./static/well-known.json', true);
-        header('Content-Type: application/json; charset=utf-8');
-        Utils::enable_cors();
-        echo str_replace('<<ISSUER>>', $this->issuer . "/realms/$realm_name", $data);
-        die();
-    }
-
-    private function redirectToError($realm_name, $message)
-    {
-        $sub = $this->mount_path ?: '';
-        header(
-            "location: $sub/realms/$realm_name/protocol/openid-connect/error?e=$message",
-            true,
-            302
+        return JsonResponse::create(
+            $response,
+            $keySet->jwks,
+            200,
+            '*'
         );
-        die();
     }
 
-    public function validateAccessTokenMiddleware(array &$ctx)
-    {
+    public function sendConfig(
+        ServerRequestInterface $request,
+        ResponseInterface $response
+    ): ResponseInterface {
+        $realm_name = $request->getAttribute('realm');
+
+        $data = file_get_contents(__DIR__ . '/../../static/well-known.json');
+        $data = str_replace(
+            '<<ISSUER>>',
+            $this->issuer . "/realms/$realm_name",
+            $data
+        );
+
+        $response->getBody()->write($data);
+        return $response
+            ->withHeader('Content-Type', 'application/json')
+            ->withHeader('Access-Control-Allow-Origin', '*');
+    }
+
+    public function validateAccessTokenMiddleware(
+        ServerRequestInterface $request,
+        RequestHandlerInterface $handler
+    ): ResponseInterface {
         /** @var Realm */
-        $realm = $ctx['realm'];
+        $realm = $request->getAttribute(Realm::class);
 
         $token = '';
-        if (array_key_exists('authorization', $ctx['headers'])) {
-            $token = str_replace('Bearer ', '', $ctx['headers']['authorization']);
+        $authHeader = $request->getHeaderLine('Authorization');
+        if ($authHeader !== '') {
+            $token = str_replace('Bearer ', '', $authHeader);
         }
 
         try {
-            $ctx['accessTokenParsed'] = $this->auth_service->parseValidToken($token, $realm);
+            $parsed = $this->auth_service->parseValidToken($token, $realm);
+            $request = $request->withAttribute('accessTokenParsed', $parsed);
+            return $handler->handle($request);
         } catch (InvalidInputException $e) {
-            Utils::server_error(self::INVALID_REQUEST, $e->getMessage(), 400);
+            $response = new Response();
+            return JsonResponse::error(
+                $response,
+                self::INVALID_TOKEN,
+                $e->getMessage(),
+                400
+            );
         }
     }
 
-    public function sendUserInfo(array $ctx)
+    public function sendUserInfo(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
-        $token = $ctx['accessTokenParsed'];
+        $token = $request->getAttribute('accessTokenParsed');
         $user = [];
         $user['sub'] = $token['sub'];
         $user['preferred_username'] = $token['preferred_username'];
-        Utils::send_json($user);
+
+        return JsonResponse::create($response, $user, 200, '*');
+    }
+
+    private function renderView(ResponseInterface $response, string $view, array $params): ResponseInterface
+    {
+        $viewFile = __DIR__ . '/../views/' . $view . '.php';
+        $templateFile = __DIR__ . '/../views/template.php';
+
+        $params['view'] = $viewFile;
+
+        extract($params);
+        unset($params);
+
+        ob_start();
+        include $templateFile;
+        $html = ob_get_clean();
+
+        $response->getBody()->write($html);
+        return $response->withHeader('Content-Type', 'text/html; charset=utf-8');
+    }
+
+    private function redirectToError(
+        ResponseInterface $response,
+        string $realm_name,
+        string $message
+    ): ResponseInterface {
+        $sub = $this->mount_path ?: '';
+        $url = "$sub/realms/$realm_name/protocol/openid-connect/error?e=" . urlencode($message);
+        return $response
+            ->withHeader('Location', $url)
+            ->withStatus(302);
     }
 }

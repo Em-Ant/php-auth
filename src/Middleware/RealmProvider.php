@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace AuthServer\Middleware;
 
 use AuthServer\Interfaces\RealmRepository;
-use Emant\BrowniePhp\Utils;
+use AuthServer\Models\Realm;
+use Psr\Http\Message\ServerRequestInterface;
+use Slim\Exception\HttpNotFoundException;
+use Slim\Routing\RouteContext;
 
 class RealmProvider
 {
@@ -16,16 +19,21 @@ class RealmProvider
         $this->realms = $repo;
     }
 
-    public function provideRealm(array &$ctx): void
+    public function provideRealm(ServerRequestInterface $request): ServerRequestInterface
     {
-        $params = $ctx['params'] ?: [];
-        $realm_name = $params['realm'];
+        $route = $request->getAttribute(RouteContext::ROUTE);
+        $realm_name = $route !== null ? $route->getArgument('realm') : null;
+
+        if ($realm_name === null) {
+            throw new HttpNotFoundException($request, 'realm parameter missing');
+        }
 
         $realm = $this->realms->findByName($realm_name);
-        $ctx['realm'] = $realm;
 
         if (!$realm) {
-            Utils::server_error('not found', 'realm not found', 404);
+            throw new HttpNotFoundException($request, 'realm not found');
         }
+
+        return $request->withAttribute(Realm::class, $realm);
     }
 }
