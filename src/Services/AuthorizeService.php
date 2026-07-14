@@ -86,7 +86,7 @@ class AuthorizeService
             $query['scope'],
             $query['redirect_uri'],
             $query['response_mode'],
-            $query['code_challenge'],
+            $query['code_challenge'] ?? null,
             $csrf_token
         );
 
@@ -392,14 +392,14 @@ class AuthorizeService
         $this->logger->info("generating tokens from authorization code $code");
         $login = $this->login_repository->findByCode($code);
 
-        $code_challenge = $login->getCodeChallenge();
-        if ($code_verifier !== null || $code_challenge !== null) {
-            self::validateCodeChallenge($code_challenge, $code_verifier);
-        }
-
         if ($login === null) {
             $this->logger->error("invalid authorization code");
             throw new InvalidInputException('invalid code');
+        }
+
+        $code_challenge = $login->getCodeChallenge();
+        if ($code_verifier !== null || $code_challenge !== null) {
+            self::validateCodeChallenge($code_challenge, $code_verifier);
         }
         if ($login->getStatus() !== LoginStatus::Authenticated) {
             $this->logger->error("code $code is expired");

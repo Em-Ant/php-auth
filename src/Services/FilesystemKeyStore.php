@@ -30,7 +30,7 @@ class FilesystemKeyStore implements KeyStore
 
     private function loadFile(string $path): string
     {
-        $content = file_get_contents($path);
+        $content = @file_get_contents($path);
 
         if ($content === false) {
             throw new \RuntimeException("File not found: $path");
