@@ -1,0 +1,29 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+require __DIR__ . '/../vendor/autoload.php';
+
+$dbPath = __DIR__ . '/../db/data.db';
+$pdo = new \PDO("sqlite:{$dbPath}", '', '', [
+    \PDO::ATTR_EMULATE_PREPARES => false,
+    \PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION,
+    \PDO::ATTR_DEFAULT_FETCH_MODE => \PDO::FETCH_ASSOC,
+]);
+
+// Idempotent: skip if seed data already present
+$existing = $pdo->query('SELECT COUNT(*) FROM realms')->fetchColumn();
+if ($existing > 0) {
+    echo "Seed data already present — skipping.\n";
+    exit(0);
+}
+
+$seedSql = file_get_contents(__DIR__ . '/../db/seed.sql');
+if ($seedSql === false) {
+    fwrite(STDERR, "Cannot read db/seed.sql\n");
+    exit(1);
+}
+
+$pdo->exec($seedSql);
+echo "Seed data inserted.\n";

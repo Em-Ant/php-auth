@@ -31,6 +31,14 @@
       "Composer\\Config::disableProcessTimeout",
       "php -S localhost:8000 -t public router.php"
     ],
+    "migrate": "php bin/migrate migrate",
+    "rollback": "php bin/migrate rollback",
+    "migrate:status": "php bin/migrate status",
+    "seed": "php bin/seed",
+    "setup": [
+      "@migrate",
+      "@seed"
+    ],
     "stan": "phpstan analyse -l 5 src public/index.php",
     "cs_check": "phpcs src public/index.php --standard=PSR12",
     "cs_fix": "phpcbf src public/index.php --standard=PSR12",

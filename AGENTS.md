@@ -13,10 +13,16 @@
 ## First-time setup
 
 1. Create `db/data.db` (empty file, SQLite)
-2. Run `db/init_v1.sql` to create schema
-3. Run `db/seed.sql` for seed data (realms `web`, `test`, users, clients)
-4. Generate RSA key pairs in `keys/<kid>/` (call `TokenService::createKeys()` or manually)
-5. `composer dump-autoload` after adding new classes (PSR-4, not classmap)
+2. `composer setup` — runs migrations then seeds dev data (realms `web`, `test`, users, clients)
+3. Generate RSA key pairs in `keys/<kid>/` (call `TokenService::createKeys()` or manually)
+4. `composer dump-autoload` after adding new classes (PSR-4, not classmap)
+
+### Migrations
+
+Files in `db/migrations/` are plain SQL: `NNN_name.up.sql` + `NNN_name.down.sql`.
+Run via CLI (`composer migrate`) or HTTP (`POST /admin-api/migrations/migrate` with admin Bearer token).
+
+**Seed data (`db/seed.sql`)** is dev-only and never runs in production. Invoke manually via `composer seed` (idempotent — skips if a realm already exists).
 
 ## Agent skills
 
@@ -56,3 +62,7 @@ Apply these almost religiously. If a pragmatic violation is needed, consult the 
 - **`$sub_path` global** — set in `index.php` from `config.ini` `base_path`, used in views for URL prefixing behind reverse proxies
 - **`AUTH_SESSION` cookie** format: `{realm}\{session_id}` (backslash-separated)
 - **`md5` used for `at_hash`** in ID tokens — non-standard but intentional
+
+## Language
+
+Always communicate in English only.

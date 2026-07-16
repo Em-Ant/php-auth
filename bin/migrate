@@ -1,0 +1,121 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+require __DIR__ . '/../vendor/autoload.php';
+
+$config = parse_ini_file(__DIR__ . '/../config.ini', true);
+
+$dbPath = __DIR__ . '/../db/data.db';
+$pdo = new \PDO("sqlite:{$dbPath}", '', '', [
+    \PDO::ATTR_EMULATE_PREPARES => false,
+    \PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION,
+    \PDO::ATTR_DEFAULT_FETCH_MODE => \PDO::FETCH_ASSOC,
+]);
+
+$repo = new \AuthServer\Repositories\MigrationRepository($pdo);
+$runner = new \AuthServer\Services\MigrationRunner($repo, __DIR__ . '/../db/migrations/');
+
+$command = $argv[1] ?? 'status';
+
+try {
+    match ($command) {
+        'migrate' => run_migrate($runner),
+        'rollback' => run_rollback($runner, $argv),
+        'go' => run_go($runner, $argv),
+        'status' => run_status($runner),
+        'dry-run' => run_dry_run($runner),
+        default => print_usage(),
+    };
+} catch (\Throwable $e) {
+    fwrite(STDERR, "Error: {$e->getMessage()}\n");
+    exit(1);
+}
+
+function run_migrate(\AuthServer\Services\MigrationRunner $runner): void
+{
+    $applied = $runner->migrate();
+    if (count($applied) === 0) {
+        echo "Nothing to migrate.\n";
+        return;
+    }
+    foreach ($applied as $m) {
+        echo "  [UP]   {$m->version}_{$m->name}\n";
+    }
+    echo "\nApplied " . count($applied) . " migration(s).\n";
+}
+
+function run_rollback(\AuthServer\Services\MigrationRunner $runner, array $argv): void
+{
+    $steps = isset($argv[2]) ? max(1, (int) $argv[2]) : 1;
+    $rolled = $runner->rollback($steps);
+    if (count($rolled) === 0) {
+        echo "Nothing to rollback.\n";
+        return;
+    }
+    foreach ($rolled as $m) {
+        echo "  [DOWN] {$m->version}_{$m->name}\n";
+    }
+    echo "\nRolled back " . count($rolled) . " migration(s).\n";
+}
+
+function run_go(\AuthServer\Services\MigrationRunner $runner, array $argv): void
+{
+    if (!isset($argv[2])) {
+        fwrite(STDERR, "Usage: bin/migrate go <version>\n");
+        exit(1);
+    }
+    $target = (int) $argv[2];
+    $result = $runner->go($target);
+    if (count($result) === 0) {
+        echo "Already at version {$target}.\n";
+        return;
+    }
+    foreach ($result as $m) {
+        $dir = $m->version > $target ? 'DOWN' : 'UP';
+        echo "  [{$dir}] {$m->version}_{$m->name}\n";
+    }
+    echo "\nDone.\n";
+}
+
+function run_status(\AuthServer\Services\MigrationRunner $runner): void
+{
+    $rows = $runner->status();
+    if (count($rows) === 0) {
+        echo "No migration files found.\n";
+        return;
+    }
+
+    $fmt = "%-8s %-40s %-8s %s\n";
+    printf($fmt, 'Version', 'Name', 'Status', 'Applied At');
+    printf($fmt, str_repeat('-', 8), str_repeat('-', 40), str_repeat('-', 8), str_repeat('-', 20));
+    foreach ($rows as $r) {
+        $status = $r['applied'] ? 'UP' : '--';
+        printf($fmt, $r['version'], $r['name'], $status, $r['applied_at'] ?? '');
+    }
+}
+
+function run_dry_run(\AuthServer\Services\MigrationRunner $runner): void
+{
+    $pending = $runner->dryRun();
+    if (count($pending) === 0) {
+        echo "No pending migrations.\n";
+        return;
+    }
+    foreach ($pending as $m) {
+        echo "  [UP]   {$m['version']}_{$m['name']}\n";
+    }
+    echo "\nWould apply " . count($pending) . " migration(s).\n";
+}
+
+function print_usage(): void
+{
+    echo "Usage: bin/migrate <command> [args]\n\n";
+    echo "Commands:\n";
+    echo "  migrate              Apply all pending migrations\n";
+    echo "  rollback [n]         Rollback last n migrations (default 1)\n";
+    echo "  go <version>         Migrate to a specific version\n";
+    echo "  status               Show migration status\n";
+    echo "  dry-run              Show pending migrations without applying\n";
+}

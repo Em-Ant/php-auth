@@ -48,6 +48,9 @@ if (filter_var($log['write'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
     ));
 }
 
+$admin_config = $config['admin'] ?? [];
+$admin_api_key = $admin_config['api_key'] ?? '';
+
 $password_hashing = $config['password_hashing'] ?? [];
 $secrets_service = new Services\SecretsService($password_hashing);
 
@@ -192,6 +195,25 @@ $app->get('/login-status-iframe.html/init', function (ServerRequestInterface $re
     return $response->withStatus(200);
 });
 
+// Admin API — migrations management
+$migration_repo = new Repositories\MigrationRepository(
+    Repositories\DataSource::getInstance()->getDb()
+);
+$migration_runner = new Services\MigrationRunner(
+    $migration_repo,
+    "$ROOT/db/migrations/"
+);
+$migration_controller = new Controllers\Admin\MigrationsController($migration_runner);
+$admin_middleware = new Middleware\AdminMiddleware($admin_api_key);
+
+$app->group('/admin-api', function (\Slim\Routing\RouteCollectorProxy $group) use ($migration_controller) {
+    $group->post('/migrations/migrate', [$migration_controller, 'migrate']);
+    $group->post('/migrations/rollback', [$migration_controller, 'rollback']);
+    $group->post('/migrations/go', [$migration_controller, 'go']);
+    $group->get('/migrations/status', [$migration_controller, 'status']);
+    $group->get('/migrations/dry-run', [$migration_controller, 'dryRun']);
+})->add($admin_middleware);
+
 // Adminer — included directly (handles its own routing)
 $app->any('/admin', function () {
     include __DIR__ . '/../db_admin/index.php';
@@ -200,6 +222,26 @@ $app->any('/admin', function () {
 $app->any('/admin/{path:.+}', function () {
     include __DIR__ . '/../db_admin/index.php';
     die();
+});
+
+// Health endpoints
+$app->get('/health', function (ServerRequestInterface $request, ResponseInterface $response) {
+    return JsonResponse::create($response, ['status' => 'ok']);
+});
+
+$app->get('/ready', function (ServerRequestInterface $request, ResponseInterface $response) {
+    try {
+        $db = Repositories\DataSource::getInstance()->getDb();
+        $db->query('SELECT 1');
+        return JsonResponse::create($response, ['status' => 'ok']);
+    } catch (\Throwable $e) {
+        return JsonResponse::error(
+            $response,
+            'database_unreachable',
+            $e->getMessage(),
+            503
+        );
+    }
 });
 
 $app->run();

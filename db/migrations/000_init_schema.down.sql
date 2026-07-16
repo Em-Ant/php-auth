@@ -1,0 +1,5 @@
+DROP TABLE IF EXISTS 'logins';
+DROP TABLE IF EXISTS 'sessions';
+DROP TABLE IF EXISTS 'clients';
+DROP TABLE IF EXISTS 'users';
+DROP TABLE IF EXISTS 'realms';

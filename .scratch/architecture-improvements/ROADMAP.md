@@ -22,7 +22,8 @@
 
 ## Phase 2 — Admin API (high prio)
 
-- [ ] Admin auth middleware (API key or bearer token from config)
+- [x] **Admin auth middleware** (API key or bearer token from config)
+- [x] **Migrations endpoint** (`POST /admin-api/migrations/migrate`, rollback, go, status, dry-run)
 - [ ] CRUD endpoints: realms, clients, users, key assignment
 - [ ] **Audit log table** + query endpoint (who, what, when, success/failure)
 - [ ] **Password policy per realm** (min length, complexity) stored in realm config
@@ -30,9 +31,8 @@
 ## Phase 3 — Production readiness
 
 - [ ] **Rate limiting middleware** — per-IP on `/login-actions/authenticate` and `/token`; configurable per realm
-- [ ] **Database migrations** — migration runner + version table (schema evolution without manual SQL)
-- [ ] **Health endpoints** — `GET /health` (server alive), `GET /ready` (DB reachable)
-- [ ] **Dockerfile** — one-stage PHP + SQLite + composer, CMD `composer serve`
+- [x] **Database migrations** — migration runner + version table (schema evolution without manual SQL)
+- [x] **Health endpoints** — `GET /health` (server alive), `GET /ready` (DB reachable)
 
 ## Phase 4 — Login Methods (high prio)
 
