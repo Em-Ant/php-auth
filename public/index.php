@@ -152,13 +152,45 @@ $app->add(new RequestLogger($logger));
 
 // -- Routes --
 
+// Rate limiting
+$rateLimitConfig = $config['rate_limiting'] ?? [];
+$rateLimiter = new Services\RateLimiter(
+    Repositories\DataSource::getInstance()->getDb()
+);
+$rateLimitIpSource = $rateLimitConfig['ip_source'] ?? 'remote_addr';
+$rateLimits = [];
+if (isset($rateLimitConfig['authenticate_limit'])) {
+    $rateLimits['/login-actions/authenticate'] = [
+        'max' => (int) $rateLimitConfig['authenticate_limit'],
+        'window' => (int) ($rateLimitConfig['authenticate_window'] ?? 60),
+    ];
+}
+if (isset($rateLimitConfig['token_limit'])) {
+    $rateLimits['/token'] = [
+        'max' => (int) $rateLimitConfig['token_limit'],
+        'window' => (int) ($rateLimitConfig['token_window'] ?? 60),
+    ];
+}
+$trustedProxies = [];
+if (!empty($rateLimitConfig['trusted_proxies'])) {
+    $trustedProxies = array_map('trim', explode(',', $rateLimitConfig['trusted_proxies']));
+}
+$rateLimitMiddleware = new Middleware\RateLimitingMiddleware(
+    $rateLimiter,
+    $rateLimits,
+    $rateLimitIpSource,
+    $trustedProxies
+);
+
 // OIDC routes (realm middleware applied to the group)
 $app->group(
     '/realms/{realm}/protocol/openid-connect',
-    function (\Slim\Routing\RouteCollectorProxy $group) use ($auth_controller, $auth_service) {
+    function (\Slim\Routing\RouteCollectorProxy $group) use ($auth_controller, $auth_service, $rateLimitMiddleware) {
         $group->get('/auth', [$auth_controller, 'authorize']);
-        $group->post('/login-actions/authenticate', [$auth_controller, 'login']);
-        $group->post('/token', [$auth_controller, 'token']);
+        $group->post('/login-actions/authenticate', [$auth_controller, 'login'])
+            ->add($rateLimitMiddleware);
+        $group->post('/token', [$auth_controller, 'token'])
+            ->add($rateLimitMiddleware);
         $group->get('/logout', [$auth_controller, 'logout']);
         $group->get('/error', [$auth_controller, 'error']);
         $group->get('/certs', [$auth_controller, 'sendKeys']);

@@ -54,13 +54,13 @@ class MigrationsController
     public function go(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
         $params = $request->getQueryParams();
-        $target = (int) ($params['version'] ?? 0);
+        $target = (int) ($params['version'] ?? -1);
 
-        if ($target <= 0) {
+        if ($target < 0) {
             return JsonResponse::error(
                 $response,
                 'invalid_version',
-                'query param "version" is required and must be positive',
+                'query param "version" is required and must be >= 0',
                 400
             );
         }

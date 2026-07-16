@@ -30,7 +30,7 @@
 
 ## Phase 3 — Production readiness
 
-- [ ] **Rate limiting middleware** — per-IP on `/login-actions/authenticate` and `/token`; configurable per realm
+- [x] **Rate limiting middleware** — per-IP on `/login-actions/authenticate` and `/token`; configurable IP source (remote_addr / x_forwarded_for) with trusted proxy CIDR support
 - [x] **Database migrations** — migration runner + version table (schema evolution without manual SQL)
 - [x] **Health endpoints** — `GET /health` (server alive), `GET /ready` (DB reachable)
 
