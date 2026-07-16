@@ -20,11 +20,7 @@ class RateLimitingTest extends TestCase
 
     public static function setUpBeforeClass(): void
     {
-        $pdo = new \PDO('sqlite::memory:', '', '', [
-            \PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION,
-            \PDO::ATTR_DEFAULT_FETCH_MODE => \PDO::FETCH_ASSOC,
-            \PDO::ATTR_EMULATE_PREPARES => false,
-        ]);
+        $pdo = self::createPdo();
 
         $rateLimiter = new RateLimiter($pdo);
 
@@ -61,6 +57,25 @@ class RateLimitingTest extends TestCase
         self::$app->get('/unprotected', function (ServerRequestInterface $request, ResponseInterface $response) {
             return JsonResponse::create($response, ['status' => 'ok']);
         });
+    }
+
+    private static function createPdo(): \PDO
+    {
+        $pdo = new \PDO('sqlite::memory:', '', '', [
+            \PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION,
+            \PDO::ATTR_DEFAULT_FETCH_MODE => \PDO::FETCH_ASSOC,
+            \PDO::ATTR_EMULATE_PREPARES => false,
+        ]);
+        $pdo->exec('
+            CREATE TABLE IF NOT EXISTS rate_limits (
+                ip          TEXT NOT NULL,
+                endpoint    TEXT NOT NULL,
+                window_start INTEGER NOT NULL,
+                count       INTEGER NOT NULL DEFAULT 1,
+                PRIMARY KEY (ip, endpoint, window_start)
+            )
+        ');
+        return $pdo;
     }
 
     private function createRequest(string $method, string $path, string $ip = ''): ServerRequestInterface
@@ -173,11 +188,7 @@ class RateLimitingTest extends TestCase
 
     public function testXForwardedForIpSource(): void
     {
-        $pdo = new \PDO('sqlite::memory:', '', '', [
-            \PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION,
-            \PDO::ATTR_DEFAULT_FETCH_MODE => \PDO::FETCH_ASSOC,
-            \PDO::ATTR_EMULATE_PREPARES => false,
-        ]);
+        $pdo = self::createPdo();
 
         $rateLimiter = new RateLimiter($pdo);
 
@@ -215,11 +226,7 @@ class RateLimitingTest extends TestCase
 
     public function testUntrustedProxyFallsBackToRemoteAddr(): void
     {
-        $pdo = new \PDO('sqlite::memory:', '', '', [
-            \PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION,
-            \PDO::ATTR_DEFAULT_FETCH_MODE => \PDO::FETCH_ASSOC,
-            \PDO::ATTR_EMULATE_PREPARES => false,
-        ]);
+        $pdo = self::createPdo();
 
         $rateLimiter = new RateLimiter($pdo);
 

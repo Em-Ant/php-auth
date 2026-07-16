@@ -28,3 +28,6 @@ vendor/
 
 # skill transient files
 .tmp/
+
+# coverage
+coverage

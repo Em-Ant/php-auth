@@ -1,76 +1,61 @@
-# Architecture Deepening — php-auth
+# Wave 2 — Bootstrap, DI, and Service Splitting
 
 ## Problem Statement
 
-The auth server's architecture has four areas where modules are shallow or responsibilities are scattered, making the codebase harder to navigate, test, and modify:
+The codebase works but has three structural issues that make each change harder:
 
-- Key loading (RSA key pairs, JWKS) is duplicated across TokenService, Authorize controller, and static `createKeys()` — no seam for testing without keys on disk.
-- Login state transitions (PENDING → AUTHENTICATED → ACTIVE → EXPIRED) and their TTL-based expiry rules are split across `AuthorizeService` and `LoginRepository`.
-- Redirect URI construction (fragment vs query mode) is duplicated in two private methods in the Authorize controller.
-- Session cookie encoding/decoding/setting/deleting is inline in the Authorize controller, coupled to `$_COOKIE` and `setcookie()`.
-
-These are not defects — the server works. But each one makes the next change harder and keeps test coverage at zero.
-
-## Solution
-
-Introduce four targeted modules that deepen existing seams: KeyStore (filesystem read → repository-like seam), LoginStateMachine (state rules in one place), RedirectUri value object (pure construction), and SessionCookieHandler (infrastructure behind an adapter). Each gives a clear seam for testing without touching the filesystem, the database, or HTTP superglobals.
+- **God class**: `AuthorizeService` (712 lines) mixes input validation, business orchestration, session management, and persistence. Half of its private static methods are general validation utilities behind the wrong seam.
+- **Decorative DI**: The container holds one entry. Everything is wired manually in `index.php`, and every integration test duplicates this bootstrap. Adding a dependency means editing 4 files.
+- **Singleton global state**: `DataSource` is a singleton enforcing one connection, with a `$testPdo` static hack for tests that causes pollution across suites.
+- **Schema duplication**: `db/init_v1.sql` removed — schema now lives only in migrations.
 
 ## User Stories
 
-1. As a developer, I want to test token validation without RSA keys on disk, so that I can unit-test the security-critical token path.
-2. As a developer, I want all login state transition rules in one module, so that I can reason about whether a login can go from AUTHENTICATED directly to EXPIRED (yes) or to PENDING (no) without reading two files.
-3. As a developer, I want redirect URI construction to be a pure value object, so that the controller stops duplicating fragment/query logic.
-4. As a developer, I want cookie handling behind an adapter, so that session-related tests work without `$_COOKIE` or `setcookie()` superglobals.
-5. As a developer, I want each new module to have at least one alternate adapter (in-memory for tests), so that the seam is real rather than hypothetical.
+1. As a developer, I want `index.php` to be thin (config → container → run), so that I can add a new service without touching the entrypoint.
+2. As a developer, I want a `TestAppFactory` so that integration tests don't duplicate the 100-line bootstrap.
+3. As a developer, I want repository constructors to take `\PDO` directly, so that they declare their real dependency instead of a singleton wrapper.
+4. As a developer, I want `AuthorizeService` split into `InputValidator`, `SessionOrchestrator`, and `AuthenticationOrchestrator`, so that I can test validation (zero mocks) and orchestration (narrow mocks) separately.
+5. As a developer, I want domain exceptions without HTTP status codes baked in, so they make sense in CLI or async contexts too.
 
 ## Implementation Decisions
 
-### KeyStore
+### Container-driven kernel
 
-- Interface: `function findKeys(string $kid): KeySet` where `KeySet` contains `public_key`, `private_key`, `cert`, `jwks`.
-- Two adapters: `FilesystemKeyStore` (reads from `keys/<kid>/`), `InMemoryKeyStore` (accepts data in constructor — for tests).
-- `TokenService` receives a `KeyStore` instead of calling `file_get_contents()` directly.
-- `Authorize::sendKeys()` uses `KeyStore` instead of raw `file_get_contents()`.
-- `TokenService::createKeys()` stays as a setup utility, not part of the KeyStore interface.
+- PHP-DI definitions live in `config/di.php` returning an array of definitions.
+- Every service, repository, and middleware is defined there. Auto-wiring handles constructor injection.
+- `\PDO::class` is registered as a shared factory.
+- `index.php` shrinks to ~40 lines: load config, build container from `config/di.php`, create app, register routes, run.
+- `TestAppFactory` in `tests/Support/TestAppFactory.php` creates a container overriding `\PDO::class` with in-memory SQLite + runs migrations. Integration tests call one method instead of duplicating bootstrap.
 
-### LoginStateMachine
+### Remove DataSource singleton
 
-- Interface: `function transition(Login $login, string $event): Login` where `event ∈ {authenticate, activate, refresh, expire, check_expiry}`.
-- Single implementation that encapsulates:
-  - Valid state transitions (e.g., PENDING → AUTHENTICATED, not EXPIRED → AUTHENTICATED).
-  - Per-status TTL checks (moved from `AuthorizeService::checkLoginExpiration()`).
-  - Side effects: calls `LoginRepository` to persist the new state.
-- `AuthorizeService` delegates to this module instead of calling repository methods directly.
+- Delete `src/Repositories/DataSource.php`.
+- All repositories currently taking `DataSource $ds` switch to `\PDO $db`. (`MigrationRepository`, `RateLimiter` already do this.)
+- Update `index.php` and all test bootstraps to pass `\PDO` directly.
 
-### RedirectUri
+### Split AuthorizeService
 
-- Value object: `new RedirectUri(string $baseUri, string $responseMode, array $params): string`.
-- `responseMode ∈ {fragment, query}` determines whether params are appended after `#` or `?`.
-- Handles existing fragment in base URI correctly (same logic as current duplicated methods).
-- Used by both success and error redirect paths in `Authorize` controller.
-
-### SessionCookieHandler
-
-- Interface: `function read(string $realmName): ?string`, `function write(Realm $realm, string $sessionId): void`, `function delete(Realm $realm): void`.
-- Two adapters: `HttpSessionCookieHandler` (uses `$_COOKIE`/`setcookie()`), `InMemorySessionCookieHandler` (for tests).
-- `Authorize` controller receives the handler as a constructor dependency.
-
-## Testing Decisions
-
-- No test suite exists in the project yet. These modules are designed to be the first testable units.
-- KeyStore: `InMemoryKeyStore` makes `TokenService::validateToken()` and `TokenService::createToken()` testable without filesystem.
-- LoginStateMachine: pure state-transition logic testable with a mock `LoginRepository`.
-- RedirectUri: pure value object — zero dependencies, trivially testable.
-- SessionCookieHandler: in-memory adapter enables controller tests without superglobals.
-- The architecture review report at `.tmp/architecture-review-20260712.md` contains Mermaid diagrams for each candidate.
+- **`InputValidator`** — pure public static methods extracted from `AuthorizeService`'s private helpers: `validateScope`, `validateRedirectUri`, `validateCsrfToken`, `validateQueryParams`, `startsWith`, `isEmpty`. Zero dependencies.
+- **`SessionOrchestrator`** — session lifecycle: `ensureValid(Realm, User): Session`, `checkExpiry(Session): bool` (pure), `expire(Session): void` (explicit mutation). Respects Command-Query Separation.
+- **`AuthenticationOrchestrator`** — what remains after extracting validation and session management. Coordinates login/token/refresh/logout flows.
+- **Exceptions** — replace `InvalidInputException`, `StorageErrorException`, `CriticalLoginErrorException` with `ValidationFailed`, `AuthenticationFailed`, `StorageFailed`. Controller maps them to HTTP codes.
 
 ## Out of Scope
 
-- Adding a test runner (PHPUnit) or writing the actual tests. This PRD only creates the seams that make testing possible.
-- Merging `AuthorizeService` into the new modules — `AuthorizeService` remains as the orchestrator, delegating to the new modules.
-- Replacing the brownie-php framework or its `Utils` helpers.
-- Adding a dependency injection container.
+- Pruning shallow interfaces (ClientRepository, RealmRepository, UserRepository, KeyStore).
+- Replacing cookie superglobal coupling.
+- Adding a query builder or ORM.
+- Changing the migration system.
 
-## Further Notes
+## Testing Decisions
 
-Each module is independent and can be implemented in any order. The recommended order is KeyStore → RedirectUri → LoginStateMachine → SessionCookieHandler, roughly from most isolated to most coupled.
+- `TestAppFactory::createApp()` returns fully wired Slim app with in-memory SQLite + migrations.
+- `InputValidator` tests need zero mocks.
+- `SessionOrchestrator` tests need mock `SessionRepository`.
+- `AuthenticationOrchestrator` tests use `TestAppFactory` or mock its dependencies.
+- Existing integration tests switch to `TestAppFactory`, removing ~200 lines of duplicate bootstrap.
+
+## Issues
+
+- [#07](issues/07-container-kernel.md) — Container kernel + remove DataSource
+- [#08](issues/08-split-authorize-service.md) — Split AuthorizeService

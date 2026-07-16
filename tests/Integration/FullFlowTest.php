@@ -50,8 +50,12 @@ class FullFlowTest extends TestCase
 
         $pdo->exec('PRAGMA foreign_keys = ON');
 
-        $schema = file_get_contents(__DIR__ . '/../../db/init_v1.sql');
-        $pdo->exec($schema);
+        $migrationRepo = new \AuthServer\Repositories\MigrationRepository($pdo);
+        $runner = new \AuthServer\Services\MigrationRunner(
+            $migrationRepo,
+            __DIR__ . '/../../db/migrations/'
+        );
+        $runner->migrate();
 
         $seed = file_get_contents(__DIR__ . '/../../db/seed.sql');
         $pdo->exec($seed);

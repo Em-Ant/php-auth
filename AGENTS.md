@@ -38,13 +38,13 @@ Single-context. See `.agent/docs/domain.md`.
 
 ## Architecture
 
-- **Sole entrypoint**: `index.php` — all routes, DI wiring, and config loading happen here
-- **Router**: Slim 4 (PSR-7/PSR-15), replacing `emant/brownie-php`
-- **DB**: SQLite via PDO singleton in `src/Repositories/DataSource.php`
-- **DI**: Slim's built-in container (PHP-DI or Pimple)
-- **Auth flow**: Authorization Code Grant + PKCE + Refresh Token (OIDC-like)
-- **No user registration, password reset, or admin API** — pure auth server only
-- **Adminer** bundled at `/admin` path
+See `.agent/docs/domain.md` for the full domain model and technical architecture (entrypoint, router, DI, DB, auth flow, bundled tools).
+
+Key agent-steering choices:
+
+- **No admin API routes in `src/`** — admin endpoints belong in `index.php` alongside public routes
+- **Test against in-memory SQLite** using `MigrationRunner`, never raw SQL files
+- **Rate limiting IP source** must come from config (`remote_addr` or `x_forwarded_for`), never hardcoded
 
 ## Design principles
 Apply these almost religiously. If a pragmatic violation is needed, consult the user first:

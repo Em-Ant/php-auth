@@ -11,7 +11,6 @@ class RateLimiter
     public function __construct(\PDO $db)
     {
         $this->db = $db;
-        $this->ensureTableExists();
     }
 
     public function isAllowed(string $ip, string $endpoint, int $maxRequests, int $windowSeconds): bool
@@ -66,19 +65,6 @@ class RateLimiter
     {
         $window = (int) (time() / $windowSeconds) * $windowSeconds;
         return $window + $windowSeconds - time();
-    }
-
-    private function ensureTableExists(): void
-    {
-        $this->db->exec('
-            CREATE TABLE IF NOT EXISTS rate_limits (
-                ip          TEXT NOT NULL,
-                endpoint    TEXT NOT NULL,
-                window_start INTEGER NOT NULL,
-                count       INTEGER NOT NULL DEFAULT 1,
-                PRIMARY KEY (ip, endpoint, window_start)
-            )
-        ');
     }
 
     private function maybeCleanup(): void
