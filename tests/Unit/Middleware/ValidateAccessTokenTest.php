@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace AuthServer\Tests\Unit\Middleware;
 
-use AuthServer\Exceptions\InvalidInputException;
+use AuthServer\Exceptions\ValidationFailed;
 use AuthServer\Middleware\ValidateAccessToken;
 use AuthServer\Models\Realm;
-use AuthServer\Services\AuthorizeService;
+use AuthServer\Services\AuthenticationOrchestrator;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -15,13 +15,13 @@ use Psr\Http\Server\RequestHandlerInterface;
 
 class ValidateAccessTokenTest extends TestCase
 {
-    private AuthorizeService $authService;
+    private AuthenticationOrchestrator $authService;
     private ValidateAccessToken $middleware;
     private Realm $realm;
 
     protected function setUp(): void
     {
-        $this->authService = $this->createMock(AuthorizeService::class);
+        $this->authService = $this->createMock(AuthenticationOrchestrator::class);
         $this->middleware = new ValidateAccessToken($this->authService);
         $this->realm = new Realm(
             'r-id', 'test', 'k-id', 1800, 300, 300, 300, 86400, 1800,
@@ -64,7 +64,7 @@ class ValidateAccessTokenTest extends TestCase
         $request->method('getHeaderLine')->with('Authorization')->willReturn('Bearer invalid-token');
 
         $this->authService->method('parseValidToken')
-            ->willThrowException(new InvalidInputException('Token verification failed'));
+            ->willThrowException(new ValidationFailed('Token verification failed'));
 
         $handler = $this->createMock(RequestHandlerInterface::class);
         $handler->expects(self::never())->method('handle');

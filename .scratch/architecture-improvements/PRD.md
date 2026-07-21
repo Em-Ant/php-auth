@@ -4,7 +4,7 @@
 
 The codebase works but has three structural issues that make each change harder:
 
-- **God class**: `AuthorizeService` (712 lines) mixes input validation, business orchestration, session management, and persistence. Half of its private static methods are general validation utilities behind the wrong seam.
+- ~~**God class**: `AuthorizeService` (712 lines) mixed input validation, business orchestration, session management, and persistence.~~ ✅ Split into `InputValidator`, `SessionOrchestrator`, `AuthenticationOrchestrator`.
 - **Decorative DI**: The container holds one entry. Everything is wired manually in `index.php`, and every integration test duplicates this bootstrap. Adding a dependency means editing 4 files.
 - **Singleton global state**: `DataSource` is a singleton enforcing one connection, with a `$testPdo` static hack for tests that causes pollution across suites.
 - **Schema duplication**: `db/init_v1.sql` removed — schema now lives only in migrations.
@@ -14,8 +14,8 @@ The codebase works but has three structural issues that make each change harder:
 1. As a developer, I want `index.php` to be thin (config → container → run), so that I can add a new service without touching the entrypoint.
 2. As a developer, I want a `TestAppFactory` so that integration tests don't duplicate the 100-line bootstrap.
 3. As a developer, I want repository constructors to take `\PDO` directly, so that they declare their real dependency instead of a singleton wrapper.
-4. As a developer, I want `AuthorizeService` split into `InputValidator`, `SessionOrchestrator`, and `AuthenticationOrchestrator`, so that I can test validation (zero mocks) and orchestration (narrow mocks) separately.
-5. As a developer, I want domain exceptions without HTTP status codes baked in, so they make sense in CLI or async contexts too.
+4. ~~As a developer, I want `AuthorizeService` split into `InputValidator`, `SessionOrchestrator`, and `AuthenticationOrchestrator`, so that I can test validation (zero mocks) and orchestration (narrow mocks) separately.~~ ✅
+5. ~~As a developer, I want domain exceptions without HTTP status codes baked in, so they make sense in CLI or async contexts too.~~ ✅
 
 ## Implementation Decisions
 
@@ -33,12 +33,12 @@ The codebase works but has three structural issues that make each change harder:
 - All repositories currently taking `DataSource $ds` switch to `\PDO $db`. (`MigrationRepository`, `RateLimiter` already do this.)
 - Update `index.php` and all test bootstraps to pass `\PDO` directly.
 
-### Split AuthorizeService
+### Split AuthorizeService ✅
 
-- **`InputValidator`** — pure public static methods extracted from `AuthorizeService`'s private helpers: `validateScope`, `validateRedirectUri`, `validateCsrfToken`, `validateQueryParams`, `startsWith`, `isEmpty`. Zero dependencies.
-- **`SessionOrchestrator`** — session lifecycle: `ensureValid(Realm, User): Session`, `checkExpiry(Session): bool` (pure), `expire(Session): void` (explicit mutation). Respects Command-Query Separation.
-- **`AuthenticationOrchestrator`** — what remains after extracting validation and session management. Coordinates login/token/refresh/logout flows.
-- **Exceptions** — replace `InvalidInputException`, `StorageErrorException`, `CriticalLoginErrorException` with `ValidationFailed`, `AuthenticationFailed`, `StorageFailed`. Controller maps them to HTTP codes.
+- **`InputValidator`** — pure public static methods extracted from `AuthorizeService`'s private helpers. Zero dependencies.
+- **`SessionOrchestrator`** — session lifecycle: `ensureValid`, `checkExpiry` (pure, CQS), `expire` (explicit mutation).
+- **`AuthenticationOrchestrator`** — coordinates login/token/refresh/logout flows.
+- **Exceptions** — `InvalidInputException`, `StorageErrorException`, `CriticalLoginErrorException` replaced with `ValidationFailed`, `AuthenticationFailed`, `StorageFailed` (no HTTP status codes).
 
 ## Out of Scope
 
@@ -50,12 +50,11 @@ The codebase works but has three structural issues that make each change harder:
 ## Testing Decisions
 
 - `TestAppFactory::createApp()` returns fully wired Slim app with in-memory SQLite + migrations.
-- `InputValidator` tests need zero mocks.
-- `SessionOrchestrator` tests need mock `SessionRepository`.
-- `AuthenticationOrchestrator` tests use `TestAppFactory` or mock its dependencies.
+- `InputValidator` tests need zero mocks. ✅
+- `SessionOrchestrator` tests need mock `SessionRepository`. ✅
+- `AuthenticationOrchestrator` tests use `TestAppFactory` or mock its dependencies. ✅
 - Existing integration tests switch to `TestAppFactory`, removing ~200 lines of duplicate bootstrap.
 
 ## Issues
 
 - [#07](issues/07-container-kernel.md) — Container kernel + remove DataSource
-- [#08](issues/08-split-authorize-service.md) — Split AuthorizeService

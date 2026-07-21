@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace AuthServer\Middleware;
 
-use AuthServer\Exceptions\InvalidInputException;
+use AuthServer\Exceptions\ValidationFailed;
 use AuthServer\Models\Realm;
 use AuthServer\Response\JsonResponse;
-use AuthServer\Services\AuthorizeService;
+use AuthServer\Services\AuthenticationOrchestrator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
@@ -16,9 +16,9 @@ use Slim\Psr7\Response;
 
 class ValidateAccessToken implements MiddlewareInterface
 {
-    private AuthorizeService $auth_service;
+    private AuthenticationOrchestrator $auth_service;
 
-    public function __construct(AuthorizeService $auth_service)
+    public function __construct(AuthenticationOrchestrator $auth_service)
     {
         $this->auth_service = $auth_service;
     }
@@ -45,7 +45,7 @@ class ValidateAccessToken implements MiddlewareInterface
             $parsed = $this->auth_service->parseValidToken($token, $realm);
             $request = $request->withAttribute('accessTokenParsed', $parsed);
             return $handler->handle($request);
-        } catch (InvalidInputException $e) {
+        } catch (ValidationFailed $e) {
             $response = new Response();
             return JsonResponse::error(
                 $response,

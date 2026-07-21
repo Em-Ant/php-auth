@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace AuthServer\Services;
 
-use AuthServer\Exceptions\InvalidInputException;
+use AuthServer\Exceptions\ValidationFailed;
 use AuthServer\Interfaces\LoginRepository as ILoginRepo;
 use AuthServer\Interfaces\LoginStateMachine as ILoginStateMachine;
 use AuthServer\Models\Login;
@@ -137,7 +137,7 @@ class LoginStateMachine implements ILoginStateMachine
     {
         if ($this->isExpired($login, $realm)) {
             $this->doExpire($login);
-            throw new InvalidInputException($login->getStatus()->value . ' login expired');
+            throw new ValidationFailed($login->getStatus()->value . ' login expired');
         }
     }
 
@@ -162,7 +162,7 @@ class LoginStateMachine implements ILoginStateMachine
     private function assertStatus(Login $login, LoginStatus $expected): void
     {
         if ($login->getStatus() !== $expected) {
-            throw new InvalidInputException(
+            throw new ValidationFailed(
                 'invalid login status: expected ' . $expected->value
                 . ', got ' . $login->getStatus()->value
             );

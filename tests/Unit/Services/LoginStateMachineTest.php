@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace AuthServer\Tests\Unit\Services;
 
-use AuthServer\Exceptions\InvalidInputException;
+use AuthServer\Exceptions\ValidationFailed;
 use AuthServer\Interfaces\LoginRepository as ILoginRepo;
 use AuthServer\Models\Login;
 use AuthServer\Models\LoginEvent;
@@ -81,7 +81,7 @@ class LoginStateMachineTest extends TestCase
     {
         $login = $this->makeLogin(LoginStatus::Active);
         $this->repo->expects(self::never())->method('setAuthenticated');
-        $this->expectException(InvalidInputException::class);
+        $this->expectException(ValidationFailed::class);
 
         $this->machine->transition($login, LoginEvent::Authenticate, $this->realm, [
             'session_id' => 's1', 'code' => 'c1',
@@ -93,7 +93,7 @@ class LoginStateMachineTest extends TestCase
         $login = $this->makeLogin(LoginStatus::Pending, createdAt: '2000-01-01 00:00:00');
         $this->repo->method('setExpired')->willReturn(true);
         $this->repo->method('findById')->willReturn($login);
-        $this->expectException(InvalidInputException::class);
+        $this->expectException(ValidationFailed::class);
         $this->expectExceptionMessage('expired');
 
         $this->machine->transition($login, LoginEvent::Authenticate, $this->realm, [
@@ -126,7 +126,7 @@ class LoginStateMachineTest extends TestCase
     {
         $login = $this->makeLogin(LoginStatus::Pending);
         $this->repo->expects(self::never())->method('setActive');
-        $this->expectException(InvalidInputException::class);
+        $this->expectException(ValidationFailed::class);
 
         $this->machine->transition($login, LoginEvent::Activate, $this->realm, [
             'refresh_token' => 'rt-1',
@@ -158,7 +158,7 @@ class LoginStateMachineTest extends TestCase
     {
         $login = $this->makeLogin(LoginStatus::Pending);
         $this->repo->expects(self::never())->method('refresh');
-        $this->expectException(InvalidInputException::class);
+        $this->expectException(ValidationFailed::class);
 
         $this->machine->transition($login, LoginEvent::Refresh, $this->realm, [
             'refresh_token' => 'rt-2',

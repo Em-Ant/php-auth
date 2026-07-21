@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 namespace AuthServer\Tests\Integration;
 
-use AuthServer\Controllers\Authorize as AuthorizeController;
+use AuthServer\Controllers\AuthorizationController;
+use AuthServer\Controllers\ErrorController;
+use AuthServer\Controllers\LogoutController;
+use AuthServer\Controllers\OidcController;
+use AuthServer\Controllers\TokenController;
 use AuthServer\Middleware\CorsMiddleware;
 use AuthServer\Middleware\RealmProvider;
 use AuthServer\Middleware\RequestLogger;
@@ -16,11 +20,13 @@ use AuthServer\Repositories\RealmRepository;
 use AuthServer\Repositories\SessionRepository;
 use AuthServer\Repositories\UserRepository;
 use AuthServer\Response\JsonResponse;
-use AuthServer\Services\AuthorizeService;
+use AuthServer\Services\AuthenticationOrchestrator;
 use AuthServer\Services\FilesystemKeyStore;
 use AuthServer\Services\InMemorySessionCookieHandler;
+use AuthServer\Services\InputValidator;
 use AuthServer\Services\LoginStateMachine;
 use AuthServer\Services\SecretsService;
+use AuthServer\Services\SessionOrchestrator;
 use AuthServer\Services\TokenService;
 use AuthServer\Services\ViewRenderer;
 use DI\Bridge\Slim\Bridge;
@@ -93,7 +99,10 @@ class FullFlowTest extends TestCase
 
         $loginStateMachine = new LoginStateMachine($loginRepo, $logger);
 
-        $authService = new AuthorizeService(
+        $inputValidator = new InputValidator();
+        $sessionOrchestrator = new SessionOrchestrator($sessionRepo);
+        $authOrchestrator = new AuthenticationOrchestrator(
+            $sessionOrchestrator,
             $clientRepo, $sessionRepo, $userRepo, $loginRepo,
             $loginStateMachine, $secretsService, $tokenService, $logger,
         );
@@ -105,17 +114,20 @@ class FullFlowTest extends TestCase
             'template.php',
         );
 
-        $authController = new AuthorizeController(
-            $authService,
-            self::$issuer,
+        $authController = new AuthorizationController(
+            $authOrchestrator,
+            $sessionOrchestrator,
             $GLOBALS['sub_path'],
-            $keyStore,
             $sessionCookieHandler,
             $viewRenderer,
         );
+        $tokenController = new TokenController($authOrchestrator);
+        $logoutController = new LogoutController($authOrchestrator, $sessionCookieHandler);
+        $oidcController = new OidcController(self::$issuer, $keyStore);
+        $errorController = new ErrorController($viewRenderer);
 
         $container = new \DI\Container();
-        $container->set(AuthorizeController::class, $authController);
+        $container->set(AuthorizationController::class, $authController);
 
         self::$app = Bridge::create($container);
         self::$app->setBasePath($config['server']['base_path'] ?? '');
@@ -152,19 +164,22 @@ class FullFlowTest extends TestCase
 
         self::$app->group(
             '/realms/{realm}/protocol/openid-connect',
-            function (\Slim\Routing\RouteCollectorProxy $group) use ($authController, $authService) {
+            function (\Slim\Routing\RouteCollectorProxy $group) use (
+                $authController, $tokenController, $logoutController,
+                $oidcController, $errorController, $authOrchestrator
+            ) {
                 $group->get('/auth', [$authController, 'authorize']);
                 $group->post('/login-actions/authenticate', [$authController, 'login']);
-                $group->post('/token', [$authController, 'token']);
-                $group->get('/logout', [$authController, 'logout']);
-                $group->get('/error', [$authController, 'error']);
-                $group->get('/certs', [$authController, 'sendKeys']);
-                $group->get('/userinfo', [$authController, 'sendUserInfo'])
-                    ->add(new ValidateAccessToken($authService));
+                $group->post('/token', [$tokenController, 'token']);
+                $group->get('/logout', [$logoutController, 'logout']);
+                $group->get('/error', [$errorController, 'error']);
+                $group->get('/certs', [$oidcController, 'sendKeys']);
+                $group->get('/userinfo', [$oidcController, 'sendUserInfo'])
+                    ->add(new ValidateAccessToken($authOrchestrator));
             }
         )->add($realmProvider);
 
-        self::$app->get('/realms/{realm}/.well-known/openid-configuration', [$authController, 'sendConfig'])
+        self::$app->get('/realms/{realm}/.well-known/openid-configuration', [$oidcController, 'sendConfig'])
             ->add($realmProvider);
     }
 

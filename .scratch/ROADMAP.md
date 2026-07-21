@@ -47,7 +47,7 @@
 ## Refactor (Wave 2)
 
 - [ ] **Container kernel + remove DataSource** ([#07](issues/07-container-kernel.md))
-- [ ] **Split AuthorizeService** ([#08](issues/08-split-authorize-service.md))
+- [x] **Split AuthorizeService** into InputValidator + SessionOrchestrator + AuthenticationOrchestrator
 
 ## PHP 8 / PHPStan
 

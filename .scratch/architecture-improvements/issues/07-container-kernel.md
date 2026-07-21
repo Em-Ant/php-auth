@@ -74,7 +74,11 @@ self::$app = TestAppFactory::createApp();
 
 Remove the 100+ lines of manual construction from each file.
 
-### Step 7 — Run full test suite
+### Step 7 — Wire new service classes in container
+
+Register `InputValidator`, `SessionOrchestrator`, `AuthenticationOrchestrator` in `config/di.php`. The controller depends on `AuthenticationOrchestrator` instead of the deleted `AuthorizeService`.
+
+### Step 8 — Run full test suite
 
 `php vendor/bin/phpunit --no-coverage` — all 193+ tests must pass.
 
@@ -86,3 +90,5 @@ Remove the 100+ lines of manual construction from each file.
 - [ ] `RateLimitingTest` passes with `TestAppFactory`
 - [ ] `MigrationsEndpointTest` passes with `TestAppFactory`
 - [ ] All repository unit tests still work with `\PDO` injection
+- [ ] `InputValidator`, `SessionOrchestrator`, `AuthenticationOrchestrator` are registered in `config/di.php`
+- [ ] Controller no longer depends on `AuthorizeService`

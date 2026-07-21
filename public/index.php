@@ -66,7 +66,10 @@ $login_state_machine = new Services\LoginStateMachine(
     $logger
 );
 
-$auth_service = new Services\AuthorizeService(
+$input_validator = new Services\InputValidator();
+$session_orchestrator = new Services\SessionOrchestrator($session_repo);
+$auth_orchestrator = new Services\AuthenticationOrchestrator(
+    $session_orchestrator,
     $client_repo,
     $session_repo,
     $user_repo,
@@ -87,19 +90,22 @@ $view_renderer = new Services\ViewRenderer(
     'template.php'
 );
 
-$auth_controller = new Controllers\Authorize(
-    $auth_service,
-    $issuer,
+$auth_controller = new Controllers\AuthorizationController(
+    $auth_orchestrator,
+    $session_orchestrator,
     $GLOBALS['sub_path'],
-    $key_store,
     $session_cookie_handler,
     $view_renderer
 );
+$token_controller = new Controllers\TokenController($auth_orchestrator);
+$logout_controller = new Controllers\LogoutController($auth_orchestrator, $session_cookie_handler);
+$oidc_controller = new Controllers\OidcController($issuer, $key_store);
+$error_controller = new Controllers\ErrorController($view_renderer);
 
 // -- Slim 4 bootstrap --
 
 $container = new \DI\Container();
-$container->set(Controllers\Authorize::class, $auth_controller);
+$container->set(Controllers\AuthorizationController::class, $auth_controller);
 
 $app = Bridge::create($container);
 $app->setBasePath($server['base_path']);
@@ -185,22 +191,30 @@ $rateLimitMiddleware = new Middleware\RateLimitingMiddleware(
 // OIDC routes (realm middleware applied to the group)
 $app->group(
     '/realms/{realm}/protocol/openid-connect',
-    function (\Slim\Routing\RouteCollectorProxy $group) use ($auth_controller, $auth_service, $rateLimitMiddleware) {
+    function (\Slim\Routing\RouteCollectorProxy $group) use (
+        $auth_controller,
+        $token_controller,
+        $logout_controller,
+        $oidc_controller,
+        $error_controller,
+        $auth_orchestrator,
+        $rateLimitMiddleware
+    ) {
         $group->get('/auth', [$auth_controller, 'authorize']);
         $group->post('/login-actions/authenticate', [$auth_controller, 'login'])
             ->add($rateLimitMiddleware);
-        $group->post('/token', [$auth_controller, 'token'])
+        $group->post('/token', [$token_controller, 'token'])
             ->add($rateLimitMiddleware);
-        $group->get('/logout', [$auth_controller, 'logout']);
-        $group->get('/error', [$auth_controller, 'error']);
-        $group->get('/certs', [$auth_controller, 'sendKeys']);
-        $group->get('/userinfo', [$auth_controller, 'sendUserInfo'])
-            ->add(new Middleware\ValidateAccessToken($auth_service));
+        $group->get('/logout', [$logout_controller, 'logout']);
+        $group->get('/error', [$error_controller, 'error']);
+        $group->get('/certs', [$oidc_controller, 'sendKeys']);
+        $group->get('/userinfo', [$oidc_controller, 'sendUserInfo'])
+            ->add(new Middleware\ValidateAccessToken($auth_orchestrator));
     }
 )->add($realm_provider);
 
 // Well-known config
-$app->get('/realms/{realm}/.well-known/openid-configuration', [$auth_controller, 'sendConfig'])
+$app->get('/realms/{realm}/.well-known/openid-configuration', [$oidc_controller, 'sendConfig'])
     ->add($realm_provider);
 
 // 3rd-party cookie check pages

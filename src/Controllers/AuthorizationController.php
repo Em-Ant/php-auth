@@ -4,41 +4,39 @@ declare(strict_types=1);
 
 namespace AuthServer\Controllers;
 
-use AuthServer\Exceptions\CriticalLoginErrorException;
-use AuthServer\Exceptions\InvalidInputException;
-use AuthServer\Interfaces\KeyStore;
+use AuthServer\Exceptions\AuthenticationFailed;
+use AuthServer\Exceptions\StorageFailed;
+use AuthServer\Exceptions\ValidationFailed;
 use AuthServer\Interfaces\SessionCookieHandler;
 use AuthServer\Models\Realm;
 use AuthServer\Models\RedirectUri;
 use AuthServer\Response\JsonResponse;
-use AuthServer\Services\AuthorizeService;
+use AuthServer\Services\AuthenticationOrchestrator;
+use AuthServer\Services\SessionOrchestrator;
 use AuthServer\Services\ViewRenderer;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 
-class Authorize
+class AuthorizationController
 {
-    private AuthorizeService $auth_service;
-    private string $issuer;
+    private AuthenticationOrchestrator $auth_service;
+    private SessionOrchestrator $sessionOrchestrator;
     private string $mount_path;
-    private KeyStore $keyStore;
     private SessionCookieHandler $sessionCookie;
     private ViewRenderer $view;
 
     public const INVALID_REQUEST = 'Invalid request';
 
     public function __construct(
-        AuthorizeService $service,
-        string $issuer,
+        AuthenticationOrchestrator $service,
+        SessionOrchestrator $sessionOrchestrator,
         string $mount_path,
-        KeyStore $keyStore,
         SessionCookieHandler $sessionCookie,
         ViewRenderer $view,
     ) {
         $this->auth_service = $service;
-        $this->issuer = $issuer;
+        $this->sessionOrchestrator = $sessionOrchestrator;
         $this->mount_path = $mount_path;
-        $this->keyStore = $keyStore;
         $this->sessionCookie = $sessionCookie;
         $this->view = $view;
     }
@@ -61,7 +59,7 @@ class Authorize
             );
 
             if ($current_session_id) {
-                $session = $this->auth_service->ensureValidSession(
+                $session = $this->sessionOrchestrator->ensureValidSession(
                     $current_session_id,
                     $realm->getSessionExpiresIn(),
                     $realm->getIdleSessionExpiresIn()
@@ -117,14 +115,14 @@ class Authorize
                     'error' => false,
                 ]);
             }
-        } catch (InvalidInputException $e) {
+        } catch (ValidationFailed | AuthenticationFailed $e) {
             return JsonResponse::error(
                 $response,
                 self::INVALID_REQUEST,
                 $e->getMessage(),
                 400
             );
-        } catch (CriticalLoginErrorException $e) {
+        } catch (StorageFailed $e) {
             return $this->redirectToError($response, $realm->getName(), $e->getMessage());
         }
     }
@@ -145,7 +143,7 @@ class Authorize
 
         try {
             $this->auth_service->validateCsrfToken($login_id, $csrf_token);
-        } catch (InvalidInputException $e) {
+        } catch (ValidationFailed $e) {
             return JsonResponse::error(
                 $response,
                 'Invalid request',
@@ -197,125 +195,11 @@ class Authorize
             return $response
                 ->withHeader('Location', (string) $redirect_uri)
                 ->withStatus(302);
-        } catch (CriticalLoginErrorException $e) {
+        } catch (AuthenticationFailed $e) {
+            return $this->redirectToError($response, $realm->getName(), $e->getMessage());
+        } catch (StorageFailed $e) {
             return $this->redirectToError($response, $realm->getName(), $e->getMessage());
         }
-    }
-
-    public function token(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
-    {
-        $body = $request->getParsedBody() ?? [];
-
-        $authHeader = $request->getHeaderLine('Authorization');
-        if (str_starts_with($authHeader, 'Basic ')) {
-            $cred = explode(':', base64_decode(substr($authHeader, 6)));
-            if (!isset($body['client_id'])) {
-                $body['client_id'] = $cred[0] ?? null;
-            }
-            if (!isset($body['client_secret'])) {
-                $body['client_secret'] = $cred[1] ?? null;
-            }
-        }
-
-        try {
-            /** @var Realm */
-            $realm = $request->getAttribute(Realm::class);
-
-            $origin = $request->getHeaderLine('Origin')
-                ?: $this->auth_service->getClientUri($body['client_id'] ?? '');
-
-            return JsonResponse::create(
-                $response,
-                $this->auth_service->getTokens($body, $realm),
-                200,
-                $origin
-            );
-        } catch (InvalidInputException $e) {
-            return JsonResponse::error(
-                $response,
-                self::INVALID_REQUEST,
-                $e->getMessage(),
-                400
-            );
-        }
-    }
-
-    public function error(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
-    {
-        $query = $request->getQueryParams();
-        $message = $query['e'] ?? '';
-
-        return $this->view->render($response, 'error.php', [
-            'title' => 'Error',
-            'error' => $message,
-        ]);
-    }
-
-    public function logout(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
-    {
-        /** @var Realm */
-        $realm = $request->getAttribute(Realm::class);
-        $query = $request->getQueryParams();
-        $redirect = $query['post_logout_redirect_uri'] ?? '';
-        $id_token = $query['id_token_hint'] ?? '';
-
-        try {
-            $this->auth_service->logout($id_token, $realm);
-            $response = $this->sessionCookie->delete($realm, $response);
-            return $response
-                ->withHeader('Location', $redirect)
-                ->withStatus(302);
-        } catch (InvalidInputException $e) {
-            return JsonResponse::error(
-                $response,
-                self::INVALID_REQUEST,
-                $e->getMessage(),
-                400
-            );
-        }
-    }
-
-    public function sendKeys(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
-    {
-        /** @var Realm */
-        $realm = $request->getAttribute(Realm::class);
-        $kid = $realm->getKeysId();
-        $keySet = $this->keyStore->findKeys($kid);
-
-        return JsonResponse::create(
-            $response,
-            $keySet->jwks,
-            200,
-            '*'
-        );
-    }
-
-    public function sendConfig(
-        ServerRequestInterface $request,
-        ResponseInterface $response
-    ): ResponseInterface {
-        /** @var Realm */
-        $realm = $request->getAttribute(Realm::class);
-
-        $data = file_get_contents(__DIR__ . '/../../static/well-known.json');
-        $data = str_replace(
-            '<<ISSUER>>',
-            $this->issuer . '/realms/' . $realm->getName(),
-            $data
-        );
-
-        $response->getBody()->write($data);
-        return $response->withHeader('Content-Type', 'application/json');
-    }
-
-    public function sendUserInfo(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
-    {
-        $token = $request->getAttribute('accessTokenParsed');
-        $user = [];
-        $user['sub'] = $token['sub'];
-        $user['preferred_username'] = $token['preferred_username'];
-
-        return JsonResponse::create($response, $user, 200, '*');
     }
 
     private function redirectToError(

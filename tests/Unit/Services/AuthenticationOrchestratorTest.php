@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace AuthServer\Tests\Unit\Services;
 
-use AuthServer\Exceptions\InvalidInputException;
-use AuthServer\Exceptions\StorageErrorException;
-use AuthServer\Exceptions\CriticalLoginErrorException;
+use AuthServer\Exceptions\AuthenticationFailed;
+use AuthServer\Exceptions\StorageFailed;
+use AuthServer\Exceptions\ValidationFailed;
 use AuthServer\Interfaces\ClientRepository as IClientRepo;
+use AuthServer\Interfaces\LoginRepository as ILoginRepo;
 use AuthServer\Interfaces\LoginStateMachine as ILoginStateMachine;
 use AuthServer\Interfaces\SessionRepository as ISessionRepo;
 use AuthServer\Interfaces\UserRepository as IUserRepo;
-use AuthServer\Interfaces\LoginRepository as ILoginRepo;
 use AuthServer\Models\Client;
 use AuthServer\Models\Login;
 use AuthServer\Models\LoginEvent;
@@ -19,13 +19,14 @@ use AuthServer\Models\LoginStatus;
 use AuthServer\Models\Realm;
 use AuthServer\Models\Session;
 use AuthServer\Models\User;
-use AuthServer\Services\AuthorizeService;
+use AuthServer\Services\AuthenticationOrchestrator;
 use AuthServer\Services\SecretsService;
+use AuthServer\Services\SessionOrchestrator;
 use AuthServer\Services\TokenService;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
 
-class AuthorizeServiceTest extends TestCase
+class AuthenticationOrchestratorTest extends TestCase
 {
     private IClientRepo $clientRepo;
     private ISessionRepo $sessionRepo;
@@ -35,7 +36,8 @@ class AuthorizeServiceTest extends TestCase
     private SecretsService $secretsService;
     private TokenService $tokenService;
     private LoggerInterface $logger;
-    private AuthorizeService $svc;
+    private SessionOrchestrator $sessionOrch;
+    private AuthenticationOrchestrator $svc;
     private Realm $realm;
     private Client $client;
     private Session $session;
@@ -51,8 +53,10 @@ class AuthorizeServiceTest extends TestCase
         $this->secretsService = $this->createMock(SecretsService::class);
         $this->tokenService = $this->createMock(TokenService::class);
         $this->logger = $this->createMock(LoggerInterface::class);
+        $this->sessionOrch = $this->createMock(SessionOrchestrator::class);
 
-        $this->svc = new AuthorizeService(
+        $this->svc = new AuthenticationOrchestrator(
+            $this->sessionOrch,
             $this->clientRepo,
             $this->sessionRepo,
             $this->userRepo,
@@ -73,7 +77,6 @@ class AuthorizeServiceTest extends TestCase
             'c-id', 'my-app', 'r-id', null, 'http://example.com', false, '2025-01-01 00:00:00',
         );
 
-        // Session created "now" so checkSessionValidity doesn't expire it
         $now = gmdate('Y-m-d H:i:s');
         $this->session = new Session('s-id', 'r-id', 'u-id', '0', $now, null, 'ACTIVE');
 
@@ -92,7 +95,7 @@ class AuthorizeServiceTest extends TestCase
 
     public function testValidateRequiredLoginScopeMissingOpenidThrows(): void
     {
-        $this->expectException(InvalidInputException::class);
+        $this->expectException(ValidationFailed::class);
         $this->svc->validateRequiredLoginScope(['profile'], 'email');
     }
 
@@ -140,7 +143,7 @@ class AuthorizeServiceTest extends TestCase
         $this->clientRepo->method('findByName')->willReturn($this->client);
         $this->loginRepo->method('createPending')->willReturn(null);
 
-        $this->expectException(StorageErrorException::class);
+        $this->expectException(StorageFailed::class);
         $this->svc->initializeLogin('r-id', $query);
     }
 
@@ -162,23 +165,8 @@ class AuthorizeServiceTest extends TestCase
         $login->method('getCsrfToken')->willReturn('csrf-abc');
         $this->loginRepo->method('findById')->willReturn($login);
 
-        $this->expectException(InvalidInputException::class);
+        $this->expectException(ValidationFailed::class);
         $this->svc->validateCsrfToken('login-1', 'wrong-csrf');
-    }
-
-    // ── ensureValidSession ────────────────────────────────────
-
-    public function testEnsureValidSessionActiveAndValid(): void
-    {
-        $this->sessionRepo->method('findById')->with('s-id')->willReturn($this->session);
-        $result = $this->svc->ensureValidSession('s-id', 86400, 1800);
-        self::assertNotNull($result);
-    }
-
-    public function testEnsureValidSessionReturnsNullWhenNotFound(): void
-    {
-        $this->sessionRepo->method('findById')->willReturn(null);
-        self::assertNull($this->svc->ensureValidSession('ghost', 86400, 1800));
     }
 
     // ── createAuthorizedLogin ──────────────────────────────────
@@ -219,7 +207,7 @@ class AuthorizeServiceTest extends TestCase
         $this->clientRepo->method('findByName')->willReturn($this->client);
         $this->userRepo->method('findById')->willReturn(null);
 
-        $this->expectException(CriticalLoginErrorException::class);
+        $this->expectException(AuthenticationFailed::class);
         $this->svc->createAuthorizedLogin($this->session, $this->realm, $query);
     }
 
@@ -268,7 +256,7 @@ class AuthorizeServiceTest extends TestCase
         $login->method('getId')->willReturn('login-1');
 
         $this->loginRepo->method('findById')->with('login-1')->willReturn($login);
-        $this->sessionRepo->method('create')->willReturn($this->session);
+        $this->sessionOrch->method('create')->willReturn($this->session);
         $this->secretsService->method('generateCode')->willReturn('code-xyz');
 
         $updatedLogin = $this->createMock(Login::class);
@@ -282,7 +270,7 @@ class AuthorizeServiceTest extends TestCase
     public function testAuthenticateLoginNotFoundThrows(): void
     {
         $this->loginRepo->method('findById')->willReturn(null);
-        $this->expectException(StorageErrorException::class);
+        $this->expectException(StorageFailed::class);
         $this->svc->authenticateLogin('ghost', $this->user, $this->realm);
     }
 
@@ -298,6 +286,7 @@ class AuthorizeServiceTest extends TestCase
         $this->clientRepo->method('findByName')->with('my-app')->willReturn($this->client);
         $this->loginRepo->method('findByCode')->with('code-abc')->willReturn($login);
         $this->sessionRepo->method('findById')->with('s-id')->willReturn($this->session);
+        $this->sessionOrch->method('checkExpiry')->willReturn(true);
         $this->userRepo->method('findById')->with('u-id')->willReturn($this->user);
         $this->tokenService->method('createTokenBundle')->willReturn([
             'access_token' => 'at', 'id_token' => 'it', 'refresh_token' => 'rt',
@@ -305,7 +294,7 @@ class AuthorizeServiceTest extends TestCase
             'session_state' => 's-id', 'scope' => 'openid', 'not-before-policy' => 0,
         ]);
         $this->stateMachine->method('transition')->willReturn($login);
-        $this->sessionRepo->method('refresh')->willReturn(true);
+        $this->sessionOrch->method('refresh');
 
         $params = [
             'grant_type' => 'authorization_code', 'client_id' => 'my-app',
@@ -321,7 +310,7 @@ class AuthorizeServiceTest extends TestCase
         $this->clientRepo->method('findByName')->willReturn($this->client);
         $this->loginRepo->method('findByCode')->willReturn(null);
 
-        $this->expectException(InvalidInputException::class);
+        $this->expectException(ValidationFailed::class);
         $this->svc->getTokens([
             'grant_type' => 'authorization_code', 'client_id' => 'my-app',
             'code' => 'bad', 'redirect_uri' => 'http://example.com', 'refresh_token' => null,
@@ -341,13 +330,14 @@ class AuthorizeServiceTest extends TestCase
         $this->stateMachine->method('transition')->willReturn($login);
         $this->tokenService->method('tokenIsExpired')->with('rt-old')->willReturn(false);
         $this->sessionRepo->method('findById')->with('s-id')->willReturn($this->session);
+        $this->sessionOrch->method('checkExpiry')->willReturn(true);
         $this->userRepo->method('findById')->with('u-id')->willReturn($this->user);
         $this->tokenService->method('createTokenBundle')->willReturn([
             'access_token' => 'at2', 'id_token' => 'it2', 'refresh_token' => 'rt-new',
             'expires_in' => 300, 'refresh_expires_in' => 1800, 'token_type' => 'Bearer',
             'session_state' => 's-id', 'scope' => 'openid', 'not-before-policy' => 0,
         ]);
-        $this->sessionRepo->method('refresh')->willReturn(true);
+        $this->sessionOrch->method('refresh');
 
         $params = [
             'grant_type' => 'refresh_token', 'client_id' => 'my-app',
@@ -360,7 +350,7 @@ class AuthorizeServiceTest extends TestCase
     public function testGetTokensUnsupportedGrantTypeThrows(): void
     {
         $this->clientRepo->method('findByName')->willReturn($this->client);
-        $this->expectException(InvalidInputException::class);
+        $this->expectException(ValidationFailed::class);
         $this->svc->getTokens([
             'grant_type' => 'implicit', 'client_id' => 'my-app',
             'code' => null, 'redirect_uri' => null, 'refresh_token' => null,
@@ -370,7 +360,7 @@ class AuthorizeServiceTest extends TestCase
     public function testGetTokensClientNotFoundThrows(): void
     {
         $this->clientRepo->method('findByName')->willReturn(null);
-        $this->expectException(InvalidInputException::class);
+        $this->expectException(ValidationFailed::class);
         $this->svc->getTokens([
             'grant_type' => 'authorization_code', 'client_id' => 'ghost',
             'code' => null, 'redirect_uri' => 'http://example.com', 'refresh_token' => null,
@@ -383,7 +373,7 @@ class AuthorizeServiceTest extends TestCase
     {
         $this->tokenService->method('validateToken')->willReturn(1);
         $this->tokenService->method('decodeTokenPayload')->willReturn(['sid' => 's-id']);
-        $this->sessionRepo->method('setExpired')->with('s-id')->willReturn(true);
+        $this->sessionOrch->expects($this->once())->method('expire')->with('s-id');
 
         $result = $this->svc->logout('valid.id.token', $this->realm);
         self::assertTrue($result);
@@ -392,7 +382,7 @@ class AuthorizeServiceTest extends TestCase
     public function testLogoutInvalidTokenThrows(): void
     {
         $this->tokenService->method('validateToken')->willReturn(0);
-        $this->expectException(InvalidInputException::class);
+        $this->expectException(ValidationFailed::class);
         $this->svc->logout('bad-token', $this->realm);
     }
 
@@ -411,7 +401,7 @@ class AuthorizeServiceTest extends TestCase
     public function testParseValidTokenInvalidThrows(): void
     {
         $this->tokenService->method('validateToken')->willReturn(0);
-        $this->expectException(InvalidInputException::class);
+        $this->expectException(ValidationFailed::class);
         $this->svc->parseValidToken('bad-token', $this->realm);
     }
 
@@ -419,7 +409,7 @@ class AuthorizeServiceTest extends TestCase
     {
         $this->tokenService->method('validateToken')->willReturn(1);
         $this->tokenService->method('tokenIsExpired')->willReturn(true);
-        $this->expectException(InvalidInputException::class);
+        $this->expectException(ValidationFailed::class);
         $this->svc->parseValidToken('expired-token', $this->realm);
     }
 
@@ -434,7 +424,7 @@ class AuthorizeServiceTest extends TestCase
     public function testGetClientUriNotFoundThrows(): void
     {
         $this->clientRepo->method('findByName')->willReturn(null);
-        $this->expectException(InvalidInputException::class);
+        $this->expectException(ValidationFailed::class);
         $this->svc->getClientUri('ghost');
     }
 
@@ -458,6 +448,7 @@ class AuthorizeServiceTest extends TestCase
         $this->clientRepo->method('findByName')->with('secured-app')->willReturn($securedClient);
         $this->loginRepo->method('findByCode')->willReturn($login);
         $this->sessionRepo->method('findById')->willReturn($this->session);
+        $this->sessionOrch->method('checkExpiry')->willReturn(true);
         $this->userRepo->method('findById')->willReturn($this->user);
         $this->tokenService->method('createTokenBundle')->willReturn([
             'access_token' => 'at', 'id_token' => 'it', 'refresh_token' => 'rt',
@@ -465,7 +456,7 @@ class AuthorizeServiceTest extends TestCase
             'session_state' => 's-id', 'scope' => 'openid', 'not-before-policy' => 0,
         ]);
         $this->stateMachine->method('transition')->willReturn($login);
-        $this->sessionRepo->method('refresh')->willReturn(true);
+        $this->sessionOrch->method('refresh');
 
         $params = [
             'grant_type' => 'authorization_code', 'client_id' => 'secured-app',
@@ -486,6 +477,7 @@ class AuthorizeServiceTest extends TestCase
         $this->clientRepo->method('findByName')->willReturn($this->client);
         $this->loginRepo->method('findByCode')->willReturn($login);
         $this->sessionRepo->method('findById')->willReturn($this->session);
+        $this->sessionOrch->method('checkExpiry')->willReturn(true);
         $this->userRepo->method('findById')->willReturn($this->user);
         $this->tokenService->method('createTokenBundle')->willReturn([
             'access_token' => 'at', 'id_token' => 'it', 'refresh_token' => 'rt',
@@ -493,9 +485,9 @@ class AuthorizeServiceTest extends TestCase
             'session_state' => 's-id', 'scope' => 'openid', 'not-before-policy' => 0,
         ]);
         $this->stateMachine->method('transition')->willReturn($login);
-        $this->sessionRepo->method('refresh')->willReturn(true);
+        $this->sessionOrch->method('refresh');
 
-        $this->expectException(InvalidInputException::class);
+        $this->expectException(ValidationFailed::class);
         $this->svc->getTokens([
             'grant_type' => 'authorization_code',
             'client_id' => 'my-app',
@@ -515,7 +507,7 @@ class AuthorizeServiceTest extends TestCase
         $this->clientRepo->method('findByName')->willReturn($this->client);
         $this->loginRepo->method('findByCode')->willReturn($login);
 
-        $this->expectException(InvalidInputException::class);
+        $this->expectException(ValidationFailed::class);
         $this->svc->getTokens([
             'grant_type' => 'authorization_code',
             'client_id' => 'my-app',
@@ -536,7 +528,7 @@ class AuthorizeServiceTest extends TestCase
         $this->stateMachine->method('transition')->willReturn($login);
         $this->tokenService->method('tokenIsExpired')->willReturn(true);
 
-        $this->expectException(InvalidInputException::class);
+        $this->expectException(ValidationFailed::class);
         $this->svc->getTokens([
             'grant_type' => 'refresh_token',
             'client_id' => 'my-app',
