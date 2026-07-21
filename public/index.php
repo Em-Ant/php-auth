@@ -252,23 +252,29 @@ $migration_runner = new Services\MigrationRunner(
 $migration_controller = new Controllers\Admin\MigrationsController($migration_runner);
 $admin_middleware = new Middleware\AdminMiddleware($admin_api_key);
 
-$app->group('/admin-api', function (\Slim\Routing\RouteCollectorProxy $group) use ($migration_controller) {
-    $group->post('/migrations/migrate', [$migration_controller, 'migrate']);
-    $group->post('/migrations/rollback', [$migration_controller, 'rollback']);
-    $group->post('/migrations/go', [$migration_controller, 'go']);
-    $group->get('/migrations/status', [$migration_controller, 'status']);
-    $group->get('/migrations/dry-run', [$migration_controller, 'dryRun']);
+// Migrations API (DB utility, not app-internal)
+$app->group('/db/migrations', function (\Slim\Routing\RouteCollectorProxy $group) use ($migration_controller) {
+    $group->post('/migrate', [$migration_controller, 'migrate']);
+    $group->post('/rollback', [$migration_controller, 'rollback']);
+    $group->post('/go', [$migration_controller, 'go']);
+    $group->get('/status', [$migration_controller, 'status']);
+    $group->get('/dry-run', [$migration_controller, 'dryRun']);
 })->add($admin_middleware);
 
-// Adminer — included directly (handles its own routing)
-$app->any('/admin', function () {
+// Adminer — DB browser UI (included directly, handles its own routing)
+$app->any('/db', function () {
     include __DIR__ . '/../db_admin/index.php';
     die();
 });
-$app->any('/admin/{path:.+}', function () {
+$app->any('/db/{path:.*}', function () {
     include __DIR__ . '/../db_admin/index.php';
     die();
 });
+
+// Admin CRUD API (realms, clients, users, etc.)
+$app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
+    // Future: realms, clients, users CRUD
+})->add($admin_middleware);
 
 // Health endpoints
 $app->get('/health', function (ServerRequestInterface $request, ResponseInterface $response) {

@@ -45,12 +45,12 @@ class MigrationsEndpointTest extends TestCase
 
         self::$app->addErrorMiddleware(true, true, true);
 
-        self::$app->group('/admin-api', function (\Slim\Routing\RouteCollectorProxy $group) use ($controller) {
-            $group->post('/migrations/migrate', [$controller, 'migrate']);
-            $group->post('/migrations/rollback', [$controller, 'rollback']);
-            $group->post('/migrations/go', [$controller, 'go']);
-            $group->get('/migrations/status', [$controller, 'status']);
-            $group->get('/migrations/dry-run', [$controller, 'dryRun']);
+        self::$app->group('/db/migrations', function (\Slim\Routing\RouteCollectorProxy $group) use ($controller) {
+            $group->post('/migrate', [$controller, 'migrate']);
+            $group->post('/rollback', [$controller, 'rollback']);
+            $group->post('/go', [$controller, 'go']);
+            $group->get('/status', [$controller, 'status']);
+            $group->get('/dry-run', [$controller, 'dryRun']);
         })->add($adminMiddleware);
     }
 
@@ -94,14 +94,14 @@ class MigrationsEndpointTest extends TestCase
 
     public function testUnauthorizedWithoutToken(): void
     {
-        $request = $this->createRequest('GET', '/admin-api/migrations/status');
+        $request = $this->createRequest('GET', '/db/migrations/status');
         $response = $this->handle($request);
         self::assertSame(401, $response->getStatusCode());
     }
 
     public function testUnauthorizedWithWrongToken(): void
     {
-        $request = $this->createRequest('GET', '/admin-api/migrations/status', [], null, [
+        $request = $this->createRequest('GET', '/db/migrations/status', [], null, [
             'Authorization' => 'Bearer wrong-key',
         ]);
         $response = $this->handle($request);
@@ -110,7 +110,7 @@ class MigrationsEndpointTest extends TestCase
 
     public function testAuthorizedViaBearer(): void
     {
-        $request = $this->createRequest('GET', '/admin-api/migrations/status', [], null, [
+        $request = $this->createRequest('GET', '/db/migrations/status', [], null, [
             'Authorization' => 'Bearer ' . self::$apiKey,
         ]);
         $response = $this->handle($request);
@@ -119,7 +119,7 @@ class MigrationsEndpointTest extends TestCase
 
     public function testAuthorizedViaHeader(): void
     {
-        $request = $this->createRequest('GET', '/admin-api/migrations/status', [], null, [
+        $request = $this->createRequest('GET', '/db/migrations/status', [], null, [
             'X-Admin-Key' => self::$apiKey,
         ]);
         $response = $this->handle($request);
@@ -130,7 +130,7 @@ class MigrationsEndpointTest extends TestCase
 
     public function testStatusReturnsAllMigrationsUnapplied(): void
     {
-        $request = $this->createRequest('GET', '/admin-api/migrations/status', [], null, [
+        $request = $this->createRequest('GET', '/db/migrations/status', [], null, [
             'Authorization' => 'Bearer ' . self::$apiKey,
         ]);
 
@@ -150,7 +150,7 @@ class MigrationsEndpointTest extends TestCase
 
     public function testDryRunShowsPending(): void
     {
-        $request = $this->createRequest('GET', '/admin-api/migrations/dry-run', [], null, [
+        $request = $this->createRequest('GET', '/db/migrations/dry-run', [], null, [
             'Authorization' => 'Bearer ' . self::$apiKey,
         ]);
 
@@ -165,7 +165,7 @@ class MigrationsEndpointTest extends TestCase
 
     public function testMigrateAppliesAll(): void
     {
-        $request = $this->createRequest('POST', '/admin-api/migrations/migrate', [], null, [
+        $request = $this->createRequest('POST', '/db/migrations/migrate', [], null, [
             'Authorization' => 'Bearer ' . self::$apiKey,
         ]);
 
@@ -180,7 +180,7 @@ class MigrationsEndpointTest extends TestCase
 
     public function testMigrateIdempotent(): void
     {
-        $request = $this->createRequest('POST', '/admin-api/migrations/migrate', [], null, [
+        $request = $this->createRequest('POST', '/db/migrations/migrate', [], null, [
             'Authorization' => 'Bearer ' . self::$apiKey,
         ]);
 
@@ -194,7 +194,7 @@ class MigrationsEndpointTest extends TestCase
 
     public function testStatusAfterMigrate(): void
     {
-        $request = $this->createRequest('GET', '/admin-api/migrations/status', [], null, [
+        $request = $this->createRequest('GET', '/db/migrations/status', [], null, [
             'Authorization' => 'Bearer ' . self::$apiKey,
         ]);
 
@@ -210,7 +210,7 @@ class MigrationsEndpointTest extends TestCase
 
     public function testRollbackOneStep(): void
     {
-        $request = $this->createRequest('POST', '/admin-api/migrations/rollback', ['steps' => 1], null, [
+        $request = $this->createRequest('POST', '/db/migrations/rollback', ['steps' => 1], null, [
             'Authorization' => 'Bearer ' . self::$apiKey,
         ]);
 
@@ -223,7 +223,7 @@ class MigrationsEndpointTest extends TestCase
 
     public function testStatusAfterRollback(): void
     {
-        $request = $this->createRequest('GET', '/admin-api/migrations/status', [], null, [
+        $request = $this->createRequest('GET', '/db/migrations/status', [], null, [
             'Authorization' => 'Bearer ' . self::$apiKey,
         ]);
 
@@ -237,7 +237,7 @@ class MigrationsEndpointTest extends TestCase
 
     public function testGoToVersion1(): void
     {
-        $request = $this->createRequest('POST', '/admin-api/migrations/go', ['version' => 1], null, [
+        $request = $this->createRequest('POST', '/db/migrations/go', ['version' => 1], null, [
             'Authorization' => 'Bearer ' . self::$apiKey,
         ]);
 
@@ -250,7 +250,7 @@ class MigrationsEndpointTest extends TestCase
 
     public function testGoToVersion0RollsBack(): void
     {
-        $request = $this->createRequest('POST', '/admin-api/migrations/go', ['version' => 0], null, [
+        $request = $this->createRequest('POST', '/db/migrations/go', ['version' => 0], null, [
             'Authorization' => 'Bearer ' . self::$apiKey,
         ]);
 
@@ -263,7 +263,7 @@ class MigrationsEndpointTest extends TestCase
 
     public function testStatusAfterGoTo0(): void
     {
-        $request = $this->createRequest('GET', '/admin-api/migrations/status', [], null, [
+        $request = $this->createRequest('GET', '/db/migrations/status', [], null, [
             'Authorization' => 'Bearer ' . self::$apiKey,
         ]);
 
@@ -277,7 +277,7 @@ class MigrationsEndpointTest extends TestCase
 
     public function testGoWithNegativeVersionReturns400(): void
     {
-        $request = $this->createRequest('POST', '/admin-api/migrations/go', ['version' => -1], null, [
+        $request = $this->createRequest('POST', '/db/migrations/go', ['version' => -1], null, [
             'Authorization' => 'Bearer ' . self::$apiKey,
         ]);
 
@@ -287,7 +287,7 @@ class MigrationsEndpointTest extends TestCase
 
     public function testGoWithoutVersionReturns400(): void
     {
-        $request = $this->createRequest('POST', '/admin-api/migrations/go', [], null, [
+        $request = $this->createRequest('POST', '/db/migrations/go', [], null, [
             'Authorization' => 'Bearer ' . self::$apiKey,
         ]);
 

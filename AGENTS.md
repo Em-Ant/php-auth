@@ -20,7 +20,7 @@
 ### Migrations
 
 Files in `db/migrations/` are plain SQL: `NNN_name.up.sql` + `NNN_name.down.sql`.
-Run via CLI (`composer migrate`) or HTTP (`POST /admin-api/migrations/migrate` with admin Bearer token).
+Run via CLI (`composer migrate`) or HTTP (`POST /db/migrations/migrate` with admin Bearer token).
 
 **Seed data (`db/seed.sql`)** is dev-only and never runs in production. Invoke manually via `composer seed` (idempotent — skips if a realm already exists).
 
