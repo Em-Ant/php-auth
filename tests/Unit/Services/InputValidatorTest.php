@@ -156,6 +156,24 @@ class InputValidatorTest extends TestCase
         ]);
     }
 
+    public function testValidateTokenParamsRefreshTokenEmptyThrows(): void
+    {
+        $this->expectException(ValidationFailed::class);
+        $this->expectExceptionMessage("missing required field 'refresh_token'");
+        InputValidator::validateTokenParams([
+            'grant_type' => 'refresh_token', 'client_id' => 'app', 'refresh_token' => '',
+        ]);
+    }
+
+    public function testValidateTokenParamsRefreshTokenUndefinedStringThrows(): void
+    {
+        $this->expectException(ValidationFailed::class);
+        $this->expectExceptionMessage("missing required field 'refresh_token'");
+        InputValidator::validateTokenParams([
+            'grant_type' => 'refresh_token', 'client_id' => 'app', 'refresh_token' => 'undefined',
+        ]);
+    }
+
     // ── validateCodeChallenge ──────────────────────────────────
 
     public function testValidateCodeChallengeMismatchThrows(): void

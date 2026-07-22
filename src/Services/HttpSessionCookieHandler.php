@@ -39,27 +39,31 @@ class HttpSessionCookieHandler implements SessionCookieHandler
     {
         $path = ($this->mountPath ?: '') . '/realms/' . $realm->getName();
 
-        $value = 'AUTH_SESSION=' . rawurlencode($realm->getName() . '\\' . $sessionId)
-            . '; Expires=' . gmdate('D, d M Y H:i:s T', time() + $realm->getSessionExpiresIn())
-            . '; Path=' . $path
-            . '; Domain=' . $this->serverName
-            . '; Secure'
-            . '; SameSite=None';
+        setcookie('AUTH_SESSION', $realm->getName() . '\\' . $sessionId, [
+            'expires' => time() + $realm->getSessionExpiresIn(),
+            'path' => $path,
+            'domain' => $this->serverName,
+            'httponly' => false,
+            'secure' => true,
+            'samesite' => 'None',
+        ]);
 
-        return $response->withAddedHeader('Set-Cookie', $value);
+        return $response;
     }
 
     public function delete(Realm $realm, ResponseInterface $response): ResponseInterface
     {
         $path = ($this->mountPath ?: '') . '/realms/' . $realm->getName();
 
-        $value = 'AUTH_SESSION='
-            . '; Expires=' . gmdate('D, d M Y H:i:s T', 1)
-            . '; Path=' . $path
-            . '; Domain=' . $this->serverName
-            . '; Secure'
-            . '; SameSite=None';
+        setcookie('AUTH_SESSION', '', [
+            'expires' => 1,
+            'path' => $path,
+            'domain' => $this->serverName,
+            'httponly' => true,
+            'secure' => true,
+            'samesite' => 'None',
+        ]);
 
-        return $response->withAddedHeader('Set-Cookie', $value);
+        return $response;
     }
 }

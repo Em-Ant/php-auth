@@ -66,8 +66,8 @@
 
       // If the client and origin from the event match the verified ones from the server, signal if the cookie has changed.
       if (clientId === init.clientId && origin === init.origin) {
-        const [, , cookieSessionState] = cookie.split("/");
-        return sessionState === cookieSessionState ? "unchanged" : "changed";
+        const cookieSessionId = parseSessionCookie(cookie);
+        return sessionState === cookieSessionId ? "unchanged" : "changed";
       }
 
       // Otherwise, if there is no match, then signal an error.
@@ -102,6 +102,16 @@
 
     function getSessionCookie() {
       return getCookieByName("AUTH_SESSION");
+    }
+
+    function parseSessionCookie(raw) {
+      if (!raw) return null;
+      try {
+        const parts = decodeURIComponent(raw).split("\\");
+        return parts[1] ?? null;
+      } catch {
+        return null;
+      }
     }
 
     function getCookieByName(name) {

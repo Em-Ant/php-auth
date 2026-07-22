@@ -86,8 +86,11 @@ class InputValidator
         if ($query['grant_type'] === 'authorization_code' && !isset($query['code'])) {
             throw new ValidationFailed("missing required field 'code'");
         }
-        if ($query['grant_type'] === 'refresh_token' && !isset($query['refresh_token'])) {
-            throw new ValidationFailed("missing required field 'refresh_token'");
+        if ($query['grant_type'] === 'refresh_token') {
+            $rt = $query['refresh_token'] ?? '';
+            if ($rt === '' || trim($rt) === '' || $rt === 'undefined') {
+                throw new ValidationFailed("missing required field 'refresh_token'");
+            }
         }
     }
 

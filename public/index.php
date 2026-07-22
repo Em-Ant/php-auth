@@ -132,6 +132,38 @@ $app->group(
         $group->get('/certs', [$oidcController, 'sendKeys']);
         $group->get('/userinfo', [$oidcController, 'sendUserInfo'])
             ->add(new Middleware\ValidateAccessToken($authOrchestrator));
+
+        // Login status iframe (used for 3rd-party cookie detection)
+        $group->get(
+            '/login-status-iframe.html',
+            function (ServerRequestInterface $request, ResponseInterface $response) {
+                $response->getBody()->write(
+                    file_get_contents(__DIR__ . '/../src/views/login-iframe.html')
+                );
+                return $response->withHeader('Content-Type', 'text/html; charset=utf-8');
+            }
+        );
+
+        $group->get(
+            '/login-status-iframe.html/init',
+            function (ServerRequestInterface $request, ResponseInterface $response) {
+                return $response->withStatus(200);
+            }
+        );
+
+        // 3rd-party cookie check pages
+        $group->get('/3p-cookies/{step}', function (ServerRequestInterface $request, ResponseInterface $response) {
+            $step = $request->getAttribute('step');
+            $allowed = ['step1.html', 'step2.html'];
+            if (!in_array($step, $allowed, true)) {
+                $response->getBody()->write('Invalid step');
+                return $response->withStatus(400);
+            }
+
+            $file = __DIR__ . '/../src/views/3p-' . $step;
+            $response->getBody()->write(file_get_contents($file));
+            return $response->withHeader('Content-Type', 'text/html; charset=utf-8');
+        });
     }
 )->add($containerObj->get(\AuthServer\Middleware\RealmProvider::class));
 
@@ -139,30 +171,6 @@ $app->group(
 $oidcController = $containerObj->get(Controllers\OidcController::class);
 $app->get('/realms/{realm}/.well-known/openid-configuration', [$oidcController, 'sendConfig'])
     ->add($containerObj->get(\AuthServer\Middleware\RealmProvider::class));
-
-// 3rd-party cookie check pages
-$app->get('/3p-cookies/{step}', function (ServerRequestInterface $request, ResponseInterface $response) {
-    $step = $request->getAttribute('step');
-    $allowed = ['step1.html', 'step2.html'];
-    if (!in_array($step, $allowed, true)) {
-        $response->getBody()->write('Invalid step');
-        return $response->withStatus(400);
-    }
-
-    $file = __DIR__ . '/../src/views/3p-' . $step;
-    $response->getBody()->write(file_get_contents($file));
-    return $response->withHeader('Content-Type', 'text/html; charset=utf-8');
-});
-
-// Login status iframe
-$app->get('/login-status-iframe.html', function (ServerRequestInterface $request, ResponseInterface $response) {
-    $response->getBody()->write(file_get_contents(__DIR__ . '/../src/views/login-iframe.html'));
-    return $response->withHeader('Content-Type', 'text/html; charset=utf-8');
-});
-
-$app->get('/login-status-iframe.html/init', function (ServerRequestInterface $request, ResponseInterface $response) {
-    return $response->withStatus(200);
-});
 
 // Admin API — migrations management
 $adminMiddleware = new Middleware\AdminMiddleware($containerObj->get('admin_api_key'));

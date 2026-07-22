@@ -13,15 +13,19 @@ use AuthServer\Interfaces\SessionCookieHandler;
 use AuthServer\Middleware\CorsMiddleware;
 use AuthServer\Middleware\RealmProvider;
 use AuthServer\Middleware\RequestLogger;
+use AuthServer\Middleware\AdminMiddleware;
+use AuthServer\Middleware\RateLimitingMiddleware;
 use AuthServer\Middleware\ValidateAccessToken;
 use AuthServer\Response\JsonResponse;
 use AuthServer\Services\InMemorySessionCookieHandler;
+use AuthServer\Services\RateLimiter;
 use DI\Bridge\Slim\Bridge;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use Slim\Exception\HttpNotFoundException;
 use Slim\Psr7\Response;
+use AuthServer\Controllers\Admin\MigrationsController;
 
 class TestAppFactory
 {
@@ -121,11 +125,73 @@ class TestAppFactory
                 $group->get('/certs', [$oidcController, 'sendKeys']);
                 $group->get('/userinfo', [$oidcController, 'sendUserInfo'])
                     ->add(new ValidateAccessToken($authOrchestrator));
+
+                $group->get('/login-status-iframe.html', function (ServerRequestInterface $request, ResponseInterface $response) {
+                    $response->getBody()->write(file_get_contents(__DIR__ . '/../../src/views/login-iframe.html'));
+                    return $response->withHeader('Content-Type', 'text/html; charset=utf-8');
+                });
+
+                $group->get('/login-status-iframe.html/init', function (ServerRequestInterface $request, ResponseInterface $response) {
+                    return $response->withStatus(200);
+                });
+
+                $group->get('/3p-cookies/{step}', function (ServerRequestInterface $request, ResponseInterface $response) {
+                    $step = $request->getAttribute('step');
+                    $allowed = ['step1.html', 'step2.html'];
+                    if (!in_array($step, $allowed, true)) {
+                        $response->getBody()->write('Invalid step');
+                        return $response->withStatus(400);
+                    }
+
+                    $file = __DIR__ . '/../../src/views/3p-' . $step;
+                    $response->getBody()->write(file_get_contents($file));
+                    return $response->withHeader('Content-Type', 'text/html; charset=utf-8');
+                });
             }
         )->add($container->get(RealmProvider::class));
 
         $app->get('/realms/{realm}/.well-known/openid-configuration', [$container->get(OidcController::class), 'sendConfig'])
             ->add($container->get(RealmProvider::class));
+
+        // Health endpoints
+        $app->get('/health', function (ServerRequestInterface $request, ResponseInterface $response) {
+            return JsonResponse::create($response, ['status' => 'ok']);
+        });
+
+        $app->get('/ready', function (ServerRequestInterface $request, ResponseInterface $response) use ($pdo) {
+            try {
+                $pdo->query('SELECT 1');
+                return JsonResponse::create($response, ['status' => 'ok']);
+            } catch (\Throwable $e) {
+                return JsonResponse::error($response, 'database_unreachable', $e->getMessage(), 503);
+            }
+        });
+
+        // Admin migrations
+        $adminKey = $container->get('admin_api_key');
+        $migrationController = $container->get(MigrationsController::class);
+        $adminMw = new AdminMiddleware($adminKey);
+        $app->group('/admin/migrations', function (\Slim\Routing\RouteCollectorProxy $g) use ($migrationController) {
+            $g->post('/migrate', [$migrationController, 'migrate']);
+            $g->post('/rollback', [$migrationController, 'rollback']);
+            $g->post('/go', [$migrationController, 'go']);
+            $g->get('/status', [$migrationController, 'status']);
+            $g->get('/dry-run', [$migrationController, 'dryRun']);
+        })->add($adminMw);
+
+        // Adminer
+        $app->any('/admin/db', function () {
+            include __DIR__ . '/../../db_admin/index.php';
+            die();
+        });
+        $app->any('/admin/db/{path:.*}', function () {
+            include __DIR__ . '/../../db_admin/index.php';
+            die();
+        });
+
+        // Admin CRUD stub
+        $app->group('/api/admin', function () {
+        })->add($adminMw);
 
         return $app;
     }

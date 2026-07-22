@@ -142,4 +142,21 @@ NEW_REFRESH=$(echo "$REFRESH_RESPONSE" | sed -n 's/.*"refresh_token":"\([^"]*\)"
     && ok "Refresh token rotated" \
     || fail "Refresh token not rotated"
 
+# ── Step 8: 3p-cookies pages & login-status-iframe ─────────────
+echo ""
+echo "=== Step 8: 3p-cookies pages & login-status-iframe ==="
+for step in step1.html step2.html; do
+    HTTP_CODE=$(curl -sS -o /dev/null -w "%{http_code}" \
+        "$BASE_URL/realms/$REALM/protocol/openid-connect/3p-cookies/$step")
+    if [ "$HTTP_CODE" = "200" ]; then
+        ok "3p-cookies/$step returns 200"
+    else
+        fail "3p-cookies/$step returned $HTTP_CODE"
+    fi
+done
+
+HTTP_CODE=$(curl -sS -o /dev/null -w "%{http_code}" \
+    "$BASE_URL/realms/$REALM/protocol/openid-connect/login-status-iframe.html")
+[ "$HTTP_CODE" = "200" ] && ok "login-status-iframe.html returns 200" || fail "login-status-iframe.html returned $HTTP_CODE"
+
 exit $FAIL
