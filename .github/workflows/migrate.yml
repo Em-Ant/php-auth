@@ -1,0 +1,14 @@
+name: Migrate
+
+on:
+  workflow_dispatch:
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Apply pending migrations
+        run: |
+          curl -sS -X POST \
+            -H "Authorization: Bearer ${{ secrets.ADMIN_API_KEY }}" \
+            "${{ secrets.APP_URL }}/admin/migrations/migrate"

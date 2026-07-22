@@ -169,7 +169,7 @@ $adminMiddleware = new Middleware\AdminMiddleware($containerObj->get('admin_api_
 $migrationController = $containerObj->get(Controllers\Admin\MigrationsController::class);
 
 // Migrations API (DB utility, not app-internal)
-$app->group('/db/migrations', function (\Slim\Routing\RouteCollectorProxy $group) use ($migrationController) {
+$app->group('/admin/migrations', function (\Slim\Routing\RouteCollectorProxy $group) use ($migrationController) {
     $group->post('/migrate', [$migrationController, 'migrate']);
     $group->post('/rollback', [$migrationController, 'rollback']);
     $group->post('/go', [$migrationController, 'go']);
@@ -178,11 +178,11 @@ $app->group('/db/migrations', function (\Slim\Routing\RouteCollectorProxy $group
 })->add($adminMiddleware);
 
 // Adminer — DB browser UI (included directly, handles its own routing)
-$app->any('/db', function () {
+$app->any('/admin/db', function () {
     include __DIR__ . '/../db_admin/index.php';
     die();
 });
-$app->any('/db/{path:.*}', function () {
+$app->any('/admin/db/{path:.*}', function () {
     include __DIR__ . '/../db_admin/index.php';
     die();
 });

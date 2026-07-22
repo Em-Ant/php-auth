@@ -73,7 +73,7 @@ jobs:
         run: |
           curl -sS -X POST \
             -H "Authorization: Bearer ${{ secrets.ADMIN_API_KEY }}" \
-            "${{ secrets.APP_URL }}/db/migrations/migrate"
+            "${{ secrets.APP_URL }}/admin/migrations/migrate"
 
 
   e2e:
