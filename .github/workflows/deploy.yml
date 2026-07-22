@@ -9,10 +9,10 @@ jobs:
     runs-on: ubuntu-latest
     if: "!contains(toJSON(github.event.commits.*.message), '[skip-ci]')"
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Cache Composer dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: /tmp/composer-cache
           key: ${{ runner.os }}-${{ hashFiles('**/composer.lock') }}
@@ -30,10 +30,10 @@ jobs:
     needs: [test]
     if: "!contains(toJSON(github.event.commits.*.message), '[skip-ci]')"
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Cache Composer dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: /tmp/composer-cache
           key: ${{ runner.os }}-${{ hashFiles('**/composer.lock') }}
@@ -46,6 +46,9 @@ jobs:
         run: |
           mkdir -p ./dist/config && cp -r src public static vendor db_admin dist && cp config/di.php dist/config/
           ls -R dist
+
+      - name: Install lftp
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq lftp
 
       - name: Deploy via lftp
         run: |
