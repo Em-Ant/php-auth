@@ -2,7 +2,7 @@ name: Deploy
 
 on:
   push:
-    branches: [main]
+    branches: [main, improvements]
 
 jobs:
   test:
@@ -22,8 +22,12 @@ jobs:
       - name: 'Checks'
         run: composer check
 
+      - name: 'Tests'
+        run: composer test
+
   build:
     runs-on: ubuntu-latest
+    needs: [test]
     if: "!contains(toJSON(github.event.commits.*.message), '[skip-ci]')"
     steps:
       - uses: actions/checkout@v3
@@ -40,8 +44,8 @@ jobs:
 
       - name: Create dist forlder
         run: |
-          mkdir -p ./dist && cp -r src public static vendor db_admin dist && cp index.php dist
-          ls dist
+          mkdir -p ./dist/config && cp -r src public static vendor db_admin dist && cp config/di.php dist/config/
+          ls -R dist
 
       - name: Simple FTP deploy
         uses: sebastianpopp/ftp-action@releases/v2
