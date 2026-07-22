@@ -7,16 +7,15 @@ namespace AuthServer\Repositories;
 use Psr\Log\LoggerInterface;
 use AuthServer\Interfaces\UserRepository as IUser;
 use AuthServer\Models\User;
-use AuthServer\Repositories\DataSource;
 
 class UserRepository implements IUser
 {
     private \PDO $db;
     private LoggerInterface $logger;
 
-    public function __construct(DataSource $data_source, LoggerInterface $logger)
+    public function __construct(\PDO $db, LoggerInterface $logger)
     {
-        $this->db = $data_source->getDb();
+        $this->db = $db;
         $this->logger = $logger;
     }
 

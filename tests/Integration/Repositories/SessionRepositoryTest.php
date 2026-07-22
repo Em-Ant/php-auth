@@ -15,7 +15,7 @@ class SessionRepositoryTest extends RepositoryTestCase
     protected function setUp(): void
     {
         $logger = $this->createMock(LoggerInterface::class);
-        $this->repo = new SessionRepository(self::$dataSource, $logger);
+        $this->repo = new SessionRepository(self::$pdo, $logger);
     }
 
     public function testCreateAndFindById(): void

@@ -18,8 +18,8 @@ class LoginRepositoryTest extends RepositoryTestCase
     protected function setUp(): void
     {
         $logger = $this->createMock(LoggerInterface::class);
-        $this->repo = new LoginRepository(self::$dataSource, $logger);
-        $this->sessionRepo = new SessionRepository(self::$dataSource, $logger);
+        $this->repo = new LoginRepository(self::$pdo, $logger);
+        $this->sessionRepo = new SessionRepository(self::$pdo, $logger);
     }
 
     private function createSession(): string

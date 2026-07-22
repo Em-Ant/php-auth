@@ -4,183 +4,21 @@ declare(strict_types=1);
 
 namespace AuthServer\Tests\Integration;
 
-use AuthServer\Controllers\AuthorizationController;
-use AuthServer\Controllers\ErrorController;
-use AuthServer\Controllers\LogoutController;
-use AuthServer\Controllers\OidcController;
-use AuthServer\Controllers\TokenController;
-use AuthServer\Middleware\CorsMiddleware;
-use AuthServer\Middleware\RealmProvider;
-use AuthServer\Middleware\RequestLogger;
-use AuthServer\Middleware\ValidateAccessToken;
-use AuthServer\Repositories\ClientRepository;
-use AuthServer\Repositories\DataSource;
-use AuthServer\Repositories\LoginRepository;
-use AuthServer\Repositories\RealmRepository;
-use AuthServer\Repositories\SessionRepository;
-use AuthServer\Repositories\UserRepository;
-use AuthServer\Response\JsonResponse;
-use AuthServer\Services\AuthenticationOrchestrator;
-use AuthServer\Services\FilesystemKeyStore;
-use AuthServer\Services\InMemorySessionCookieHandler;
-use AuthServer\Services\InputValidator;
-use AuthServer\Services\LoginStateMachine;
-use AuthServer\Services\SecretsService;
-use AuthServer\Services\SessionOrchestrator;
-use AuthServer\Services\TokenService;
-use AuthServer\Services\ViewRenderer;
-use DI\Bridge\Slim\Bridge;
+use AuthServer\Tests\Support\TestAppFactory;
 use PHPUnit\Framework\Attributes\Depends;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
-use Psr\Http\Server\RequestHandlerInterface;
-use Psr\Log\LoggerInterface;
-use Slim\Exception\HttpNotFoundException;
 use Slim\Psr7\Factory\ServerRequestFactory;
-use Slim\Psr7\Response;
 
 class FullFlowTest extends TestCase
 {
-    private static DataSource $dataSource;
     private static \Slim\App $app;
     private static string $issuer = 'http://localhost:8000';
 
     public static function setUpBeforeClass(): void
     {
-        $pdo = new \PDO('sqlite::memory:', '', '', [
-            \PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION,
-            \PDO::ATTR_DEFAULT_FETCH_MODE => \PDO::FETCH_ASSOC,
-            \PDO::ATTR_EMULATE_PREPARES => false,
-        ]);
-
-        $pdo->exec('PRAGMA foreign_keys = ON');
-
-        $migrationRepo = new \AuthServer\Repositories\MigrationRepository($pdo);
-        $runner = new \AuthServer\Services\MigrationRunner(
-            $migrationRepo,
-            __DIR__ . '/../../db/migrations/'
-        );
-        $runner->migrate();
-
-        $seed = file_get_contents(__DIR__ . '/../../db/seed.sql');
-        $pdo->exec($seed);
-
-        DataSource::createInstance($pdo);
-        self::$dataSource = DataSource::getInstance();
-
-        $logger = new class implements LoggerInterface {
-            public function emergency($message, array $context = []): void {}
-            public function alert($message, array $context = []): void {}
-            public function critical($message, array $context = []): void {}
-            public function error($message, array $context = []): void {}
-            public function warning($message, array $context = []): void {}
-            public function notice($message, array $context = []): void {}
-            public function info($message, array $context = []): void {}
-            public function debug($message, array $context = []): void {}
-            public function log($level, $message, array $context = []): void {}
-        };
-
-        $config = parse_ini_file(__DIR__ . '/../../config.ini', true);
-        $GLOBALS['sub_path'] = $config['server']['base_path'] ?? '';
-
-        $keyStore = new FilesystemKeyStore(__DIR__ . '/../../keys');
-        $tokenService = new TokenService(self::$issuer, $keyStore);
-
-        $passwordHashing = $config['password_hashing'] ?? [];
-        $secretsService = new SecretsService($passwordHashing);
-
-        $clientRepo = new ClientRepository(self::$dataSource, $logger);
-        $sessionRepo = new SessionRepository(self::$dataSource, $logger);
-        $loginRepo = new LoginRepository(self::$dataSource, $logger);
-        $userRepo = new UserRepository(self::$dataSource, $logger);
-        $realmRepo = new RealmRepository(self::$dataSource, $logger);
-        $realmProvider = new RealmProvider($realmRepo);
-
-        $loginStateMachine = new LoginStateMachine($loginRepo, $logger);
-
-        $inputValidator = new InputValidator();
-        $sessionOrchestrator = new SessionOrchestrator($sessionRepo);
-        $authOrchestrator = new AuthenticationOrchestrator(
-            $sessionOrchestrator,
-            $clientRepo, $sessionRepo, $userRepo, $loginRepo,
-            $loginStateMachine, $secretsService, $tokenService, $logger,
-        );
-
-        $sessionCookieHandler = new InMemorySessionCookieHandler();
-
-        $viewRenderer = new ViewRenderer(
-            __DIR__ . '/../../src/views',
-            'template.php',
-        );
-
-        $authController = new AuthorizationController(
-            $authOrchestrator,
-            $sessionOrchestrator,
-            $GLOBALS['sub_path'],
-            $sessionCookieHandler,
-            $viewRenderer,
-        );
-        $tokenController = new TokenController($authOrchestrator);
-        $logoutController = new LogoutController($authOrchestrator, $sessionCookieHandler);
-        $oidcController = new OidcController(self::$issuer, $keyStore);
-        $errorController = new ErrorController($viewRenderer);
-
-        $container = new \DI\Container();
-        $container->set(AuthorizationController::class, $authController);
-
-        self::$app = Bridge::create($container);
-        self::$app->setBasePath($config['server']['base_path'] ?? '');
-
-        $errorMiddleware = self::$app->addErrorMiddleware(true, true, true);
-        $errorMiddleware->setErrorHandler(
-            HttpNotFoundException::class,
-            function (ServerRequestInterface $request, \Throwable $exception) use ($logger) {
-                $response = new Response();
-                return JsonResponse::error($response, 'not found', $exception->getMessage(), 404);
-            }
-        );
-
-        self::$app->add(function (ServerRequestInterface $request, RequestHandlerInterface $handler) {
-            $ct = $request->getHeaderLine('Content-Type');
-            $rawBody = (string) $request->getBody();
-
-            if ($request->getMethod() === 'POST' && $rawBody !== '') {
-                if (str_contains($ct, 'application/json')) {
-                    $data = json_decode($rawBody, true);
-                    if (json_last_error() === JSON_ERROR_NONE) {
-                        $request = $request->withParsedBody($data ?? []);
-                    }
-                } elseif (str_contains($ct, 'application/x-www-form-urlencoded')) {
-                    parse_str($rawBody, $data);
-                    $request = $request->withParsedBody($data);
-                }
-            }
-            return $handler->handle($request);
-        });
-
-        self::$app->add(new CorsMiddleware());
-        self::$app->add(new RequestLogger($logger));
-
-        self::$app->group(
-            '/realms/{realm}/protocol/openid-connect',
-            function (\Slim\Routing\RouteCollectorProxy $group) use (
-                $authController, $tokenController, $logoutController,
-                $oidcController, $errorController, $authOrchestrator
-            ) {
-                $group->get('/auth', [$authController, 'authorize']);
-                $group->post('/login-actions/authenticate', [$authController, 'login']);
-                $group->post('/token', [$tokenController, 'token']);
-                $group->get('/logout', [$logoutController, 'logout']);
-                $group->get('/error', [$errorController, 'error']);
-                $group->get('/certs', [$oidcController, 'sendKeys']);
-                $group->get('/userinfo', [$oidcController, 'sendUserInfo'])
-                    ->add(new ValidateAccessToken($authOrchestrator));
-            }
-        )->add($realmProvider);
-
-        self::$app->get('/realms/{realm}/.well-known/openid-configuration', [$oidcController, 'sendConfig'])
-            ->add($realmProvider);
+        self::$app = TestAppFactory::createApp();
     }
 
     private function createRequest(string $method, string $path, array $query = [], mixed $body = null, array $headers = []): ServerRequestInterface

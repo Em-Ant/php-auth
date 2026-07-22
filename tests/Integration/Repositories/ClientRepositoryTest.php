@@ -15,7 +15,7 @@ class ClientRepositoryTest extends RepositoryTestCase
     protected function setUp(): void
     {
         $logger = $this->createMock(LoggerInterface::class);
-        $this->repo = new ClientRepository(self::$dataSource, $logger);
+        $this->repo = new ClientRepository(self::$pdo, $logger);
     }
 
     public function testFindByIdReturnsClient(): void

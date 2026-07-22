@@ -15,7 +15,7 @@ class UserRepositoryTest extends RepositoryTestCase
     protected function setUp(): void
     {
         $logger = $this->createMock(LoggerInterface::class);
-        $this->repo = new UserRepository(self::$dataSource, $logger);
+        $this->repo = new UserRepository(self::$pdo, $logger);
     }
 
     public function testFindByIdReturnsUser(): void

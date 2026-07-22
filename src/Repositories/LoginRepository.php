@@ -7,7 +7,6 @@ namespace AuthServer\Repositories;
 use Psr\Log\LoggerInterface;
 use AuthServer\Interfaces\LoginRepository as IRepo;
 use AuthServer\Models\Login;
-use AuthServer\Repositories\DataSource;
 
 use function AuthServer\get_guid;
 
@@ -16,9 +15,9 @@ class LoginRepository implements IRepo
     private \PDO $db;
     private LoggerInterface $logger;
 
-    public function __construct(DataSource $data_source, LoggerInterface $logger)
+    public function __construct(\PDO $db, LoggerInterface $logger)
     {
-        $this->db = $data_source->getDb();
+        $this->db = $db;
         $this->logger = $logger;
     }
 

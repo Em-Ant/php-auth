@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace AuthServer\Tests\Integration;
 
 use AuthServer\Middleware\AdminMiddleware;
-use AuthServer\Repositories\DataSource;
 use AuthServer\Repositories\MigrationRepository;
 use AuthServer\Services\MigrationRunner;
 use AuthServer\Controllers\Admin\MigrationsController;
@@ -28,8 +27,6 @@ class MigrationsEndpointTest extends TestCase
             \PDO::ATTR_DEFAULT_FETCH_MODE => \PDO::FETCH_ASSOC,
             \PDO::ATTR_EMULATE_PREPARES => false,
         ]);
-
-        DataSource::createInstance(self::$pdo);
 
         $migrationRepo = new MigrationRepository(self::$pdo);
         $runner = new MigrationRunner(

@@ -4,14 +4,12 @@ declare(strict_types=1);
 
 namespace AuthServer\Tests\Integration;
 
-use AuthServer\Repositories\DataSource;
 use AuthServer\Repositories\MigrationRepository;
 use AuthServer\Services\MigrationRunner;
 use PHPUnit\Framework\TestCase;
 
 abstract class RepositoryTestCase extends TestCase
 {
-    protected static DataSource $dataSource;
     protected static \PDO $pdo;
 
     public static function setUpBeforeClass(): void
@@ -33,8 +31,5 @@ abstract class RepositoryTestCase extends TestCase
 
         $seed = file_get_contents(__DIR__ . '/../../db/seed.sql');
         self::$pdo->exec($seed);
-
-        DataSource::createInstance(self::$pdo);
-        self::$dataSource = DataSource::getInstance();
     }
 }

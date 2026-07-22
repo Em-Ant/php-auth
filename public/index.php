@@ -6,109 +6,27 @@ namespace AuthServer;
 
 use AuthServer\Controllers;
 use AuthServer\Middleware\CorsMiddleware;
-use AuthServer\Middleware\RealmProvider;
 use AuthServer\Middleware\RequestLogger;
 use AuthServer\Response\JsonResponse;
 use DI\Bridge\Slim\Bridge;
-use Monolog\Handler\StreamHandler;
-use Monolog\Logger;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use Psr\Log\LoggerInterface;
 use Slim\Exception\HttpNotFoundException;
 use Slim\Psr7\Response;
 
 require __DIR__ . '/../vendor/autoload.php';
 
-$config = parse_ini_file(__DIR__ . '/../config.ini', true);
-$server = $config['server'];
+$container = require __DIR__ . '/../config/di.php';
+$containerObj = new \DI\Container($container);
+$app = Bridge::create($containerObj);
 
-$issuer = $server['issuer'];
-$GLOBALS['sub_path'] = $server['base_path'];
+$basePath = $containerObj->get('base_path');
+$app->setBasePath($basePath);
 
-$ROOT = __DIR__ . '/..';
-
-$key_store = new Services\FilesystemKeyStore("$ROOT/keys");
-
-$token_service = new Services\TokenService(
-    $issuer,
-    $key_store
-);
-
-$log = $config['log'];
-$logLevel = $log['level'] ?? 'info';
-$logger = new Logger('auth');
-if (filter_var($log['print'] ?? true, FILTER_VALIDATE_BOOLEAN)) {
-    $logger->pushHandler(new StreamHandler('php://stdout', $logLevel));
-}
-if (filter_var($log['write'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
-    $logger->pushHandler(new StreamHandler(
-        "$ROOT/log/" . date('Y-m-d') . '_' . $log['file'],
-        $logLevel
-    ));
-}
-
-$admin_config = $config['admin'] ?? [];
-$admin_api_key = $admin_config['api_key'] ?? '';
-
-$password_hashing = $config['password_hashing'] ?? [];
-$secrets_service = new Services\SecretsService($password_hashing);
-
-$client_repo = new Repositories\ClientRepository(Repositories\DataSource::getInstance(), $logger);
-$session_repo = new Repositories\SessionRepository(Repositories\DataSource::getInstance(), $logger);
-$login_repo = new Repositories\LoginRepository(Repositories\DataSource::getInstance(), $logger);
-$user_repo = new Repositories\UserRepository(Repositories\DataSource::getInstance(), $logger);
-$realm_repo = new Repositories\RealmRepository(Repositories\DataSource::getInstance(), $logger);
-$realm_provider = new RealmProvider($realm_repo);
-
-$login_state_machine = new Services\LoginStateMachine(
-    $login_repo,
-    $logger
-);
-
-$input_validator = new Services\InputValidator();
-$session_orchestrator = new Services\SessionOrchestrator($session_repo);
-$auth_orchestrator = new Services\AuthenticationOrchestrator(
-    $session_orchestrator,
-    $client_repo,
-    $session_repo,
-    $user_repo,
-    $login_repo,
-    $login_state_machine,
-    $secrets_service,
-    $token_service,
-    $logger
-);
-
-$session_cookie_handler = new Services\HttpSessionCookieHandler(
-    $GLOBALS['sub_path'],
-    $_SERVER['SERVER_NAME']
-);
-
-$view_renderer = new Services\ViewRenderer(
-    "$ROOT/src/views",
-    'template.php'
-);
-
-$auth_controller = new Controllers\AuthorizationController(
-    $auth_orchestrator,
-    $session_orchestrator,
-    $GLOBALS['sub_path'],
-    $session_cookie_handler,
-    $view_renderer
-);
-$token_controller = new Controllers\TokenController($auth_orchestrator);
-$logout_controller = new Controllers\LogoutController($auth_orchestrator, $session_cookie_handler);
-$oidc_controller = new Controllers\OidcController($issuer, $key_store);
-$error_controller = new Controllers\ErrorController($view_renderer);
-
-// -- Slim 4 bootstrap --
-
-$container = new \DI\Container();
-$container->set(Controllers\AuthorizationController::class, $auth_controller);
-
-$app = Bridge::create($container);
-$app->setBasePath($server['base_path']);
+/** @var LoggerInterface */
+$logger = $containerObj->get(LoggerInterface::class);
 
 // -- Middleware (LIFO: last added runs first) --
 
@@ -159,10 +77,8 @@ $app->add(new RequestLogger($logger));
 // -- Routes --
 
 // Rate limiting
-$rateLimitConfig = $config['rate_limiting'] ?? [];
-$rateLimiter = new Services\RateLimiter(
-    Repositories\DataSource::getInstance()->getDb()
-);
+$rateLimitConfig = $containerObj->get('rate_limiting');
+$rateLimiter = $containerObj->get(\AuthServer\Services\RateLimiter::class);
 $rateLimitIpSource = $rateLimitConfig['ip_source'] ?? 'remote_addr';
 $rateLimits = [];
 if (isset($rateLimitConfig['authenticate_limit'])) {
@@ -192,30 +108,33 @@ $rateLimitMiddleware = new Middleware\RateLimitingMiddleware(
 $app->group(
     '/realms/{realm}/protocol/openid-connect',
     function (\Slim\Routing\RouteCollectorProxy $group) use (
-        $auth_controller,
-        $token_controller,
-        $logout_controller,
-        $oidc_controller,
-        $error_controller,
-        $auth_orchestrator,
+        $containerObj,
         $rateLimitMiddleware
     ) {
-        $group->get('/auth', [$auth_controller, 'authorize']);
-        $group->post('/login-actions/authenticate', [$auth_controller, 'login'])
+        $authController = $containerObj->get(Controllers\AuthorizationController::class);
+        $tokenController = $containerObj->get(Controllers\TokenController::class);
+        $logoutController = $containerObj->get(Controllers\LogoutController::class);
+        $oidcController = $containerObj->get(Controllers\OidcController::class);
+        $errorController = $containerObj->get(Controllers\ErrorController::class);
+        $authOrchestrator = $containerObj->get(\AuthServer\Services\AuthenticationOrchestrator::class);
+
+        $group->get('/auth', [$authController, 'authorize']);
+        $group->post('/login-actions/authenticate', [$authController, 'login'])
             ->add($rateLimitMiddleware);
-        $group->post('/token', [$token_controller, 'token'])
+        $group->post('/token', [$tokenController, 'token'])
             ->add($rateLimitMiddleware);
-        $group->get('/logout', [$logout_controller, 'logout']);
-        $group->get('/error', [$error_controller, 'error']);
-        $group->get('/certs', [$oidc_controller, 'sendKeys']);
-        $group->get('/userinfo', [$oidc_controller, 'sendUserInfo'])
-            ->add(new Middleware\ValidateAccessToken($auth_orchestrator));
+        $group->get('/logout', [$logoutController, 'logout']);
+        $group->get('/error', [$errorController, 'error']);
+        $group->get('/certs', [$oidcController, 'sendKeys']);
+        $group->get('/userinfo', [$oidcController, 'sendUserInfo'])
+            ->add(new Middleware\ValidateAccessToken($authOrchestrator));
     }
-)->add($realm_provider);
+)->add($containerObj->get(\AuthServer\Middleware\RealmProvider::class));
 
 // Well-known config
-$app->get('/realms/{realm}/.well-known/openid-configuration', [$oidc_controller, 'sendConfig'])
-    ->add($realm_provider);
+$oidcController = $containerObj->get(Controllers\OidcController::class);
+$app->get('/realms/{realm}/.well-known/openid-configuration', [$oidcController, 'sendConfig'])
+    ->add($containerObj->get(\AuthServer\Middleware\RealmProvider::class));
 
 // 3rd-party cookie check pages
 $app->get('/3p-cookies/{step}', function (ServerRequestInterface $request, ResponseInterface $response) {
@@ -242,24 +161,17 @@ $app->get('/login-status-iframe.html/init', function (ServerRequestInterface $re
 });
 
 // Admin API — migrations management
-$migration_repo = new Repositories\MigrationRepository(
-    Repositories\DataSource::getInstance()->getDb()
-);
-$migration_runner = new Services\MigrationRunner(
-    $migration_repo,
-    "$ROOT/db/migrations/"
-);
-$migration_controller = new Controllers\Admin\MigrationsController($migration_runner);
-$admin_middleware = new Middleware\AdminMiddleware($admin_api_key);
+$adminMiddleware = new Middleware\AdminMiddleware($containerObj->get('admin_api_key'));
+$migrationController = $containerObj->get(Controllers\Admin\MigrationsController::class);
 
 // Migrations API (DB utility, not app-internal)
-$app->group('/db/migrations', function (\Slim\Routing\RouteCollectorProxy $group) use ($migration_controller) {
-    $group->post('/migrate', [$migration_controller, 'migrate']);
-    $group->post('/rollback', [$migration_controller, 'rollback']);
-    $group->post('/go', [$migration_controller, 'go']);
-    $group->get('/status', [$migration_controller, 'status']);
-    $group->get('/dry-run', [$migration_controller, 'dryRun']);
-})->add($admin_middleware);
+$app->group('/db/migrations', function (\Slim\Routing\RouteCollectorProxy $group) use ($migrationController) {
+    $group->post('/migrate', [$migrationController, 'migrate']);
+    $group->post('/rollback', [$migrationController, 'rollback']);
+    $group->post('/go', [$migrationController, 'go']);
+    $group->get('/status', [$migrationController, 'status']);
+    $group->get('/dry-run', [$migrationController, 'dryRun']);
+})->add($adminMiddleware);
 
 // Adminer — DB browser UI (included directly, handles its own routing)
 $app->any('/db', function () {
@@ -274,17 +186,17 @@ $app->any('/db/{path:.*}', function () {
 // Admin CRUD API (realms, clients, users, etc.)
 $app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
     // Future: realms, clients, users CRUD
-})->add($admin_middleware);
+})->add($adminMiddleware);
 
 // Health endpoints
 $app->get('/health', function (ServerRequestInterface $request, ResponseInterface $response) {
     return JsonResponse::create($response, ['status' => 'ok']);
 });
 
-$app->get('/ready', function (ServerRequestInterface $request, ResponseInterface $response) {
+$app->get('/ready', function (ServerRequestInterface $request, ResponseInterface $response) use ($containerObj) {
     try {
-        $db = Repositories\DataSource::getInstance()->getDb();
-        $db->query('SELECT 1');
+        $pdo = $containerObj->get(\PDO::class);
+        $pdo->query('SELECT 1');
         return JsonResponse::create($response, ['status' => 'ok']);
     } catch (\Throwable $e) {
         return JsonResponse::error(

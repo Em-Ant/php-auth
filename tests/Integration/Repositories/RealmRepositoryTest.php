@@ -15,7 +15,7 @@ class RealmRepositoryTest extends RepositoryTestCase
     protected function setUp(): void
     {
         $logger = $this->createMock(LoggerInterface::class);
-        $this->repo = new RealmRepository(self::$dataSource, $logger);
+        $this->repo = new RealmRepository(self::$pdo, $logger);
     }
 
     public function testFindByIdReturnsRealm(): void

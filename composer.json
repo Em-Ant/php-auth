@@ -43,6 +43,7 @@
     "cs_check": "phpcs src public/index.php --standard=PSR12",
     "cs_fix": "phpcbf src public/index.php --standard=PSR12",
     "test": "@php vendor/bin/phpunit",
+    "test:e2e": "bash bin/e2e-test.sh",
     "check": [
       "@stan",
       "@cs_check"
