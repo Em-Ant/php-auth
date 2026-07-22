@@ -45,6 +45,7 @@
     "test": "@php vendor/bin/phpunit",
     "test:cov": "php -d xdebug.mode=coverage vendor/bin/phpunit --coverage-text",
     "test:e2e": "bash bin/e2e-test.sh",
+    "test:e2e:kc": "bash bin/e2e-test-keycloak.sh",
     "check": [
       "@stan",
       "@cs_check"

@@ -14,4 +14,6 @@ RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^ public/index.php [QSA,L]
 
 # # av:php5-engine
+AddHandler av-php84 .php
+AddHandler av-php82 .php
 AddHandler av-php8 .php

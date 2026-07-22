@@ -2,7 +2,7 @@ name: Deploy
 
 on:
   push:
-    branches: [main, improvements]
+    branches: [improvements]
 
 jobs:
   test:
@@ -47,11 +47,20 @@ jobs:
           mkdir -p ./dist/config && cp -r src public static vendor db_admin dist && cp config/di.php dist/config/
           ls -R dist
 
-      - name: Simple FTP deploy
-        uses: sebastianpopp/ftp-action@releases/v2
-        with:
-          host: ${{ secrets.FTP_HOST }}
-          user: ${{ secrets.FTP_USER }}
-          password: ${{ secrets.FTP_PWD }}
-          localDir: ./dist
-          remoteDir: id
+      - name: Deploy via lftp
+        run: |
+          lftp -u "${{ secrets.FTP_USER }}","${{ secrets.FTP_PWD }}" \
+            "${{ secrets.FTP_HOST }}" \
+            -e "
+              set ftp:ssl-force false;
+              set ssl:verify-certificate false;
+              mirror --reverse --parallel=10 --only-newer --continue --dereference -x ^\.git/$ ./dist id;
+              chmod -R g+w id;
+              quit
+            "
+
+      - name: Apply pending migrations
+        run: |
+          curl -sS -X POST \
+            -H "Authorization: Bearer ${{ secrets.ADMIN_API_KEY }}" \
+            "https://${{ secrets.FTP_HOST }}/id/db/migrations/migrate"

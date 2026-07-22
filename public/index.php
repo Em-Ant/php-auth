@@ -16,6 +16,10 @@ use Psr\Log\LoggerInterface;
 use Slim\Exception\HttpNotFoundException;
 use Slim\Psr7\Response;
 
+if (function_exists('opcache_invalidate') && filter_var(ini_get('opcache.enable'), FILTER_VALIDATE_BOOLEAN)) {
+    opcache_invalidate(__FILE__, true);
+}
+
 require __DIR__ . '/../vendor/autoload.php';
 
 $container = require __DIR__ . '/../config/di.php';
