@@ -8,6 +8,7 @@ use AuthServer\Controllers\AuthorizationController;
 use AuthServer\Controllers\ErrorController;
 use AuthServer\Controllers\LogoutController;
 use AuthServer\Controllers\OidcController;
+use AuthServer\Controllers\RevokeController;
 use AuthServer\Controllers\TokenController;
 use AuthServer\Interfaces\SessionCookieHandler;
 use AuthServer\Middleware\CorsMiddleware;
@@ -112,19 +113,22 @@ class TestAppFactory
             function (\Slim\Routing\RouteCollectorProxy $group) use ($container) {
                 $authController = $container->get(AuthorizationController::class);
                 $tokenController = $container->get(TokenController::class);
+                $revokeController = $container->get(RevokeController::class);
                 $logoutController = $container->get(LogoutController::class);
                 $oidcController = $container->get(OidcController::class);
                 $errorController = $container->get(ErrorController::class);
                 $authOrchestrator = $container->get(\AuthServer\Services\AuthenticationOrchestrator::class);
+                $tokenBlacklistRepo = $container->get(\AuthServer\Repositories\TokenBlacklistRepository::class);
 
                 $group->get('/auth', [$authController, 'authorize']);
                 $group->post('/login-actions/authenticate', [$authController, 'login']);
                 $group->post('/token', [$tokenController, 'token']);
+                $group->post('/revoke', [$revokeController, 'revoke']);
                 $group->get('/logout', [$logoutController, 'logout']);
                 $group->get('/error', [$errorController, 'error']);
                 $group->get('/certs', [$oidcController, 'sendKeys']);
                 $group->get('/userinfo', [$oidcController, 'sendUserInfo'])
-                    ->add(new ValidateAccessToken($authOrchestrator));
+                    ->add(new ValidateAccessToken($authOrchestrator, $tokenBlacklistRepo));
 
                 $group->get('/login-status-iframe.html', function (ServerRequestInterface $request, ResponseInterface $response) {
                     $response->getBody()->write(file_get_contents(__DIR__ . '/../../src/views/login-iframe.html'));

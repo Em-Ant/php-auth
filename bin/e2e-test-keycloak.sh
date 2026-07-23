@@ -45,6 +45,7 @@ echo "$CONFIG" | grep -q '"authorization_endpoint"' && ok "authorization_endpoin
 echo "$CONFIG" | grep -q '"token_endpoint"' && ok "token_endpoint present"   || fail "token_endpoint missing"
 echo "$CONFIG" | grep -q '"jwks_uri"'       && ok "jwks_uri present"         || fail "jwks_uri missing"
 echo "$CONFIG" | grep -q '"userinfo_endpoint"' && ok "userinfo_endpoint present" || fail "userinfo_endpoint missing"
+echo "$CONFIG" | grep -q '"revocation_endpoint"' && ok "revocation_endpoint present" || fail "revocation_endpoint missing"
 
 # ── Step 2: GET /auth (login page) ─────────────────────────────
 echo ""
@@ -158,5 +159,36 @@ done
 HTTP_CODE=$(curl -sS -o /dev/null -w "%{http_code}" \
     "$BASE_URL/realms/$REALM/protocol/openid-connect/login-status-iframe.html")
 [ "$HTTP_CODE" = "200" ] && ok "login-status-iframe.html returns 200" || fail "login-status-iframe.html returned $HTTP_CODE"
+
+# ── Step 9: Revoke refresh token ─────────────────────────────
+echo ""
+echo "=== Step 9: Revoke refresh token ==="
+REVOKE_CODE=$(curl -sS -o /dev/null -w "%{http_code}" -X POST \
+    -d "token=${NEW_REFRESH}&client_id=$CLIENT" \
+    "$BASE_URL/realms/$REALM/protocol/openid-connect/revoke")
+
+[ "$REVOKE_CODE" = "200" ] && ok "Revoke returns 200" || { fail "Revoke expected 200, got $REVOKE_CODE"; exit 1; }
+
+USED_REFRESH=$(curl -sS -X POST \
+    -d "grant_type=refresh_token&client_id=$CLIENT&refresh_token=${NEW_REFRESH}" \
+    "$BASE_URL/realms/$REALM/protocol/openid-connect/token" \
+    | grep -cE 'expired|invalid' || true)
+
+[ "$USED_REFRESH" -gt 0 ] && ok "Revoked refresh token rejected" || fail "Revoked refresh token was accepted"
+
+# ── Step 10: Revoke access token ─────────────────────────────
+echo ""
+echo "=== Step 10: Revoke access token ==="
+REVOKE_AT=$(curl -sS -o /dev/null -w "%{http_code}" -X POST \
+    -d "token_type_hint=access_token&token=${NEW_ACCESS}&client_id=$CLIENT" \
+    "$BASE_URL/realms/$REALM/protocol/openid-connect/revoke")
+
+[ "$REVOKE_AT" = "200" ] && ok "Revoke access token returns 200" || { fail "Revoke access token expected 200, got $REVOKE_AT"; exit 1; }
+
+USERINFO_CHECK=$(curl -sS -o /dev/null -w "%{http_code}" \
+    -H "Authorization: Bearer ${NEW_ACCESS}" \
+    "$BASE_URL/realms/$REALM/protocol/openid-connect/userinfo")
+
+[ "$USERINFO_CHECK" = "401" ] && ok "Revoked access token rejected at userinfo" || fail "Revoked access token was accepted at userinfo (got $USERINFO_CHECK)"
 
 exit $FAIL

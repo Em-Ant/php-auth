@@ -25,7 +25,6 @@ fail() { FAIL=$((FAIL+1)); echo "  ✗ $1"; }
 
 # ── Start dev server ──────────────────────────────────────────
 echo "=== Starting dev server ==="
-cd "$(dirname "$0")/.."
 
 php -S "${HOST}:${PORT}" -t public router.php >/dev/null 2>&1 &
 SERVER_PID=$!
@@ -118,6 +117,41 @@ NEW_REFRESH=$(echo "$REFRESH_RESPONSE" | sed -n 's/.*"refresh_token":"\([^"]*\)"
 [ -n "$NEW_REFRESH" ] && [ "$NEW_REFRESH" != "$REFRESH_TOKEN" ] \
     && ok "Refresh token rotated" \
     || fail "Refresh token not rotated"
+
+# ── Step 5: Revoke refresh token ──────────────────────────────
+echo ""
+echo "=== Step 5: Revoke refresh token ==="
+# Use the current (post-rotation) refresh token
+REVOKE_RESPONSE=$(curl -sS -o /dev/null -w "%{http_code}" -X POST \
+    -u "kc_app:" \
+    -d "token=${NEW_REFRESH}" \
+    "$BASE/realms/test/protocol/openid-connect/revoke")
+
+[ "$REVOKE_RESPONSE" = "200" ] && ok "Revoke returned 200" || { fail "Revoke expected 200, got $REVOKE_RESPONSE"; exit 1; }
+
+# Try to use the revoked refresh token
+USED_REFRESH=$(curl -sS -X POST \
+    -d "grant_type=refresh_token&client_id=kc_app&refresh_token=${NEW_REFRESH}" \
+    "$BASE/realms/test/protocol/openid-connect/token" | grep -cE 'expired|invalid' || true)
+
+[ "$USED_REFRESH" -gt 0 ] && ok "Revoked refresh token rejected" || fail "Revoked refresh token was accepted"
+
+# ── Step 6: Revoke access token ───────────────────────────────
+echo ""
+echo "=== Step 6: Revoke access token ==="
+REVOKE_AT=$(curl -sS -o /dev/null -w "%{http_code}" -X POST \
+    -u "kc_app:" \
+    -d "token_type_hint=access_token&token=${NEW_ACCESS}" \
+    "$BASE/realms/test/protocol/openid-connect/revoke")
+
+[ "$REVOKE_AT" = "200" ] && ok "Revoke access token returned 200" || { fail "Revoke access token expected 200, got $REVOKE_AT"; exit 1; }
+
+# Verify revoked access token is rejected at userinfo
+USERINFO_CHECK=$(curl -sS -o /dev/null -w "%{http_code}" \
+    -H "Authorization: Bearer ${NEW_ACCESS}" \
+    "$BASE/realms/test/protocol/openid-connect/userinfo")
+
+[ "$USERINFO_CHECK" = "401" ] && ok "Revoked access token rejected at userinfo" || fail "Revoked access token was accepted at userinfo (got $USERINFO_CHECK)"
 
 # ── All done ──────────────────────────────────────────────────
 exit $FAIL

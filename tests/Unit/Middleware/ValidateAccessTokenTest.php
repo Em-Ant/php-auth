@@ -7,6 +7,7 @@ namespace AuthServer\Tests\Unit\Middleware;
 use AuthServer\Exceptions\ValidationFailed;
 use AuthServer\Middleware\ValidateAccessToken;
 use AuthServer\Models\Realm;
+use AuthServer\Repositories\TokenBlacklistRepository;
 use AuthServer\Services\AuthenticationOrchestrator;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
@@ -16,13 +17,18 @@ use Psr\Http\Server\RequestHandlerInterface;
 class ValidateAccessTokenTest extends TestCase
 {
     private AuthenticationOrchestrator $authService;
+    private TokenBlacklistRepository $tokenBlacklistRepository;
     private ValidateAccessToken $middleware;
     private Realm $realm;
 
     protected function setUp(): void
     {
         $this->authService = $this->createMock(AuthenticationOrchestrator::class);
-        $this->middleware = new ValidateAccessToken($this->authService);
+        $this->tokenBlacklistRepository = $this->createMock(TokenBlacklistRepository::class);
+        $this->middleware = new ValidateAccessToken(
+            $this->authService,
+            $this->tokenBlacklistRepository,
+        );
         $this->realm = new Realm(
             'r-id', 'test', 'k-id', 1800, 300, 300, 300, 86400, 1800,
             'openid', '2025-01-01 00:00:00',
@@ -57,7 +63,7 @@ class ValidateAccessTokenTest extends TestCase
         self::assertSame(400, $response->getStatusCode());
     }
 
-    public function testInvalidTokenReturns400(): void
+    public function testInvalidTokenReturns401(): void
     {
         $request = $this->createMock(ServerRequestInterface::class);
         $request->method('getAttribute')->with(Realm::class)->willReturn($this->realm);
@@ -70,7 +76,7 @@ class ValidateAccessTokenTest extends TestCase
         $handler->expects(self::never())->method('handle');
 
         $response = $this->middleware->process($request, $handler);
-        self::assertSame(400, $response->getStatusCode());
+        self::assertSame(401, $response->getStatusCode());
     }
 
     public function testValidTokenSetsAttributeAndPassesThrough(): void
@@ -79,8 +85,9 @@ class ValidateAccessTokenTest extends TestCase
         $request->method('getAttribute')->with(Realm::class)->willReturn($this->realm);
         $request->method('getHeaderLine')->with('Authorization')->willReturn('Bearer valid-token');
 
-        $parsed = ['sub' => 'u-id', 'preferred_username' => 'emant'];
+        $parsed = ['sub' => 'u-id', 'preferred_username' => 'emant', 'jti' => 'jti-1'];
         $this->authService->method('parseValidToken')->willReturn($parsed);
+        $this->tokenBlacklistRepository->method('exists')->with('jti-1')->willReturn(false);
 
         $request->expects(self::once())
             ->method('withAttribute')
@@ -101,8 +108,9 @@ class ValidateAccessTokenTest extends TestCase
         $request->method('getAttribute')->with(Realm::class)->willReturn($this->realm);
         $request->method('getHeaderLine')->with('Authorization')->willReturn('Bearer v-tok');
 
-        $parsed = ['sub' => 'u-1'];
+        $parsed = ['sub' => 'u-1', 'jti' => 'jti-2'];
         $this->authService->method('parseValidToken')->willReturn($parsed);
+        $this->tokenBlacklistRepository->method('exists')->with('jti-2')->willReturn(false);
 
         $enrichedRequest = $this->createMock(ServerRequestInterface::class);
         $request->method('withAttribute')->willReturn($enrichedRequest);

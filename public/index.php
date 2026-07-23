@@ -117,21 +117,24 @@ $app->group(
     ) {
         $authController = $containerObj->get(Controllers\AuthorizationController::class);
         $tokenController = $containerObj->get(Controllers\TokenController::class);
+        $revokeController = $containerObj->get(Controllers\RevokeController::class);
         $logoutController = $containerObj->get(Controllers\LogoutController::class);
         $oidcController = $containerObj->get(Controllers\OidcController::class);
         $errorController = $containerObj->get(Controllers\ErrorController::class);
         $authOrchestrator = $containerObj->get(\AuthServer\Services\AuthenticationOrchestrator::class);
+        $tokenBlacklistRepo = $containerObj->get(\AuthServer\Repositories\TokenBlacklistRepository::class);
 
         $group->get('/auth', [$authController, 'authorize']);
         $group->post('/login-actions/authenticate', [$authController, 'login'])
             ->add($rateLimitMiddleware);
         $group->post('/token', [$tokenController, 'token'])
             ->add($rateLimitMiddleware);
+        $group->post('/revoke', [$revokeController, 'revoke']);
         $group->get('/logout', [$logoutController, 'logout']);
         $group->get('/error', [$errorController, 'error']);
         $group->get('/certs', [$oidcController, 'sendKeys']);
         $group->get('/userinfo', [$oidcController, 'sendUserInfo'])
-            ->add(new Middleware\ValidateAccessToken($authOrchestrator));
+            ->add(new Middleware\ValidateAccessToken($authOrchestrator, $tokenBlacklistRepo));
 
         // Login status iframe (used for 3rd-party cookie detection)
         $group->get(

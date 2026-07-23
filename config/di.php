@@ -7,6 +7,7 @@ use AuthServer\Controllers\AuthorizationController;
 use AuthServer\Controllers\ErrorController;
 use AuthServer\Controllers\LogoutController;
 use AuthServer\Controllers\OidcController;
+use AuthServer\Controllers\RevokeController;
 use AuthServer\Controllers\TokenController;
 use AuthServer\Interfaces\ClientRepository as IClientRepo;
 use AuthServer\Interfaces\KeyStore;
@@ -22,6 +23,7 @@ use AuthServer\Repositories\LoginRepository;
 use AuthServer\Repositories\MigrationRepository;
 use AuthServer\Repositories\RealmRepository;
 use AuthServer\Repositories\SessionRepository;
+use AuthServer\Repositories\TokenBlacklistRepository;
 use AuthServer\Repositories\UserRepository;
 use AuthServer\Services\AuthenticationOrchestrator;
 use AuthServer\Services\FilesystemKeyStore;
@@ -120,6 +122,7 @@ return [
     MigrationRunner::class => \DI\autowire()
         ->constructorParameter('migrationsDir', \DI\get('migrations_dir')),
     MigrationRepository::class => \DI\autowire(),
+    TokenBlacklistRepository::class => \DI\autowire(),
 
     // ── View renderer ──
 
@@ -146,5 +149,6 @@ return [
     OidcController::class => \DI\autowire()
         ->constructorParameter('issuer', \DI\get('issuer')),
     ErrorController::class => \DI\autowire(),
+    RevokeController::class => \DI\autowire(),
     MigrationsController::class => \DI\autowire(),
 ];

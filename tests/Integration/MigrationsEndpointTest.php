@@ -134,13 +134,16 @@ class MigrationsEndpointTest extends TestCase
         $data = $this->assertResponse(200, $request);
 
         self::assertArrayHasKey('migrations', $data);
-        self::assertCount(2, $data['migrations']);
+        self::assertCount(3, $data['migrations']);
 
         self::assertSame(0, $data['migrations'][0]['version']);
         self::assertFalse($data['migrations'][0]['applied']);
 
         self::assertSame(1, $data['migrations'][1]['version']);
         self::assertFalse($data['migrations'][1]['applied']);
+
+        self::assertSame(2, $data['migrations'][2]['version']);
+        self::assertFalse($data['migrations'][2]['applied']);
     }
 
     // ── Dry-run ────────────────────────────────────────────────
@@ -154,7 +157,7 @@ class MigrationsEndpointTest extends TestCase
         $data = $this->assertResponse(200, $request);
 
         self::assertArrayHasKey('pending', $data);
-        self::assertCount(2, $data['pending']);
+        self::assertCount(3, $data['pending']);
         self::assertSame(0, $data['pending'][0]['version']);
     }
 
@@ -169,10 +172,11 @@ class MigrationsEndpointTest extends TestCase
         $data = $this->assertResponse(200, $request);
 
         self::assertArrayHasKey('applied', $data);
-        self::assertCount(2, $data['applied']);
+        self::assertCount(3, $data['applied']);
         self::assertSame(0, $data['applied'][0]['version']);
         self::assertSame(1, $data['applied'][1]['version']);
-        self::assertSame(2, $data['count']);
+        self::assertSame(2, $data['applied'][2]['version']);
+        self::assertSame(3, $data['count']);
     }
 
     public function testMigrateIdempotent(): void
@@ -199,8 +203,10 @@ class MigrationsEndpointTest extends TestCase
 
         self::assertTrue($data['migrations'][0]['applied']);
         self::assertTrue($data['migrations'][1]['applied']);
+        self::assertTrue($data['migrations'][2]['applied']);
         self::assertNotNull($data['migrations'][0]['applied_at']);
         self::assertNotNull($data['migrations'][1]['applied_at']);
+        self::assertNotNull($data['migrations'][2]['applied_at']);
     }
 
     // ── Rollback via command ───────────────────────────────────
@@ -214,7 +220,7 @@ class MigrationsEndpointTest extends TestCase
         $data = $this->assertResponse(200, $request);
 
         self::assertCount(1, $data['rolled_back']);
-        self::assertSame(1, $data['rolled_back'][0]['version']);
+        self::assertSame(2, $data['rolled_back'][0]['version']);
         self::assertSame(1, $data['count']);
     }
 
@@ -227,7 +233,8 @@ class MigrationsEndpointTest extends TestCase
         $data = $this->assertResponse(200, $request);
 
         self::assertTrue($data['migrations'][0]['applied']);
-        self::assertFalse($data['migrations'][1]['applied']);
+        self::assertTrue($data['migrations'][1]['applied']);
+        self::assertFalse($data['migrations'][2]['applied']);
     }
 
     // ── Go: re-apply 1 then rollback via go ────────────────────
@@ -241,8 +248,8 @@ class MigrationsEndpointTest extends TestCase
         $data = $this->assertResponse(200, $request);
 
         self::assertSame(1, $data['target']);
-        self::assertCount(1, $data['applied']);
-        self::assertSame(1, $data['applied'][0]['version']);
+        // Current version is 1 (0,1 applied; 2 rolled back) — no-op
+        self::assertCount(0, $data['applied']);
     }
 
     public function testGoToVersion0RollsBack(): void
@@ -268,6 +275,7 @@ class MigrationsEndpointTest extends TestCase
 
         self::assertTrue($data['migrations'][0]['applied']);
         self::assertFalse($data['migrations'][1]['applied']);
+        self::assertFalse($data['migrations'][2]['applied']);
     }
 
     // ── Error cases ────────────────────────────────────────────

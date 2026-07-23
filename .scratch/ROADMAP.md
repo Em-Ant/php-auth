@@ -34,8 +34,9 @@
 ## Token Lifecycle
 
 - [ ] Token Introspection (`POST /token/introspect`, RFC 7662)
-- [ ] Token Revocation (`POST /token/revoke`, RFC 7009)
-- [ ] Token blacklist table + cleanup job
+- [x] Token Revocation (`POST /realms/{realm}/protocol/openid-connect/revoke`, RFC 7009)
+- [x] Token blacklist table
+- [ ] Cleanup job (purge expired blacklist entries)
 - [ ] Offline revocation
 
 ## Customizable Login Form

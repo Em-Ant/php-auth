@@ -19,6 +19,7 @@ use AuthServer\Models\LoginStatus;
 use AuthServer\Models\Realm;
 use AuthServer\Models\Session;
 use AuthServer\Models\User;
+use AuthServer\Repositories\TokenBlacklistRepository;
 use Psr\Log\LoggerInterface;
 
 class AuthenticationOrchestrator
@@ -31,6 +32,7 @@ class AuthenticationOrchestrator
     private ILoginStateMachine $loginStateMachine;
     private SecretsService $secrets_service;
     private TokenService $token_service;
+    private TokenBlacklistRepository $tokenBlacklistRepository;
     private LoggerInterface $logger;
 
     public function __construct(
@@ -42,6 +44,7 @@ class AuthenticationOrchestrator
         ILoginStateMachine $loginStateMachine,
         SecretsService $secrets_service,
         TokenService $token_service,
+        TokenBlacklistRepository $tokenBlacklistRepository,
         LoggerInterface $logger
     ) {
         $this->sessionOrchestrator = $sessionOrchestrator;
@@ -52,6 +55,7 @@ class AuthenticationOrchestrator
         $this->loginStateMachine = $loginStateMachine;
         $this->secrets_service = $secrets_service;
         $this->token_service = $token_service;
+        $this->tokenBlacklistRepository = $tokenBlacklistRepository;
         $this->logger = $logger;
     }
 
@@ -326,6 +330,69 @@ class AuthenticationOrchestrator
         return $client->getUri();
     }
 
+    public function revoke(array $params, Realm $realm): void
+    {
+        $token = $params['token'] ?? '';
+        $tokenTypeHint = $params['token_type_hint'] ?? '';
+        $clientId = $params['client_id'] ?? '';
+
+        $client = $this->client_repository->findByName($clientId);
+        if ($client === null) {
+            $this->logger->info("revoke: client $clientId not found");
+            return;
+        }
+
+        if ($client->requiresAuth()) {
+            $clientSecret = $params['client_secret'] ?? '';
+            $hashedSecret = $client->getClientSecret();
+            if (
+                $clientSecret === ''
+                || !$this->secrets_service->validatePassword($clientSecret, $hashedSecret)
+            ) {
+                $this->logger->info("revoke: invalid client secret for $clientId");
+                return;
+            }
+        }
+
+        // Refresh token path (default when no hint, or hint is refresh_token)
+        if ($tokenTypeHint !== 'access_token') {
+            $login = $this->login_repository->findByrefreshToken($token);
+            if ($login !== null && $login->getClientId() === $client->getId()) {
+                $this->logger->info("revoke: expiring login {$login->getId()}");
+                $this->loginStateMachine->transition($login, LoginEvent::Expire, $realm);
+                $sessionId = $login->getSessionId();
+                if ($sessionId !== null) {
+                    $this->session_repository->setExpired($sessionId);
+                }
+                return;
+            }
+        }
+
+        // Access token path
+        $decoded = $this->decodeTokenSafely($token);
+        if ($decoded === null) {
+            return;
+        }
+
+        $aud = $decoded['aud'] ?? $decoded['azp'] ?? '';
+        if ((string) $aud !== $client->getName()) {
+            $this->logger->info("revoke: token not issued to $clientId");
+            return;
+        }
+
+        $isValid = $this->token_service->validateToken($token, $realm);
+        if (!$isValid) {
+            return;
+        }
+
+        $jti = $decoded['jti'] ?? '';
+        $exp = $decoded['exp'] ?? 0;
+        if ($jti !== '') {
+            $this->tokenBlacklistRepository->add($jti, $exp);
+            $this->logger->info("revoke: blacklisted jti $jti");
+        }
+    }
+
     public function parseValidToken(string $token, Realm $realm): array
     {
         $is_valid = $this->token_service->validateToken($token, $realm);
@@ -492,6 +559,20 @@ class AuthenticationOrchestrator
         InputValidator::validateRedirectUri($client, $redirect_uri);
 
         return $client;
+    }
+
+    private function decodeTokenSafely(string $token): ?array
+    {
+        try {
+            $parts = explode('.', $token);
+            if (count($parts) !== 3) {
+                return null;
+            }
+            $payload = json_decode(\AuthServer\Services\Base64Utils::b64UrlDecode($parts[1]), true);
+            return is_array($payload) ? $payload : null;
+        } catch (\Throwable $e) {
+            return null;
+        }
     }
 
     private function validateClientSecret(

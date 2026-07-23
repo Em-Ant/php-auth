@@ -19,6 +19,7 @@ use AuthServer\Models\LoginStatus;
 use AuthServer\Models\Realm;
 use AuthServer\Models\Session;
 use AuthServer\Models\User;
+use AuthServer\Repositories\TokenBlacklistRepository;
 use AuthServer\Services\AuthenticationOrchestrator;
 use AuthServer\Services\SecretsService;
 use AuthServer\Services\SessionOrchestrator;
@@ -35,6 +36,7 @@ class AuthenticationOrchestratorTest extends TestCase
     private ILoginStateMachine $stateMachine;
     private SecretsService $secretsService;
     private TokenService $tokenService;
+    private TokenBlacklistRepository $tokenBlacklistRepository;
     private LoggerInterface $logger;
     private SessionOrchestrator $sessionOrch;
     private AuthenticationOrchestrator $svc;
@@ -52,6 +54,7 @@ class AuthenticationOrchestratorTest extends TestCase
         $this->stateMachine = $this->createMock(ILoginStateMachine::class);
         $this->secretsService = $this->createMock(SecretsService::class);
         $this->tokenService = $this->createMock(TokenService::class);
+        $this->tokenBlacklistRepository = $this->createMock(TokenBlacklistRepository::class);
         $this->logger = $this->createMock(LoggerInterface::class);
         $this->sessionOrch = $this->createMock(SessionOrchestrator::class);
 
@@ -64,6 +67,7 @@ class AuthenticationOrchestratorTest extends TestCase
             $this->stateMachine,
             $this->secretsService,
             $this->tokenService,
+            $this->tokenBlacklistRepository,
             $this->logger,
         );
 

@@ -40,4 +40,9 @@ class InMemorySessionCookieHandler implements SessionCookieHandler
         $this->data = null;
         return $response;
     }
+
+    public function reset(): void
+    {
+        $this->data = null;
+    }
 }
