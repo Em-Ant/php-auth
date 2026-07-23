@@ -15,7 +15,7 @@ $pdo = new \PDO("sqlite:{$dbPath}", '', '', [
 ]);
 
 $repo = new \AuthServer\Repositories\MigrationRepository($pdo);
-$runner = new \AuthServer\Services\MigrationRunner($repo, __DIR__ . '/../db/migrations/');
+$runner = new \AuthServer\Services\MigrationRunner($repo, __DIR__ . '/../migrations/');
 
 $command = $argv[1] ?? 'status';
 

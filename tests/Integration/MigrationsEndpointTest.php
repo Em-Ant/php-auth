@@ -31,7 +31,7 @@ class MigrationsEndpointTest extends TestCase
         $migrationRepo = new MigrationRepository(self::$pdo);
         $runner = new MigrationRunner(
             $migrationRepo,
-            __DIR__ . '/../../db/migrations/'
+            __DIR__ . '/../../migrations/'
         );
         $controller = new MigrationsController($runner);
         $adminMiddleware = new AdminMiddleware(self::$apiKey);

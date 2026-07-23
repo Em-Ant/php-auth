@@ -44,7 +44,7 @@ jobs:
 
       - name: Create dist forlder
         run: |
-          mkdir -p ./dist/config && cp -r src public static vendor db_admin dist && cp config/di.php dist/config/
+          mkdir -p ./dist/config && cp -r src public static vendor db_admin migrations dist && cp config/di.php dist/config/
           ls -R dist
 
       - name: Install lftp

@@ -63,7 +63,7 @@ class TestAppFactory
         $migrationRepo = new \AuthServer\Repositories\MigrationRepository($pdo);
         $runner = new \AuthServer\Services\MigrationRunner(
             $migrationRepo,
-            __DIR__ . '/../../db/migrations/'
+            __DIR__ . '/../../migrations/'
         );
         $runner->migrate();
 

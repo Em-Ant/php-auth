@@ -35,7 +35,7 @@ composer check          # PHPStan + PHPCS
 - **Entrypoint**: `public/index.php` loads `config/di.php` (PHP-DI), creates the container, wires Slim.
 - **No singleton DB**: Repositories take `\PDO` directly; `DataSource` was removed in Wave 2.
 - **Config-driven**: `config.ini` drives issuer, logging, rate limiting, password hashing.
-- **Versioned migrations**: plain SQL under `db/migrations/`, run via CLI or admin HTTP endpoint.
+- **Versioned migrations**: plain SQL under `migrations/`, run via CLI or admin HTTP endpoint.
 
 ## License
 

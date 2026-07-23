@@ -57,7 +57,7 @@ return [
     'password_hashing' => $config['password_hashing'] ?? [],
     'log_settings' => $config['log'] ?? [],
     'rate_limiting' => $config['rate_limiting'] ?? [],
-    'migrations_dir' => $ROOT . '/db/migrations/',
+    'migrations_dir' => $ROOT . '/migrations/',
 
     // ── PDO (shared) ──
 

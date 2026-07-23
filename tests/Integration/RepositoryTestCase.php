@@ -25,7 +25,7 @@ abstract class RepositoryTestCase extends TestCase
         $migrationRepo = new MigrationRepository(self::$pdo);
         $runner = new MigrationRunner(
             $migrationRepo,
-            __DIR__ . '/../../db/migrations/'
+            __DIR__ . '/../../migrations/'
         );
         $runner->migrate();
 
