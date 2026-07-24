@@ -109,7 +109,31 @@ TOKEN_TYPE=$(echo "$TOKEN_RESPONSE" | sed -n 's/.*"token_type":"\([^"]*\)".*/\1/
 [ -n "$ID_TOKEN" ]      && ok "Got id_token"      || fail "No id_token"
 [ "$TOKEN_TYPE" = "Bearer" ] && ok "token_type is Bearer" || fail "token_type: $TOKEN_TYPE"
 
-# ── Step 5: GET /certs (JWKS) ──────────────────────────────────
+# ── Step 5: Introspect active tokens ────────────────────────────
+echo ""
+echo "=== Step 5: Introspect active tokens ==="
+INTRO_ACCESS=$(curl -sS -X POST \
+    -d "token=${ACCESS_TOKEN}&client_id=$CLIENT" \
+    "$BASE_URL/realms/$REALM/protocol/openid-connect/token/introspect")
+
+echo "$INTRO_ACCESS" | grep -q '"active":true' && ok "Access token is active" || { fail "Access token not active"; exit 1; }
+echo "$INTRO_ACCESS" | grep -q '"token_type":"Bearer"' && ok "token_type is Bearer" || fail "token_type not Bearer"
+
+INTRO_REFRESH=$(curl -sS -X POST \
+    -d "token=${REFRESH_TOKEN}&client_id=$CLIENT" \
+    "$BASE_URL/realms/$REALM/protocol/openid-connect/token/introspect")
+
+echo "$INTRO_REFRESH" | grep -q '"active":true' && ok "Refresh token is active" || fail "Refresh token not active"
+echo "$INTRO_REFRESH" | grep -q '"token_type":"refresh_token"' && ok "token_type is refresh_token" || fail "token_type not refresh_token"
+
+INTRO_ID=$(curl -sS -X POST \
+    -d "token=${ID_TOKEN}&client_id=$CLIENT" \
+    "$BASE_URL/realms/$REALM/protocol/openid-connect/token/introspect")
+
+echo "$INTRO_ID" | grep -q '"active":true' && ok "ID token is active" || fail "ID token not active"
+echo "$INTRO_ID" | grep -q '"token_type":"ID"' && ok "token_type is ID" || fail "token_type not ID"
+
+# ── Step 6: GET /certs (JWKS) ──────────────────────────────────
 echo ""
 echo "=== Step 5: GET /certs ==="
 CERTS=$(curl -sf "$BASE_URL/realms/$REALM/protocol/openid-connect/certs") || {
@@ -118,7 +142,7 @@ CERTS=$(curl -sf "$BASE_URL/realms/$REALM/protocol/openid-connect/certs") || {
 }
 echo "$CERTS" | grep -q '"keys"' && ok "/certs returns keys" || fail "/certs missing keys array"
 
-# ── Step 6: GET /userinfo ──────────────────────────────────────
+# ── Step 7: GET /userinfo ──────────────────────────────────────
 echo ""
 echo "=== Step 6: GET /userinfo ==="
 USERINFO=$(curl -sf -H "Authorization: Bearer $ACCESS_TOKEN" \
@@ -128,7 +152,7 @@ USERINFO=$(curl -sf -H "Authorization: Bearer $ACCESS_TOKEN" \
 }
 echo "$USERINFO" | grep -q '"sub"' && ok "Userinfo returns sub" || fail "Userinfo missing sub"
 
-# ── Step 7: Refresh token ──────────────────────────────────────
+# ── Step 8: Refresh token ──────────────────────────────────────
 echo ""
 echo "=== Step 7: Refresh token ==="
 REFRESH_RESPONSE=$(curl -sS -X POST \
@@ -143,7 +167,7 @@ NEW_REFRESH=$(echo "$REFRESH_RESPONSE" | sed -n 's/.*"refresh_token":"\([^"]*\)"
     && ok "Refresh token rotated" \
     || fail "Refresh token not rotated"
 
-# ── Step 8: 3p-cookies pages & login-status-iframe ─────────────
+# ── Step 9: 3p-cookies pages & login-status-iframe ─────────────
 echo ""
 echo "=== Step 8: 3p-cookies pages & login-status-iframe ==="
 for step in step1.html step2.html; do
@@ -160,7 +184,7 @@ HTTP_CODE=$(curl -sS -o /dev/null -w "%{http_code}" \
     "$BASE_URL/realms/$REALM/protocol/openid-connect/login-status-iframe.html")
 [ "$HTTP_CODE" = "200" ] && ok "login-status-iframe.html returns 200" || fail "login-status-iframe.html returned $HTTP_CODE"
 
-# ── Step 9: Revoke refresh token ─────────────────────────────
+# ── Step 10: Revoke refresh token ─────────────────────────────
 echo ""
 echo "=== Step 9: Revoke refresh token ==="
 REVOKE_CODE=$(curl -sS -o /dev/null -w "%{http_code}" -X POST \
@@ -176,7 +200,7 @@ USED_REFRESH=$(curl -sS -X POST \
 
 [ "$USED_REFRESH" -gt 0 ] && ok "Revoked refresh token rejected" || fail "Revoked refresh token was accepted"
 
-# ── Step 10: Revoke access token ─────────────────────────────
+# ── Step 11: Revoke access token ─────────────────────────────
 echo ""
 echo "=== Step 10: Revoke access token ==="
 REVOKE_AT=$(curl -sS -o /dev/null -w "%{http_code}" -X POST \
@@ -190,5 +214,27 @@ USERINFO_CHECK=$(curl -sS -o /dev/null -w "%{http_code}" \
     "$BASE_URL/realms/$REALM/protocol/openid-connect/userinfo")
 
 [ "$USERINFO_CHECK" = "401" ] && ok "Revoked access token rejected at userinfo" || fail "Revoked access token was accepted at userinfo (got $USERINFO_CHECK)"
+
+# ── Step 12: Introspect revoked & garbage tokens ────────────────
+echo ""
+echo "=== Step 12: Introspect revoked & garbage tokens ==="
+
+INTRO_REVOKED=$(curl -sS -X POST \
+    -d "token=${NEW_ACCESS}&client_id=$CLIENT" \
+    "$BASE_URL/realms/$REALM/protocol/openid-connect/token/introspect")
+
+echo "$INTRO_REVOKED" | grep -q '"active":false' && ok "Revoked access token shows inactive" || fail "Revoked access token should be inactive"
+
+INTRO_GARBAGE=$(curl -sS -X POST \
+    -d "token=not-a-jwt&client_id=$CLIENT" \
+    "$BASE_URL/realms/$REALM/protocol/openid-connect/token/introspect")
+
+echo "$INTRO_GARBAGE" | grep -q '"active":false' && ok "Garbage token is not active" || fail "Garbage token should not be active"
+
+BAD_AUTH_CODE=$(curl -sS -o /dev/null -w "%{http_code}" -X POST \
+    -d "token=${NEW_ACCESS}&client_id=nonexistent" \
+    "$BASE_URL/realms/$REALM/protocol/openid-connect/token/introspect")
+
+[ "$BAD_AUTH_CODE" = "401" ] && ok "Bad client returns 401" || fail "Bad client expected 401, got $BAD_AUTH_CODE"
 
 exit $FAIL

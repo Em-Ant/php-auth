@@ -2,7 +2,7 @@
   "issuer": "<<ISSUER>>",
   "authorization_endpoint": "<<ISSUER>>/protocol/openid-connect/auth",
   "token_endpoint": "<<ISSUER>>/protocol/openid-connect/token",
-  "introspection_endpoint": null,
+  "introspection_endpoint": "<<ISSUER>>/protocol/openid-connect/token/introspect",
   "userinfo_endpoint": "<<ISSUER>>/protocol/openid-connect/userinfo",
   "end_session_endpoint": "<<ISSUER>>/protocol/openid-connect/logout",
   "frontchannel_logout_session_supported": true,
@@ -49,8 +49,8 @@
   "token_endpoint_auth_signing_alg_values_supported": [
     "RS256"
   ],
-  "introspection_endpoint_auth_methods_supported": [],
-  "introspection_endpoint_auth_signing_alg_values_supported": [],
+  "introspection_endpoint_auth_methods_supported": ["client_secret_basic"],
+  "introspection_endpoint_auth_signing_alg_values_supported": ["RS256"],
   "authorization_signing_alg_values_supported": [
     "RS256"
   ],
@@ -105,7 +105,7 @@
   "mtls_endpoint_aliases": {
     "token_endpoint": "<<ISSUER>>/protocol/openid-connect/token",
     "revocation_endpoint": "<<ISSUER>>/protocol/openid-connect/revoke",
-    "introspection_endpoint": null,
+"introspection_endpoint": "<<ISSUER>>/protocol/openid-connect/token/introspect",
     "device_authorization_endpoint": null,
     "registration_endpoint": null,
     "userinfo_endpoint": null,

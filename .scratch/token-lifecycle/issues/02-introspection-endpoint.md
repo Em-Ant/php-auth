@@ -1,5 +1,7 @@
 # Introspection Endpoint (RFC 7662)
 
+status: **DONE** 07/24/2026 23:19 CEST
+
 Add `POST /realms/{realm}/protocol/openid-connect/token/introspect` so resource
 servers can query token validity and metadata.
 
@@ -13,10 +15,10 @@ servers can query token validity and metadata.
 
 ### Request
 
-| Field | Required | Description |
-|---|---|---|
-| `token` | yes | The token string to introspect |
-| `token_type_hint` | no | `access_token` or `refresh_token` |
+| Field             | Required | Description                       |
+| ----------------- | -------- | --------------------------------- |
+| `token`           | yes      | The token string to introspect    |
+| `token_type_hint` | no       | `access_token` or `refresh_token` |
 
 Client authentication is the same as the token endpoint. RFC 7662 Section 2 says
 the endpoint is protected — only authenticated clients can call it.
@@ -65,10 +67,10 @@ If **`active: false`**, return only `{"active": false}`.
 
 ### Error cases
 
-| Situation | Response |
-|---|---|
-| Client auth fails | `401 Unauthorized` |
-| Token missing | `400 Bad Request` |
+| Situation                   | Response                          |
+| --------------------------- | --------------------------------- |
+| Client auth fails           | `401 Unauthorized`                |
+| Token missing               | `400 Bad Request`                 |
 | Malformed token / sig fails | `200 OK` with `{"active": false}` |
 
 ---

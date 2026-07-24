@@ -1,6 +1,6 @@
 # Revocation Endpoint (RFC 7009)
 
-[x] - Status: *DONE* - 07/24/2026 00:34
+[x] - Status: **DONE** 07/24/2026 00:34 CEST
 
 Add `POST /realms/{realm}/protocol/openid-connect/revoke` so clients can revoke
 access and refresh tokens.
@@ -33,10 +33,10 @@ DROP TABLE IF EXISTS token_blacklist;
 
 ### Request
 
-| Field | Required | Description |
-|---|---|---|
-| `token` | yes | The token string to revoke |
-| `token_type_hint` | no | `access_token` or `refresh_token` |
+| Field             | Required | Description                       |
+| ----------------- | -------- | --------------------------------- |
+| `token`           | yes      | The token string to revoke        |
+| `token_type_hint` | no       | `access_token` or `refresh_token` |
 
 Client authentication is the same as the token endpoint (uses client credentials).
 
@@ -57,13 +57,13 @@ Client authentication is the same as the token endpoint (uses client credentials
 
 ### Error cases
 
-| Situation | Response |
-|---|---|
-| Client auth fails | `401 Unauthorized` |
-| Token cannot be decoded (malformed JWT) | `200 OK` (no-op) |
-| Token was not issued to this client | `200 OK` (no-op) |
-| Token signature invalid | `200 OK` (no-op) |
-| Token already revoked / expired | `200 OK` (no-op) |
+| Situation                               | Response           |
+| --------------------------------------- | ------------------ |
+| Client auth fails                       | `401 Unauthorized` |
+| Token cannot be decoded (malformed JWT) | `200 OK` (no-op)   |
+| Token was not issued to this client     | `200 OK` (no-op)   |
+| Token signature invalid                 | `200 OK` (no-op)   |
+| Token already revoked / expired         | `200 OK` (no-op)   |
 
 RFC 7009 mandates **silent failure** for all token-level errors — only bad client
 auth produces an error response.

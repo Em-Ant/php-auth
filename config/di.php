@@ -5,6 +5,7 @@ declare(strict_types=1);
 use AuthServer\Controllers\Admin\MigrationsController;
 use AuthServer\Controllers\AuthorizationController;
 use AuthServer\Controllers\ErrorController;
+use AuthServer\Controllers\IntrospectController;
 use AuthServer\Controllers\LogoutController;
 use AuthServer\Controllers\OidcController;
 use AuthServer\Controllers\RevokeController;
@@ -149,6 +150,7 @@ return [
     OidcController::class => \DI\autowire()
         ->constructorParameter('issuer', \DI\get('issuer')),
     ErrorController::class => \DI\autowire(),
+    IntrospectController::class => \DI\autowire(),
     RevokeController::class => \DI\autowire(),
     MigrationsController::class => \DI\autowire(),
 ];

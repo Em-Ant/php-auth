@@ -118,6 +118,7 @@ $app->group(
         $authController = $containerObj->get(Controllers\AuthorizationController::class);
         $tokenController = $containerObj->get(Controllers\TokenController::class);
         $revokeController = $containerObj->get(Controllers\RevokeController::class);
+        $introspectController = $containerObj->get(Controllers\IntrospectController::class);
         $logoutController = $containerObj->get(Controllers\LogoutController::class);
         $oidcController = $containerObj->get(Controllers\OidcController::class);
         $errorController = $containerObj->get(Controllers\ErrorController::class);
@@ -130,6 +131,7 @@ $app->group(
         $group->post('/token', [$tokenController, 'token'])
             ->add($rateLimitMiddleware);
         $group->post('/revoke', [$revokeController, 'revoke']);
+        $group->post('/token/introspect', [$introspectController, 'introspect']);
         $group->get('/logout', [$logoutController, 'logout']);
         $group->get('/error', [$errorController, 'error']);
         $group->get('/certs', [$oidcController, 'sendKeys']);

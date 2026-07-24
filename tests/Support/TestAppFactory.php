@@ -6,6 +6,7 @@ namespace AuthServer\Tests\Support;
 
 use AuthServer\Controllers\AuthorizationController;
 use AuthServer\Controllers\ErrorController;
+use AuthServer\Controllers\IntrospectController;
 use AuthServer\Controllers\LogoutController;
 use AuthServer\Controllers\OidcController;
 use AuthServer\Controllers\RevokeController;
@@ -114,6 +115,7 @@ class TestAppFactory
                 $authController = $container->get(AuthorizationController::class);
                 $tokenController = $container->get(TokenController::class);
                 $revokeController = $container->get(RevokeController::class);
+                $introspectController = $container->get(IntrospectController::class);
                 $logoutController = $container->get(LogoutController::class);
                 $oidcController = $container->get(OidcController::class);
                 $errorController = $container->get(ErrorController::class);
@@ -124,6 +126,7 @@ class TestAppFactory
                 $group->post('/login-actions/authenticate', [$authController, 'login']);
                 $group->post('/token', [$tokenController, 'token']);
                 $group->post('/revoke', [$revokeController, 'revoke']);
+                $group->post('/token/introspect', [$introspectController, 'introspect']);
                 $group->get('/logout', [$logoutController, 'logout']);
                 $group->get('/error', [$errorController, 'error']);
                 $group->get('/certs', [$oidcController, 'sendKeys']);

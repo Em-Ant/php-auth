@@ -393,6 +393,31 @@ class AuthenticationOrchestrator
         }
     }
 
+    public function introspect(array $params, Realm $realm): array
+    {
+        $token = $params['token'] ?? '';
+        if ($token === '') {
+            $this->logger->info('introspect: token parameter missing');
+            throw new ValidationFailed('missing required parameter (token)');
+        }
+
+        $clientId = $params['client_id'] ?? '';
+        $this->validateIntrospectClient($clientId, $params);
+
+        $decoded = $this->decodeTokenSafely($token);
+        if ($decoded === null) {
+            return ['active' => false];
+        }
+
+        $typ = $decoded['typ'] ?? '';
+
+        if ($typ === 'Refresh') {
+            return $this->introspectRefreshToken($token, $decoded, $realm);
+        }
+
+        return $this->introspectAccessToken($token, $decoded, $realm);
+    }
+
     public function parseValidToken(string $token, Realm $realm): array
     {
         $is_valid = $this->token_service->validateToken($token, $realm);
@@ -588,5 +613,87 @@ class AuthenticationOrchestrator
         ) {
             throw new ValidationFailed('invalid client secret');
         }
+    }
+
+    private function validateIntrospectClient(string $clientId, array $params): void
+    {
+        $client = $this->client_repository->findByName($clientId);
+        if ($client === null) {
+            $this->logger->info("introspect: client $clientId not found");
+            throw new AuthenticationFailed('invalid client');
+        }
+
+        if ($client->requiresAuth()) {
+            $clientSecret = $params['client_secret'] ?? '';
+            $hashedSecret = $client->getClientSecret();
+            if (
+                $clientSecret === ''
+                || !$this->secrets_service->validatePassword($clientSecret, $hashedSecret)
+            ) {
+                $this->logger->info("introspect: invalid client secret for $clientId");
+                throw new AuthenticationFailed('invalid client');
+            }
+        }
+    }
+
+    private function introspectRefreshToken(string $token, array $decoded, Realm $realm): array
+    {
+        $login = $this->login_repository->findByrefreshToken($token);
+        if ($login === null || $login->getStatus() !== LoginStatus::Active) {
+            return ['active' => false];
+        }
+
+        $exp = $decoded['exp'] ?? 0;
+        if ($exp < time()) {
+            return ['active' => false];
+        }
+
+        return [
+            'active' => true,
+            'sub' => $decoded['sub'] ?? '',
+            'aud' => $decoded['aud'] ?? '',
+            'iss' => $decoded['iss'] ?? '',
+            'exp' => $exp,
+            'iat' => $decoded['iat'] ?? 0,
+            'jti' => $decoded['jti'] ?? '',
+            'token_type' => 'refresh_token',
+            'client_id' => $login->getClientId(),
+            'scope' => $login->getScope(),
+            'sid' => $decoded['sid'] ?? '',
+        ];
+    }
+
+    private function introspectAccessToken(string $token, array $decoded, Realm $realm): array
+    {
+        $isValid = $this->token_service->validateToken($token, $realm);
+        if (!$isValid) {
+            return ['active' => false];
+        }
+
+        $exp = $decoded['exp'] ?? 0;
+        if ($exp < time()) {
+            return ['active' => false];
+        }
+
+        $jti = $decoded['jti'] ?? '';
+        if ($jti !== '' && $this->tokenBlacklistRepository->exists($jti)) {
+            return ['active' => false];
+        }
+
+        $typ = $decoded['typ'] ?? 'Bearer';
+
+        return [
+            'active' => true,
+            'sub' => $decoded['sub'] ?? '',
+            'aud' => $decoded['aud'] ?? '',
+            'iss' => $decoded['iss'] ?? '',
+            'exp' => $exp,
+            'iat' => $decoded['iat'] ?? 0,
+            'jti' => $jti,
+            'token_type' => $typ,
+            'client_id' => $decoded['azp'] ?? $decoded['aud'] ?? '',
+            'scope' => $decoded['scope'] ?? '',
+            'sid' => $decoded['sid'] ?? '',
+        ];
     }
 }

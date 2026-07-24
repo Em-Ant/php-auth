@@ -33,7 +33,7 @@
 
 ## Token Lifecycle
 
-- [ ] Token Introspection (`POST /token/introspect`, RFC 7662)
+- [x] Token Introspection (`POST /token/introspect`, RFC 7662)
 - [x] Token Revocation (`POST /realms/{realm}/protocol/openid-connect/revoke`, RFC 7009)
 - [x] Token blacklist table
 - [ ] Cleanup job (purge expired blacklist entries)

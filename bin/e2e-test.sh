@@ -103,9 +103,52 @@ TOKEN_TYPE=$(echo "$TOKEN_RESPONSE" | sed -n 's/.*"token_type":"\([^"]*\)".*/\1/
 [ -n "$ID_TOKEN" ]      && ok "Got id_token"      || fail "No id_token"
 [ "$TOKEN_TYPE" = "Bearer" ] && ok "token_type is Bearer" || fail "token_type: $TOKEN_TYPE"
 
-# ── Step 4: Refresh token ─────────────────────────────────────
+# ── Step 4: Introspect active tokens ─────────────────────────
 echo ""
-echo "=== Step 4: Refresh token ==="
+echo "=== Step 4: Introspect active tokens ==="
+
+INTRO_ACCESS=$(curl -sS -X POST \
+    -d "token=${ACCESS_TOKEN}&client_id=kc_app" \
+    "$BASE/realms/test/protocol/openid-connect/token/introspect")
+
+echo "$INTRO_ACCESS" | grep -q '"active":true' && ok "Access token is active" || { fail "Access token not active"; exit 1; }
+echo "$INTRO_ACCESS" | grep -q '"token_type":"Bearer"' && ok "token_type is Bearer" || fail "token_type not Bearer"
+
+INTRO_REFRESH=$(curl -sS -X POST \
+    -d "token=${REFRESH_TOKEN}&client_id=kc_app" \
+    "$BASE/realms/test/protocol/openid-connect/token/introspect")
+
+echo "$INTRO_REFRESH" | grep -q '"active":true' && ok "Refresh token is active" || fail "Refresh token not active"
+echo "$INTRO_REFRESH" | grep -q '"token_type":"refresh_token"' && ok "token_type is refresh_token" || fail "token_type not refresh_token"
+
+INTRO_ID=$(curl -sS -X POST \
+    -d "token=${ID_TOKEN}&client_id=kc_app" \
+    "$BASE/realms/test/protocol/openid-connect/token/introspect")
+
+echo "$INTRO_ID" | grep -q '"active":true' && ok "ID token is active" || fail "ID token not active"
+echo "$INTRO_ID" | grep -q '"token_type":"ID"' && ok "token_type is ID" || fail "token_type not ID"
+
+# ── Step 5: Introspect with bad client creds ────────────────────
+echo ""
+echo "=== Step 5: Introspect with bad client credentials ==="
+BAD_AUTH_CODE=$(curl -sS -o /dev/null -w "%{http_code}" -X POST \
+    -d "token=${ACCESS_TOKEN}&client_id=nonexistent" \
+    "$BASE/realms/test/protocol/openid-connect/token/introspect")
+
+[ "$BAD_AUTH_CODE" = "401" ] && ok "Bad client returns 401" || fail "Bad client expected 401, got $BAD_AUTH_CODE"
+
+# ── Step 6: Introspect garbage token ──────────────────────────
+echo ""
+echo "=== Step 6: Introspect garbage token ==="
+INTRO_GARBAGE=$(curl -sS -X POST \
+    -d "token=not-a-jwt&client_id=kc_app" \
+    "$BASE/realms/test/protocol/openid-connect/token/introspect")
+
+echo "$INTRO_GARBAGE" | grep -q '"active":false' && ok "Garbage token is not active" || fail "Garbage token should not be active"
+
+# ── Step 7: Refresh token ─────────────────────────────────────
+echo ""
+echo "=== Step 7: Refresh token ==="
 REFRESH_RESPONSE=$(curl -sS -X POST \
     -d "grant_type=refresh_token&client_id=kc_app&refresh_token=${REFRESH_TOKEN}" \
     "$BASE/realms/test/protocol/openid-connect/token")
@@ -118,9 +161,9 @@ NEW_REFRESH=$(echo "$REFRESH_RESPONSE" | sed -n 's/.*"refresh_token":"\([^"]*\)"
     && ok "Refresh token rotated" \
     || fail "Refresh token not rotated"
 
-# ── Step 5: Revoke refresh token ──────────────────────────────
+# ── Step 8: Revoke refresh token ──────────────────────────────
 echo ""
-echo "=== Step 5: Revoke refresh token ==="
+echo "=== Step 8: Revoke refresh token ==="
 # Use the current (post-rotation) refresh token
 REVOKE_RESPONSE=$(curl -sS -o /dev/null -w "%{http_code}" -X POST \
     -u "kc_app:" \
@@ -136,9 +179,9 @@ USED_REFRESH=$(curl -sS -X POST \
 
 [ "$USED_REFRESH" -gt 0 ] && ok "Revoked refresh token rejected" || fail "Revoked refresh token was accepted"
 
-# ── Step 6: Revoke access token ───────────────────────────────
+# ── Step 9: Revoke access token ───────────────────────────────
 echo ""
-echo "=== Step 6: Revoke access token ==="
+echo "=== Step 9: Revoke access token ==="
 REVOKE_AT=$(curl -sS -o /dev/null -w "%{http_code}" -X POST \
     -u "kc_app:" \
     -d "token_type_hint=access_token&token=${NEW_ACCESS}" \
@@ -152,6 +195,15 @@ USERINFO_CHECK=$(curl -sS -o /dev/null -w "%{http_code}" \
     "$BASE/realms/test/protocol/openid-connect/userinfo")
 
 [ "$USERINFO_CHECK" = "401" ] && ok "Revoked access token rejected at userinfo" || fail "Revoked access token was accepted at userinfo (got $USERINFO_CHECK)"
+
+# ── Step 10: Introspect revoked access token ────────────────────
+echo ""
+echo "=== Step 10: Introspect revoked access token ==="
+INTRO_REVOKED=$(curl -sS -X POST \
+    -d "token=${NEW_ACCESS}&client_id=kc_app" \
+    "$BASE/realms/test/protocol/openid-connect/token/introspect")
+
+echo "$INTRO_REVOKED" | grep -q '"active":false' && ok "Revoked access token shows inactive" || fail "Revoked access token should be inactive"
 
 # ── All done ──────────────────────────────────────────────────
 exit $FAIL
