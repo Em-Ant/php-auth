@@ -13,7 +13,6 @@ use AuthServer\Controllers\TokenController;
 use AuthServer\Interfaces\ClientRepository as IClientRepo;
 use AuthServer\Interfaces\KeyStore;
 use AuthServer\Interfaces\LoginRepository as ILoginRepo;
-use AuthServer\Interfaces\LoginStateMachine as ILoginStateMachine;
 use AuthServer\Interfaces\RealmRepository as IRealmRepo;
 use AuthServer\Interfaces\SessionCookieHandler;
 use AuthServer\Interfaces\SessionRepository as ISessionRepo;
@@ -35,6 +34,9 @@ use AuthServer\Services\MigrationRunner;
 use AuthServer\Services\RateLimiter;
 use AuthServer\Services\SecretsService;
 use AuthServer\Services\SessionOrchestrator;
+use AuthServer\Services\TokenGrantService;
+use AuthServer\Services\TokenIntrospectionService;
+use AuthServer\Services\TokenRevocationService;
 use AuthServer\Services\TokenService;
 use AuthServer\Services\ViewRenderer;
 use Monolog\Handler\StreamHandler;
@@ -111,12 +113,13 @@ return [
     ILoginRepo::class => \DI\autowire(LoginRepository::class),
     IUserRepo::class => \DI\autowire(UserRepository::class),
     IRealmRepo::class => \DI\autowire(RealmRepository::class),
-    ILoginStateMachine::class => \DI\autowire(LoginStateMachine::class),
-
     // ── Domain services ──
 
     SessionOrchestrator::class => \DI\autowire(),
     AuthenticationOrchestrator::class => \DI\autowire(),
+    TokenGrantService::class => \DI\autowire(),
+    TokenRevocationService::class => \DI\autowire(),
+    TokenIntrospectionService::class => \DI\autowire(),
     InputValidator::class => \DI\autowire(),
     LoginStateMachine::class => \DI\autowire(),
     RateLimiter::class => \DI\autowire(),

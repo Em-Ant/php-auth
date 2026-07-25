@@ -134,6 +134,36 @@ class Login implements \JsonSerializable
         return $this->status;
     }
 
+    public function setSessionId(string $sessionId): void
+    {
+        $this->session_id = $sessionId;
+    }
+
+    public function setCode(?string $code): void
+    {
+        $this->code = $code;
+    }
+
+    public function setAuthenticatedAt(\DateTime $authenticatedAt): void
+    {
+        $this->authenticated_at = $authenticatedAt;
+    }
+
+    public function setRefreshToken(?string $refreshToken): void
+    {
+        $this->refresh_token = $refreshToken;
+    }
+
+    public function setUpdatedAt(\DateTime $updatedAt): void
+    {
+        $this->updated_at = $updatedAt;
+    }
+
+    public function setStatus(LoginStatus $status): void
+    {
+        $this->status = $status;
+    }
+
     public function jsonSerialize(): array
     {
         $data = get_object_vars($this);

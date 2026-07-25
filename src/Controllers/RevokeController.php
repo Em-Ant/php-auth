@@ -6,18 +6,18 @@ namespace AuthServer\Controllers;
 
 use AuthServer\Models\Realm;
 use AuthServer\Response\JsonResponse;
-use AuthServer\Services\AuthenticationOrchestrator;
+use AuthServer\Services\TokenRevocationService;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 
 class RevokeController
 {
-    private AuthenticationOrchestrator $auth_service;
+    private TokenRevocationService $revocationService;
 
     public function __construct(
-        AuthenticationOrchestrator $service,
+        TokenRevocationService $revocationService,
     ) {
-        $this->auth_service = $service;
+        $this->revocationService = $revocationService;
     }
 
     public function revoke(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
@@ -38,7 +38,7 @@ class RevokeController
         /** @var Realm */
         $realm = $request->getAttribute(Realm::class);
 
-        $this->auth_service->revoke($body, $realm);
+        $this->revocationService->revoke($body, $realm);
 
         return JsonResponse::create($response, [], 200);
     }

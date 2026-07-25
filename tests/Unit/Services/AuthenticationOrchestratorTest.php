@@ -9,18 +9,14 @@ use AuthServer\Exceptions\StorageFailed;
 use AuthServer\Exceptions\ValidationFailed;
 use AuthServer\Interfaces\ClientRepository as IClientRepo;
 use AuthServer\Interfaces\LoginRepository as ILoginRepo;
-use AuthServer\Interfaces\LoginStateMachine as ILoginStateMachine;
-use AuthServer\Interfaces\SessionRepository as ISessionRepo;
 use AuthServer\Interfaces\UserRepository as IUserRepo;
 use AuthServer\Models\Client;
 use AuthServer\Models\Login;
-use AuthServer\Models\LoginEvent;
-use AuthServer\Models\LoginStatus;
 use AuthServer\Models\Realm;
 use AuthServer\Models\Session;
 use AuthServer\Models\User;
-use AuthServer\Repositories\TokenBlacklistRepository;
 use AuthServer\Services\AuthenticationOrchestrator;
+use AuthServer\Services\LoginStateMachine;
 use AuthServer\Services\SecretsService;
 use AuthServer\Services\SessionOrchestrator;
 use AuthServer\Services\TokenService;
@@ -30,13 +26,11 @@ use Psr\Log\LoggerInterface;
 class AuthenticationOrchestratorTest extends TestCase
 {
     private IClientRepo $clientRepo;
-    private ISessionRepo $sessionRepo;
     private IUserRepo $userRepo;
     private ILoginRepo $loginRepo;
-    private ILoginStateMachine $stateMachine;
+    private LoginStateMachine $stateMachine;
     private SecretsService $secretsService;
     private TokenService $tokenService;
-    private TokenBlacklistRepository $tokenBlacklistRepository;
     private LoggerInterface $logger;
     private SessionOrchestrator $sessionOrch;
     private AuthenticationOrchestrator $svc;
@@ -48,26 +42,22 @@ class AuthenticationOrchestratorTest extends TestCase
     protected function setUp(): void
     {
         $this->clientRepo = $this->createMock(IClientRepo::class);
-        $this->sessionRepo = $this->createMock(ISessionRepo::class);
         $this->userRepo = $this->createMock(IUserRepo::class);
         $this->loginRepo = $this->createMock(ILoginRepo::class);
-        $this->stateMachine = $this->createMock(ILoginStateMachine::class);
+        $this->stateMachine = $this->createMock(LoginStateMachine::class);
         $this->secretsService = $this->createMock(SecretsService::class);
         $this->tokenService = $this->createMock(TokenService::class);
-        $this->tokenBlacklistRepository = $this->createMock(TokenBlacklistRepository::class);
         $this->logger = $this->createMock(LoggerInterface::class);
         $this->sessionOrch = $this->createMock(SessionOrchestrator::class);
 
         $this->svc = new AuthenticationOrchestrator(
             $this->sessionOrch,
             $this->clientRepo,
-            $this->sessionRepo,
             $this->userRepo,
             $this->loginRepo,
             $this->stateMachine,
             $this->secretsService,
             $this->tokenService,
-            $this->tokenBlacklistRepository,
             $this->logger,
         );
 
@@ -263,11 +253,10 @@ class AuthenticationOrchestratorTest extends TestCase
         $this->sessionOrch->method('create')->willReturn($this->session);
         $this->secretsService->method('generateCode')->willReturn('code-xyz');
 
-        $updatedLogin = $this->createMock(Login::class);
-        $this->stateMachine->method('transition')->willReturn($updatedLogin);
+        $this->stateMachine->expects($this->once())->method('transition')->willReturn($login);
 
         $result = $this->svc->authenticateLogin('login-1', $this->user, $this->realm);
-        self::assertSame($updatedLogin, $result['login']);
+        self::assertSame($login, $result['login']);
         self::assertSame($this->session, $result['session']);
     }
 
@@ -276,99 +265,6 @@ class AuthenticationOrchestratorTest extends TestCase
         $this->loginRepo->method('findById')->willReturn(null);
         $this->expectException(StorageFailed::class);
         $this->svc->authenticateLogin('ghost', $this->user, $this->realm);
-    }
-
-    // ── getTokens (authorization_code) ────────────────────────
-
-    public function testGetTokensByAuthorizationCode(): void
-    {
-        $login = $this->createMock(Login::class);
-        $login->method('getCodeChallenge')->willReturn(null);
-        $login->method('getStatus')->willReturn(LoginStatus::Authenticated);
-        $login->method('getSessionId')->willReturn('s-id');
-
-        $this->clientRepo->method('findByName')->with('my-app')->willReturn($this->client);
-        $this->loginRepo->method('findByCode')->with('code-abc')->willReturn($login);
-        $this->sessionRepo->method('findById')->with('s-id')->willReturn($this->session);
-        $this->sessionOrch->method('checkExpiry')->willReturn(true);
-        $this->userRepo->method('findById')->with('u-id')->willReturn($this->user);
-        $this->tokenService->method('createTokenBundle')->willReturn([
-            'access_token' => 'at', 'id_token' => 'it', 'refresh_token' => 'rt',
-            'expires_in' => 300, 'refresh_expires_in' => 1800, 'token_type' => 'Bearer',
-            'session_state' => 's-id', 'scope' => 'openid', 'not-before-policy' => 0,
-        ]);
-        $this->stateMachine->method('transition')->willReturn($login);
-        $this->sessionOrch->method('refresh');
-
-        $params = [
-            'grant_type' => 'authorization_code', 'client_id' => 'my-app',
-            'code' => 'code-abc', 'redirect_uri' => 'http://example.com',
-            'refresh_token' => null,
-        ];
-        $result = $this->svc->getTokens($params, $this->realm);
-        self::assertSame('at', $result['access_token']);
-    }
-
-    public function testGetTokensByAuthCodeInvalidCodeThrows(): void
-    {
-        $this->clientRepo->method('findByName')->willReturn($this->client);
-        $this->loginRepo->method('findByCode')->willReturn(null);
-
-        $this->expectException(ValidationFailed::class);
-        $this->svc->getTokens([
-            'grant_type' => 'authorization_code', 'client_id' => 'my-app',
-            'code' => 'bad', 'redirect_uri' => 'http://example.com', 'refresh_token' => null,
-        ], $this->realm);
-    }
-
-    // ── getTokens (refresh_token) ─────────────────────────────
-
-    public function testGetTokensByRefreshToken(): void
-    {
-        $login = $this->createMock(Login::class);
-        $login->method('getStatus')->willReturn(LoginStatus::Active);
-        $login->method('getSessionId')->willReturn('s-id');
-
-        $this->clientRepo->method('findByName')->with('my-app')->willReturn($this->client);
-        $this->loginRepo->method('findByrefreshToken')->with('rt-old')->willReturn($login);
-        $this->stateMachine->method('transition')->willReturn($login);
-        $this->tokenService->method('tokenIsExpired')->with('rt-old')->willReturn(false);
-        $this->sessionRepo->method('findById')->with('s-id')->willReturn($this->session);
-        $this->sessionOrch->method('checkExpiry')->willReturn(true);
-        $this->userRepo->method('findById')->with('u-id')->willReturn($this->user);
-        $this->tokenService->method('createTokenBundle')->willReturn([
-            'access_token' => 'at2', 'id_token' => 'it2', 'refresh_token' => 'rt-new',
-            'expires_in' => 300, 'refresh_expires_in' => 1800, 'token_type' => 'Bearer',
-            'session_state' => 's-id', 'scope' => 'openid', 'not-before-policy' => 0,
-        ]);
-        $this->sessionOrch->method('refresh');
-
-        $params = [
-            'grant_type' => 'refresh_token', 'client_id' => 'my-app',
-            'code' => null, 'redirect_uri' => null, 'refresh_token' => 'rt-old',
-        ];
-        $result = $this->svc->getTokens($params, $this->realm);
-        self::assertSame('at2', $result['access_token']);
-    }
-
-    public function testGetTokensUnsupportedGrantTypeThrows(): void
-    {
-        $this->clientRepo->method('findByName')->willReturn($this->client);
-        $this->expectException(ValidationFailed::class);
-        $this->svc->getTokens([
-            'grant_type' => 'implicit', 'client_id' => 'my-app',
-            'code' => null, 'redirect_uri' => null, 'refresh_token' => null,
-        ], $this->realm);
-    }
-
-    public function testGetTokensClientNotFoundThrows(): void
-    {
-        $this->clientRepo->method('findByName')->willReturn(null);
-        $this->expectException(ValidationFailed::class);
-        $this->svc->getTokens([
-            'grant_type' => 'authorization_code', 'client_id' => 'ghost',
-            'code' => null, 'redirect_uri' => 'http://example.com', 'refresh_token' => null,
-        ], $this->realm);
     }
 
     // ── logout ────────────────────────────────────────────────
@@ -430,115 +326,5 @@ class AuthenticationOrchestratorTest extends TestCase
         $this->clientRepo->method('findByName')->willReturn(null);
         $this->expectException(ValidationFailed::class);
         $this->svc->getClientUri('ghost');
-    }
-
-    // ── Client secret validation via getTokens ────────────────
-
-    public function testGetTokensClientRequiresAuthValidatesSecret(): void
-    {
-        $secret = 'my-client-secret';
-        $securedClient = new Client(
-            'c-sec', 'secured-app', 'r-id',
-            password_hash($secret, PASSWORD_BCRYPT),
-            'http://example.com', true, '2025-01-01 00:00:00',
-        );
-
-        $login = $this->createMock(Login::class);
-        $login->method('getCodeChallenge')->willReturn(null);
-        $login->method('getStatus')->willReturn(LoginStatus::Authenticated);
-        $login->method('getSessionId')->willReturn('s-id');
-
-        $this->secretsService->method('validatePassword')->willReturn(true);
-        $this->clientRepo->method('findByName')->with('secured-app')->willReturn($securedClient);
-        $this->loginRepo->method('findByCode')->willReturn($login);
-        $this->sessionRepo->method('findById')->willReturn($this->session);
-        $this->sessionOrch->method('checkExpiry')->willReturn(true);
-        $this->userRepo->method('findById')->willReturn($this->user);
-        $this->tokenService->method('createTokenBundle')->willReturn([
-            'access_token' => 'at', 'id_token' => 'it', 'refresh_token' => 'rt',
-            'expires_in' => 300, 'refresh_expires_in' => 1800, 'token_type' => 'Bearer',
-            'session_state' => 's-id', 'scope' => 'openid', 'not-before-policy' => 0,
-        ]);
-        $this->stateMachine->method('transition')->willReturn($login);
-        $this->sessionOrch->method('refresh');
-
-        $params = [
-            'grant_type' => 'authorization_code', 'client_id' => 'secured-app',
-            'code' => $secret, 'redirect_uri' => 'http://example.com',
-            'refresh_token' => null,
-        ];
-        $result = $this->svc->getTokens($params, $this->realm);
-        self::assertSame('at', $result['access_token']);
-    }
-
-    public function testGetTokensCodeChallengeMismatchThrows(): void
-    {
-        $login = $this->createMock(Login::class);
-        $login->method('getCodeChallenge')->willReturn('valid-challenge');
-        $login->method('getStatus')->willReturn(LoginStatus::Authenticated);
-        $login->method('getSessionId')->willReturn('s-id');
-
-        $this->clientRepo->method('findByName')->willReturn($this->client);
-        $this->loginRepo->method('findByCode')->willReturn($login);
-        $this->sessionRepo->method('findById')->willReturn($this->session);
-        $this->sessionOrch->method('checkExpiry')->willReturn(true);
-        $this->userRepo->method('findById')->willReturn($this->user);
-        $this->tokenService->method('createTokenBundle')->willReturn([
-            'access_token' => 'at', 'id_token' => 'it', 'refresh_token' => 'rt',
-            'expires_in' => 300, 'refresh_expires_in' => 1800, 'token_type' => 'Bearer',
-            'session_state' => 's-id', 'scope' => 'openid', 'not-before-policy' => 0,
-        ]);
-        $this->stateMachine->method('transition')->willReturn($login);
-        $this->sessionOrch->method('refresh');
-
-        $this->expectException(ValidationFailed::class);
-        $this->svc->getTokens([
-            'grant_type' => 'authorization_code',
-            'client_id' => 'my-app',
-            'code' => 'code-abc',
-            'redirect_uri' => 'http://example.com',
-            'refresh_token' => null,
-            'code_verifier' => 'wrong-verifier',
-        ], $this->realm);
-    }
-
-    public function testGetTokensCodeExpiredThrows(): void
-    {
-        $login = $this->createMock(Login::class);
-        $login->method('getCodeChallenge')->willReturn(null);
-        $login->method('getStatus')->willReturn(LoginStatus::Expired);
-
-        $this->clientRepo->method('findByName')->willReturn($this->client);
-        $this->loginRepo->method('findByCode')->willReturn($login);
-
-        $this->expectException(ValidationFailed::class);
-        $this->svc->getTokens([
-            'grant_type' => 'authorization_code',
-            'client_id' => 'my-app',
-            'code' => 'expired-code',
-            'redirect_uri' => 'http://example.com',
-            'refresh_token' => null,
-        ], $this->realm);
-    }
-
-    public function testGetTokensRefreshTokenExpiredThrows(): void
-    {
-        $login = $this->createMock(Login::class);
-        $login->method('getStatus')->willReturn(LoginStatus::Active);
-        $login->method('getSessionId')->willReturn('s-id');
-
-        $this->clientRepo->method('findByName')->willReturn($this->client);
-        $this->loginRepo->method('findByrefreshToken')->with('rt-expired')->willReturn($login);
-        $this->stateMachine->method('transition')->willReturn($login);
-        $this->tokenService->method('tokenIsExpired')->willReturn(true);
-
-        $this->expectException(ValidationFailed::class);
-        $this->svc->getTokens([
-            'grant_type' => 'refresh_token',
-            'client_id' => 'my-app',
-            'code' => null,
-            'redirect_uri' => null,
-            'refresh_token' => 'rt-expired',
-        ], $this->realm);
     }
 }

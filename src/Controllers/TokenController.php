@@ -10,19 +10,23 @@ use AuthServer\Exceptions\ValidationFailed;
 use AuthServer\Models\Realm;
 use AuthServer\Response\JsonResponse;
 use AuthServer\Services\AuthenticationOrchestrator;
+use AuthServer\Services\TokenGrantService;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 
 class TokenController
 {
+    private TokenGrantService $tokenGrantService;
     private AuthenticationOrchestrator $auth_service;
 
     public const INVALID_REQUEST = 'Invalid request';
 
     public function __construct(
-        AuthenticationOrchestrator $service,
+        TokenGrantService $tokenGrantService,
+        AuthenticationOrchestrator $auth_service,
     ) {
-        $this->auth_service = $service;
+        $this->tokenGrantService = $tokenGrantService;
+        $this->auth_service = $auth_service;
     }
 
     public function token(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
@@ -49,7 +53,7 @@ class TokenController
 
             return JsonResponse::create(
                 $response,
-                $this->auth_service->getTokens($body, $realm),
+                $this->tokenGrantService->getTokens($body, $realm),
                 200,
                 $origin
             );

@@ -6,18 +6,17 @@ namespace AuthServer\Services;
 
 use AuthServer\Exceptions\ValidationFailed;
 use AuthServer\Interfaces\LoginRepository as ILoginRepo;
-use AuthServer\Interfaces\LoginStateMachine as ILoginStateMachine;
 use AuthServer\Models\Login;
 use AuthServer\Models\LoginEvent;
 use AuthServer\Models\LoginStatus;
 use AuthServer\Models\Realm;
 use Psr\Log\LoggerInterface;
 
-class LoginStateMachine implements ILoginStateMachine
+class LoginStateMachine
 {
     public function __construct(
-        private readonly ILoginRepo $loginRepository,
-        private readonly LoggerInterface $logger,
+        private ILoginRepo $loginRepository,
+        private LoggerInterface $logger,
     ) {
     }
 
@@ -35,69 +34,82 @@ class LoginStateMachine implements ILoginStateMachine
     private function doAuthenticate(Login $login, Realm $realm, array $context): Login
     {
         $this->assertStatus($login, LoginStatus::Pending);
-        $this->checkTtl($login, $realm);
 
-        $sessionId = $context['session_id'];
-        $code = $context['code'];
+        if ($this->isExpired($login, $realm)) {
+            $login->setStatus(LoginStatus::Expired);
+            throw new ValidationFailed($login->getStatus()->value . ' login expired');
+        }
+
+        $login->setSessionId($context['session_id']);
+        $login->setCode($context['code']);
+        $login->setAuthenticatedAt(new \DateTime());
+        $login->setUpdatedAt(new \DateTime());
+        $login->setStatus(LoginStatus::Authenticated);
 
         $ok = $this->loginRepository->setAuthenticated(
             $login->getId(),
-            $sessionId,
-            $code,
+            $context['session_id'],
+            $context['code'],
         );
 
         if (!$ok) {
-            throw new \RuntimeException('failed to authenticate login');
+            throw new \RuntimeException('failed to persist authenticated login');
         }
 
-        $updated = $this->loginRepository->findById($login->getId());
         $this->logger->info('login ' . $login->getId() . ' authenticated');
-
-        return $updated;
+        return $login;
     }
 
     private function doActivate(Login $login, Realm $realm, array $context): Login
     {
         $this->assertStatus($login, LoginStatus::Authenticated);
-        $this->checkTtl($login, $realm);
 
-        $refreshToken = $context['refresh_token'];
+        if ($this->isExpired($login, $realm)) {
+            $login->setStatus(LoginStatus::Expired);
+            throw new ValidationFailed($login->getStatus()->value . ' login expired');
+        }
+
+        $login->setRefreshToken($context['refresh_token']);
+        $login->setUpdatedAt(new \DateTime());
+        $login->setStatus(LoginStatus::Active);
 
         $ok = $this->loginRepository->setActive(
             $login->getId(),
-            $refreshToken,
+            $context['refresh_token'],
         );
 
         if (!$ok) {
-            throw new \RuntimeException('failed to activate login');
+            throw new \RuntimeException('failed to persist activated login');
         }
 
-        $updated = $this->loginRepository->findById($login->getId());
         $this->logger->info('login ' . $login->getId() . ' activated');
-
-        return $updated;
+        return $login;
     }
 
     private function doRefresh(Login $login, Realm $realm, array $context): Login
     {
         $this->assertStatus($login, LoginStatus::Active);
-        $this->checkTtl($login, $realm);
 
-        $newRefreshToken = $context['refresh_token'];
+        if ($this->isExpired($login, $realm)) {
+            $login->setStatus(LoginStatus::Expired);
+            throw new ValidationFailed($login->getStatus()->value . ' login expired');
+        }
+
+        $login->setRefreshToken($context['refresh_token']);
+        $login->setUpdatedAt(new \DateTime());
+        $login->setStatus(LoginStatus::Active);
 
         $ok = $this->loginRepository->refresh(
             $login->getId(),
-            $newRefreshToken,
+            $context['refresh_token'],
         );
 
         if (!$ok) {
-            throw new \RuntimeException('failed to refresh login');
+            throw new \RuntimeException('failed to persist refreshed login');
         }
 
-        $updated = $this->loginRepository->findById($login->getId());
         $this->logger->info('login ' . $login->getId() . ' refreshed');
-
-        return $updated;
+        return $login;
     }
 
     private function doExpire(Login $login): Login
@@ -106,16 +118,17 @@ class LoginStateMachine implements ILoginStateMachine
             return $login;
         }
 
+        $login->setStatus(LoginStatus::Expired);
+        $login->setUpdatedAt(new \DateTime());
+
         $ok = $this->loginRepository->setExpired($login->getId());
 
         if (!$ok) {
-            throw new \RuntimeException('failed to expire login');
+            throw new \RuntimeException('failed to persist expired login');
         }
 
-        $updated = $this->loginRepository->findById($login->getId());
         $this->logger->info('login ' . $login->getId() . ' expired');
-
-        return $updated;
+        return $login;
     }
 
     private function doCheckExpiry(Login $login, Realm $realm): Login
@@ -124,21 +137,12 @@ class LoginStateMachine implements ILoginStateMachine
             return $login;
         }
 
-        $expired = $this->isExpired($login, $realm);
-
-        if ($expired) {
-            return $this->doExpire($login);
+        if ($this->isExpired($login, $realm)) {
+            $login->setStatus(LoginStatus::Expired);
+            $login->setUpdatedAt(new \DateTime());
         }
 
         return $login;
-    }
-
-    private function checkTtl(Login $login, Realm $realm): void
-    {
-        if ($this->isExpired($login, $realm)) {
-            $this->doExpire($login);
-            throw new ValidationFailed($login->getStatus()->value . ' login expired');
-        }
     }
 
     private function isExpired(Login $login, Realm $realm): bool

@@ -124,6 +124,9 @@ $app->group(
         $errorController = $containerObj->get(Controllers\ErrorController::class);
         $authOrchestrator = $containerObj->get(\AuthServer\Services\AuthenticationOrchestrator::class);
         $tokenBlacklistRepo = $containerObj->get(\AuthServer\Repositories\TokenBlacklistRepository::class);
+        $tokenGrantService = $containerObj->get(\AuthServer\Services\TokenGrantService::class);
+        $revocationService = $containerObj->get(\AuthServer\Services\TokenRevocationService::class);
+        $introspectionService = $containerObj->get(\AuthServer\Services\TokenIntrospectionService::class);
 
         $group->get('/auth', [$authController, 'authorize']);
         $group->post('/login-actions/authenticate', [$authController, 'login'])

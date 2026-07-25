@@ -8,18 +8,18 @@ use AuthServer\Exceptions\AuthenticationFailed;
 use AuthServer\Exceptions\ValidationFailed;
 use AuthServer\Models\Realm;
 use AuthServer\Response\JsonResponse;
-use AuthServer\Services\AuthenticationOrchestrator;
+use AuthServer\Services\TokenIntrospectionService;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 
 class IntrospectController
 {
-    private AuthenticationOrchestrator $auth_service;
+    private TokenIntrospectionService $introspectionService;
 
     public function __construct(
-        AuthenticationOrchestrator $service,
+        TokenIntrospectionService $introspectionService,
     ) {
-        $this->auth_service = $service;
+        $this->introspectionService = $introspectionService;
     }
 
     public function introspect(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
@@ -43,7 +43,7 @@ class IntrospectController
 
             return JsonResponse::create(
                 $response,
-                $this->auth_service->introspect($body, $realm),
+                $this->introspectionService->introspect($body, $realm),
                 200
             );
         } catch (AuthenticationFailed $e) {

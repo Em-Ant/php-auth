@@ -9,53 +9,43 @@ use AuthServer\Exceptions\StorageFailed;
 use AuthServer\Exceptions\ValidationFailed;
 use AuthServer\Interfaces\ClientRepository as IClientRepo;
 use AuthServer\Interfaces\LoginRepository as ILoginRepo;
-use AuthServer\Interfaces\LoginStateMachine as ILoginStateMachine;
-use AuthServer\Interfaces\SessionRepository as ISessionRepo;
 use AuthServer\Interfaces\UserRepository as IUserRepo;
 use AuthServer\Models\Client;
 use AuthServer\Models\Login;
 use AuthServer\Models\LoginEvent;
-use AuthServer\Models\LoginStatus;
 use AuthServer\Models\Realm;
 use AuthServer\Models\Session;
 use AuthServer\Models\User;
-use AuthServer\Repositories\TokenBlacklistRepository;
 use Psr\Log\LoggerInterface;
 
 class AuthenticationOrchestrator
 {
     private SessionOrchestrator $sessionOrchestrator;
     private IClientRepo $client_repository;
-    private ISessionRepo $session_repository;
     private IUserRepo $user_repository;
     private ILoginRepo $login_repository;
-    private ILoginStateMachine $loginStateMachine;
+    private LoginStateMachine $loginStateMachine;
     private SecretsService $secrets_service;
     private TokenService $token_service;
-    private TokenBlacklistRepository $tokenBlacklistRepository;
     private LoggerInterface $logger;
 
     public function __construct(
         SessionOrchestrator $sessionOrchestrator,
         IClientRepo $client_repo,
-        ISessionRepo $session_repo,
         IUserRepo $user_repo,
         ILoginRepo $login_repo,
-        ILoginStateMachine $loginStateMachine,
+        LoginStateMachine $loginStateMachine,
         SecretsService $secrets_service,
         TokenService $token_service,
-        TokenBlacklistRepository $tokenBlacklistRepository,
         LoggerInterface $logger
     ) {
         $this->sessionOrchestrator = $sessionOrchestrator;
         $this->client_repository = $client_repo;
-        $this->session_repository = $session_repo;
         $this->user_repository = $user_repo;
         $this->login_repository = $login_repo;
         $this->loginStateMachine = $loginStateMachine;
         $this->secrets_service = $secrets_service;
         $this->token_service = $token_service;
-        $this->tokenBlacklistRepository = $tokenBlacklistRepository;
         $this->logger = $logger;
     }
 
@@ -236,7 +226,7 @@ class AuthenticationOrchestrator
         );
 
         $code = $this->secrets_service->generateCode();
-        $updated = $this->loginStateMachine->transition(
+        $this->loginStateMachine->transition(
             $login,
             LoginEvent::Authenticate,
             $realm,
@@ -247,59 +237,9 @@ class AuthenticationOrchestrator
         );
 
         return [
-            'login' => $updated,
+            'login' => $login,
             'session' => $session,
         ];
-    }
-
-    public function getTokens(array $params, Realm $realm): array
-    {
-        $this->logger->info("generating tokens...");
-
-        InputValidator::validateTokenParams($params);
-
-        $client_id = $params['client_id'];
-        $client_secret = $params['code'] ?? '';
-        $grant_type = $params['grant_type'];
-        $code = $params['code'] ?? '';
-        $redirect_uri = $params['redirect_uri'] ?? '';
-        $refresh_token = $params['refresh_token'] ?? '';
-        $code_verifier = $params['code_verifier'] ?? null;
-
-        $client = $this->client_repository->findByName($client_id);
-        if ($client === null) {
-            $this->logger->info(
-                "client $client_id not found while generating tokens"
-            );
-            throw new ValidationFailed('invalid client');
-        }
-
-        if ($client->requiresAuth()) {
-            $hashed_secret = $client->getClientSecret();
-            $this->logger->info("$client_id requires secret validation");
-            $this->validateClientSecret($hashed_secret, $client_secret);
-        }
-
-        if ($grant_type === 'authorization_code') {
-            InputValidator::validateRedirectUri($client, $redirect_uri);
-            return $this->getTokensByCode(
-                $code,
-                $realm,
-                $client,
-                $code_verifier
-            );
-        }
-
-        if ($grant_type === 'refresh_token') {
-            return $this->getTokensByRefreshToken(
-                $refresh_token,
-                $realm,
-                $client
-            );
-        }
-
-        $this->logger->error("unsupported token flow $grant_type");
-        throw new ValidationFailed('unsupported flow');
     }
 
     public function logout(string $id_token, Realm $realm): bool
@@ -330,94 +270,6 @@ class AuthenticationOrchestrator
         return $client->getUri();
     }
 
-    public function revoke(array $params, Realm $realm): void
-    {
-        $token = $params['token'] ?? '';
-        $tokenTypeHint = $params['token_type_hint'] ?? '';
-        $clientId = $params['client_id'] ?? '';
-
-        $client = $this->client_repository->findByName($clientId);
-        if ($client === null) {
-            $this->logger->info("revoke: client $clientId not found");
-            return;
-        }
-
-        if ($client->requiresAuth()) {
-            $clientSecret = $params['client_secret'] ?? '';
-            $hashedSecret = $client->getClientSecret();
-            if (
-                $clientSecret === ''
-                || !$this->secrets_service->validatePassword($clientSecret, $hashedSecret)
-            ) {
-                $this->logger->info("revoke: invalid client secret for $clientId");
-                return;
-            }
-        }
-
-        // Refresh token path (default when no hint, or hint is refresh_token)
-        if ($tokenTypeHint !== 'access_token') {
-            $login = $this->login_repository->findByrefreshToken($token);
-            if ($login !== null && $login->getClientId() === $client->getId()) {
-                $this->logger->info("revoke: expiring login {$login->getId()}");
-                $this->loginStateMachine->transition($login, LoginEvent::Expire, $realm);
-                $sessionId = $login->getSessionId();
-                if ($sessionId !== null) {
-                    $this->session_repository->setExpired($sessionId);
-                }
-                return;
-            }
-        }
-
-        // Access token path
-        $decoded = $this->decodeTokenSafely($token);
-        if ($decoded === null) {
-            return;
-        }
-
-        $aud = $decoded['aud'] ?? $decoded['azp'] ?? '';
-        if ((string) $aud !== $client->getName()) {
-            $this->logger->info("revoke: token not issued to $clientId");
-            return;
-        }
-
-        $isValid = $this->token_service->validateToken($token, $realm);
-        if (!$isValid) {
-            return;
-        }
-
-        $jti = $decoded['jti'] ?? '';
-        $exp = $decoded['exp'] ?? 0;
-        if ($jti !== '') {
-            $this->tokenBlacklistRepository->add($jti, $exp);
-            $this->logger->info("revoke: blacklisted jti $jti");
-        }
-    }
-
-    public function introspect(array $params, Realm $realm): array
-    {
-        $token = $params['token'] ?? '';
-        if ($token === '') {
-            $this->logger->info('introspect: token parameter missing');
-            throw new ValidationFailed('missing required parameter (token)');
-        }
-
-        $clientId = $params['client_id'] ?? '';
-        $this->validateIntrospectClient($clientId, $params);
-
-        $decoded = $this->decodeTokenSafely($token);
-        if ($decoded === null) {
-            return ['active' => false];
-        }
-
-        $typ = $decoded['typ'] ?? '';
-
-        if ($typ === 'Refresh') {
-            return $this->introspectRefreshToken($token, $decoded, $realm);
-        }
-
-        return $this->introspectAccessToken($token, $decoded, $realm);
-    }
-
     public function parseValidToken(string $token, Realm $realm): array
     {
         $is_valid = $this->token_service->validateToken($token, $realm);
@@ -432,139 +284,6 @@ class AuthenticationOrchestrator
         }
 
         return $this->token_service->decodeTokenPayload($token);
-    }
-
-    private function getTokensByCode(
-        string $code,
-        Realm $realm,
-        Client $client,
-        ?string $code_verifier
-    ): array {
-        $this->logger->info("generating tokens from authorization code $code");
-        $login = $this->login_repository->findByCode($code);
-
-        if ($login === null) {
-            $this->logger->error("invalid authorization code");
-            throw new ValidationFailed('invalid code');
-        }
-
-        $code_challenge = $login->getCodeChallenge();
-        if ($code_verifier !== null || $code_challenge !== null) {
-            InputValidator::validateCodeChallenge($code_challenge, $code_verifier);
-        }
-        if ($login->getStatus() !== LoginStatus::Authenticated) {
-            $this->logger->error("code $code is expired");
-            throw new ValidationFailed('code is expired');
-        }
-
-        $session_id = $login->getSessionId();
-        $session = $this->session_repository->findById($session_id);
-        if ($session === null) {
-            throw new StorageFailed("invalid session $session_id");
-        }
-
-        $expiryCheck = $this->sessionOrchestrator->checkExpiry(
-            $session,
-            $realm->getSessionExpiresIn(),
-            $realm->getIdleSessionExpiresIn()
-        );
-        if (!$expiryCheck) {
-            $this->logger->error("session $session_id expired");
-            throw new ValidationFailed('session expired');
-        }
-
-        $user = $this->user_repository->findById($session->getUserId());
-        if ($user === null) {
-            throw new StorageFailed('invalid session');
-        }
-
-        $token_bundle = $this->token_service->createTokenBundle(
-            $realm,
-            $session,
-            $login,
-            $client,
-            $user
-        );
-
-        $this->loginStateMachine->transition(
-            $login,
-            LoginEvent::Activate,
-            $realm,
-            ['refresh_token' => $token_bundle['refresh_token']],
-        );
-        $this->sessionOrchestrator->refresh($session_id);
-
-        return $token_bundle;
-    }
-
-    private function getTokensByRefreshToken(
-        string $refresh_token,
-        Realm $realm,
-        Client $client
-    ): array {
-        $this->logger->info("generating tokens from refresh token");
-
-        $login = $this->login_repository->findByrefreshToken($refresh_token);
-        if ($login === null) {
-            $this->logger->error("invalid refresh token");
-            throw new ValidationFailed('invalid refresh token');
-        }
-        if ($login->getStatus() !== LoginStatus::Active) {
-            $this->logger->error("login is in invalid status");
-            throw new ValidationFailed('login is expired');
-        }
-
-        $login = $this->loginStateMachine->transition($login, LoginEvent::CheckExpiry, $realm);
-
-        $expired = $this->token_service->tokenIsExpired($refresh_token);
-        if ($expired) {
-            $this->loginStateMachine->transition($login, LoginEvent::Expire, $realm);
-            throw new ValidationFailed('refresh_token is expired');
-        }
-
-        $session_id = $login->getSessionId();
-        $session = $this->session_repository->findById($session_id);
-        if ($session === null) {
-            throw new StorageFailed("invalid session $session_id");
-        }
-        if ($session->getStatus() !== 'ACTIVE') {
-            $this->logger->error("invalid status for session $session_id - not active");
-            throw new ValidationFailed('invalid session status');
-        }
-
-        $expiryCheck = $this->sessionOrchestrator->checkExpiry(
-            $session,
-            $realm->getSessionExpiresIn(),
-            $realm->getIdleSessionExpiresIn()
-        );
-        if (!$expiryCheck) {
-            $this->logger->error("session $session_id expired");
-            throw new ValidationFailed('session expired');
-        }
-
-        $user = $this->user_repository->findById($session->getUserId());
-        if ($user === null) {
-            $this->logger->error("invalid user for active session $session_id");
-            throw new StorageFailed('invalid session');
-        }
-
-        $token_bundle = $this->token_service->createTokenBundle(
-            $realm,
-            $session,
-            $login,
-            $client,
-            $user
-        );
-
-        $this->loginStateMachine->transition(
-            $login,
-            LoginEvent::Refresh,
-            $realm,
-            ['refresh_token' => $token_bundle['refresh_token']],
-        );
-        $this->sessionOrchestrator->refresh($session_id);
-
-        return $token_bundle;
     }
 
     private function ensureValidClient(
@@ -584,116 +303,5 @@ class AuthenticationOrchestrator
         InputValidator::validateRedirectUri($client, $redirect_uri);
 
         return $client;
-    }
-
-    private function decodeTokenSafely(string $token): ?array
-    {
-        try {
-            $parts = explode('.', $token);
-            if (count($parts) !== 3) {
-                return null;
-            }
-            $payload = json_decode(\AuthServer\Services\Base64Utils::b64UrlDecode($parts[1]), true);
-            return is_array($payload) ? $payload : null;
-        } catch (\Throwable $e) {
-            return null;
-        }
-    }
-
-    private function validateClientSecret(
-        string $hashed_secret,
-        string $client_secret
-    ): void {
-        if (
-            $client_secret === '' ||
-            !$this->secrets_service->validatePassword(
-                $client_secret,
-                $hashed_secret
-            )
-        ) {
-            throw new ValidationFailed('invalid client secret');
-        }
-    }
-
-    private function validateIntrospectClient(string $clientId, array $params): void
-    {
-        $client = $this->client_repository->findByName($clientId);
-        if ($client === null) {
-            $this->logger->info("introspect: client $clientId not found");
-            throw new AuthenticationFailed('invalid client');
-        }
-
-        if ($client->requiresAuth()) {
-            $clientSecret = $params['client_secret'] ?? '';
-            $hashedSecret = $client->getClientSecret();
-            if (
-                $clientSecret === ''
-                || !$this->secrets_service->validatePassword($clientSecret, $hashedSecret)
-            ) {
-                $this->logger->info("introspect: invalid client secret for $clientId");
-                throw new AuthenticationFailed('invalid client');
-            }
-        }
-    }
-
-    private function introspectRefreshToken(string $token, array $decoded, Realm $realm): array
-    {
-        $login = $this->login_repository->findByrefreshToken($token);
-        if ($login === null || $login->getStatus() !== LoginStatus::Active) {
-            return ['active' => false];
-        }
-
-        $exp = $decoded['exp'] ?? 0;
-        if ($exp < time()) {
-            return ['active' => false];
-        }
-
-        return [
-            'active' => true,
-            'sub' => $decoded['sub'] ?? '',
-            'aud' => $decoded['aud'] ?? '',
-            'iss' => $decoded['iss'] ?? '',
-            'exp' => $exp,
-            'iat' => $decoded['iat'] ?? 0,
-            'jti' => $decoded['jti'] ?? '',
-            'token_type' => 'refresh_token',
-            'client_id' => $login->getClientId(),
-            'scope' => $login->getScope(),
-            'sid' => $decoded['sid'] ?? '',
-        ];
-    }
-
-    private function introspectAccessToken(string $token, array $decoded, Realm $realm): array
-    {
-        $isValid = $this->token_service->validateToken($token, $realm);
-        if (!$isValid) {
-            return ['active' => false];
-        }
-
-        $exp = $decoded['exp'] ?? 0;
-        if ($exp < time()) {
-            return ['active' => false];
-        }
-
-        $jti = $decoded['jti'] ?? '';
-        if ($jti !== '' && $this->tokenBlacklistRepository->exists($jti)) {
-            return ['active' => false];
-        }
-
-        $typ = $decoded['typ'] ?? 'Bearer';
-
-        return [
-            'active' => true,
-            'sub' => $decoded['sub'] ?? '',
-            'aud' => $decoded['aud'] ?? '',
-            'iss' => $decoded['iss'] ?? '',
-            'exp' => $exp,
-            'iat' => $decoded['iat'] ?? 0,
-            'jti' => $jti,
-            'token_type' => $typ,
-            'client_id' => $decoded['azp'] ?? $decoded['aud'] ?? '',
-            'scope' => $decoded['scope'] ?? '',
-            'sid' => $decoded['sid'] ?? '',
-        ];
     }
 }

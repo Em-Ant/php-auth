@@ -16,16 +16,16 @@ use Psr\Log\LoggerInterface;
 
 class LoginStateMachineTest extends TestCase
 {
-    private ILoginRepo $repo;
-    private LoggerInterface $logger;
     private LoginStateMachine $machine;
+    private ILoginRepo&\PHPUnit\Framework\MockObject\MockObject $loginRepo;
+    private LoggerInterface&\PHPUnit\Framework\MockObject\MockObject $logger;
     private Realm $realm;
 
     protected function setUp(): void
     {
-        $this->repo = $this->createMock(ILoginRepo::class);
+        $this->loginRepo = $this->createMock(ILoginRepo::class);
         $this->logger = $this->createMock(LoggerInterface::class);
-        $this->machine = new LoginStateMachine($this->repo, $this->logger);
+        $this->machine = new LoginStateMachine($this->loginRepo, $this->logger);
         $this->realm = new Realm(
             'r-id', 'test', 'k-id',
             1800, 300, 300, 300, 86400, 1800,
@@ -60,14 +60,10 @@ class LoginStateMachineTest extends TestCase
     public function testAuthenticateTransitionsPendingToAuthenticated(): void
     {
         $login = $this->makeLogin(LoginStatus::Pending);
-        $updated = $this->makeLogin(LoginStatus::Authenticated, authenticatedAt: '2025-01-01 00:01:00');
 
-        $this->repo->expects(self::once())
-            ->method('setAuthenticated')
-            ->with('login-1', 'session-1', 'code-abc')
-            ->willReturn(true);
-        $this->repo->method('findById')->with('login-1')->willReturn($updated);
-        $this->logger->expects(self::once())->method('info');
+        $this->loginRepo->expects($this->once())->method('setAuthenticated')
+            ->with($login->getId(), 'session-1', 'code-abc')->willReturn(true);
+        $this->logger->expects($this->once())->method('info');
 
         $result = $this->machine->transition($login, LoginEvent::Authenticate, $this->realm, [
             'session_id' => 'session-1',
@@ -75,12 +71,14 @@ class LoginStateMachineTest extends TestCase
         ]);
 
         self::assertSame(LoginStatus::Authenticated, $result->getStatus());
+        self::assertSame('session-1', $result->getSessionId());
+        self::assertSame('code-abc', $result->getCode());
     }
 
     public function testAuthenticateFromWrongStatusThrows(): void
     {
         $login = $this->makeLogin(LoginStatus::Active);
-        $this->repo->expects(self::never())->method('setAuthenticated');
+        $this->loginRepo->expects($this->never())->method('setAuthenticated');
         $this->expectException(ValidationFailed::class);
 
         $this->machine->transition($login, LoginEvent::Authenticate, $this->realm, [
@@ -91,14 +89,15 @@ class LoginStateMachineTest extends TestCase
     public function testAuthenticateExpiredLoginThrows(): void
     {
         $login = $this->makeLogin(LoginStatus::Pending, createdAt: '2000-01-01 00:00:00');
-        $this->repo->method('setExpired')->willReturn(true);
-        $this->repo->method('findById')->willReturn($login);
+        $this->loginRepo->expects($this->never())->method('setAuthenticated');
         $this->expectException(ValidationFailed::class);
         $this->expectExceptionMessage('expired');
 
         $this->machine->transition($login, LoginEvent::Authenticate, $this->realm, [
             'session_id' => 's1', 'code' => 'c1',
         ]);
+
+        self::assertSame(LoginStatus::Expired, $login->getStatus());
     }
 
     // ── Activate ──────────────────────────────────────────────
@@ -106,26 +105,23 @@ class LoginStateMachineTest extends TestCase
     public function testActivateTransitionsAuthenticatedToActive(): void
     {
         $login = $this->makeLogin(LoginStatus::Authenticated, authenticatedAt: date('Y-m-d H:i:s'));
-        $updated = $this->makeLogin(LoginStatus::Active);
 
-        $this->repo->expects(self::once())
-            ->method('setActive')
-            ->with('login-1', 'rt-1')
-            ->willReturn(true);
-        $this->repo->method('findById')->willReturn($updated);
-        $this->logger->expects(self::once())->method('info');
+        $this->loginRepo->expects($this->once())->method('setActive')
+            ->with($login->getId(), 'rt-1')->willReturn(true);
+        $this->logger->expects($this->once())->method('info');
 
         $result = $this->machine->transition($login, LoginEvent::Activate, $this->realm, [
             'refresh_token' => 'rt-1',
         ]);
 
         self::assertSame(LoginStatus::Active, $result->getStatus());
+        self::assertSame('rt-1', $result->getRefreshToken());
     }
 
     public function testActivateFromWrongStatusThrows(): void
     {
         $login = $this->makeLogin(LoginStatus::Pending);
-        $this->repo->expects(self::never())->method('setActive');
+        $this->loginRepo->expects($this->never())->method('setActive');
         $this->expectException(ValidationFailed::class);
 
         $this->machine->transition($login, LoginEvent::Activate, $this->realm, [
@@ -138,26 +134,23 @@ class LoginStateMachineTest extends TestCase
     public function testRefreshTransitionsActiveLogin(): void
     {
         $login = $this->makeLogin(LoginStatus::Active, updatedAt: date('Y-m-d H:i:s'));
-        $updated = $this->makeLogin(LoginStatus::Active);
 
-        $this->repo->expects(self::once())
-            ->method('refresh')
-            ->with('login-1', 'rt-2')
-            ->willReturn(true);
-        $this->repo->method('findById')->willReturn($updated);
-        $this->logger->expects(self::once())->method('info');
+        $this->loginRepo->expects($this->once())->method('refresh')
+            ->with($login->getId(), 'rt-2')->willReturn(true);
+        $this->logger->expects($this->once())->method('info');
 
         $result = $this->machine->transition($login, LoginEvent::Refresh, $this->realm, [
             'refresh_token' => 'rt-2',
         ]);
 
         self::assertSame(LoginStatus::Active, $result->getStatus());
+        self::assertSame('rt-2', $result->getRefreshToken());
     }
 
     public function testRefreshFromWrongStatusThrows(): void
     {
         $login = $this->makeLogin(LoginStatus::Pending);
-        $this->repo->expects(self::never())->method('refresh');
+        $this->loginRepo->expects($this->never())->method('refresh');
         $this->expectException(ValidationFailed::class);
 
         $this->machine->transition($login, LoginEvent::Refresh, $this->realm, [
@@ -170,11 +163,10 @@ class LoginStateMachineTest extends TestCase
     public function testExpireNonExpiredLogin(): void
     {
         $login = $this->makeLogin(LoginStatus::Active, updatedAt: date('Y-m-d H:i:s'));
-        $expired = $this->makeLogin(LoginStatus::Expired);
 
-        $this->repo->expects(self::once())->method('setExpired')->with('login-1')->willReturn(true);
-        $this->repo->method('findById')->willReturn($expired);
-        $this->logger->expects(self::once())->method('info');
+        $this->loginRepo->expects($this->once())->method('setExpired')
+            ->with($login->getId())->willReturn(true);
+        $this->logger->expects($this->once())->method('info');
 
         $result = $this->machine->transition($login, LoginEvent::Expire, $this->realm);
 
@@ -185,7 +177,7 @@ class LoginStateMachineTest extends TestCase
     {
         $login = $this->makeLogin(LoginStatus::Expired);
 
-        $this->repo->expects(self::never())->method('setExpired');
+        $this->loginRepo->expects($this->never())->method('setExpired');
 
         $result = $this->machine->transition($login, LoginEvent::Expire, $this->realm);
 
@@ -198,21 +190,15 @@ class LoginStateMachineTest extends TestCase
     {
         $login = $this->makeLogin(LoginStatus::Pending, createdAt: date('Y-m-d H:i:s'));
 
-        $this->repo->expects(self::never())->method('setExpired');
-
         $result = $this->machine->transition($login, LoginEvent::CheckExpiry, $this->realm);
 
         self::assertSame($login, $result);
+        self::assertSame(LoginStatus::Pending, $result->getStatus());
     }
 
     public function testCheckExpiryPastTtlReturnsExpired(): void
     {
         $login = $this->makeLogin(LoginStatus::Pending, createdAt: '2000-01-01 00:00:00');
-        $expired = $this->makeLogin(LoginStatus::Expired);
-
-        $this->repo->expects(self::once())->method('setExpired')->willReturn(true);
-        $this->repo->method('findById')->willReturn($expired);
-        $this->logger->expects(self::once())->method('info');
 
         $result = $this->machine->transition($login, LoginEvent::CheckExpiry, $this->realm);
 
@@ -222,8 +208,6 @@ class LoginStateMachineTest extends TestCase
     public function testCheckExpiryAlreadyExpiredReturnsSame(): void
     {
         $login = $this->makeLogin(LoginStatus::Expired);
-
-        $this->repo->expects(self::never())->method('setExpired');
 
         $result = $this->machine->transition($login, LoginEvent::CheckExpiry, $this->realm);
 
@@ -235,7 +219,7 @@ class LoginStateMachineTest extends TestCase
     public function testAuthenticateRepoFailureThrows(): void
     {
         $login = $this->makeLogin(LoginStatus::Pending);
-        $this->repo->method('setAuthenticated')->willReturn(false);
+        $this->loginRepo->method('setAuthenticated')->willReturn(false);
         $this->expectException(\RuntimeException::class);
 
         $this->machine->transition($login, LoginEvent::Authenticate, $this->realm, [
@@ -246,7 +230,7 @@ class LoginStateMachineTest extends TestCase
     public function testActivateRepoFailureThrows(): void
     {
         $login = $this->makeLogin(LoginStatus::Authenticated, authenticatedAt: date('Y-m-d H:i:s'));
-        $this->repo->method('setActive')->willReturn(false);
+        $this->loginRepo->method('setActive')->willReturn(false);
         $this->expectException(\RuntimeException::class);
 
         $this->machine->transition($login, LoginEvent::Activate, $this->realm, [
@@ -257,7 +241,7 @@ class LoginStateMachineTest extends TestCase
     public function testRefreshRepoFailureThrows(): void
     {
         $login = $this->makeLogin(LoginStatus::Active, updatedAt: date('Y-m-d H:i:s'));
-        $this->repo->method('refresh')->willReturn(false);
+        $this->loginRepo->method('refresh')->willReturn(false);
         $this->expectException(\RuntimeException::class);
 
         $this->machine->transition($login, LoginEvent::Refresh, $this->realm, [
@@ -268,7 +252,7 @@ class LoginStateMachineTest extends TestCase
     public function testExpireRepoFailureThrows(): void
     {
         $login = $this->makeLogin(LoginStatus::Active, updatedAt: date('Y-m-d H:i:s'));
-        $this->repo->method('setExpired')->willReturn(false);
+        $this->loginRepo->method('setExpired')->willReturn(false);
         $this->expectException(\RuntimeException::class);
 
         $this->machine->transition($login, LoginEvent::Expire, $this->realm);
