@@ -6,6 +6,7 @@ namespace AuthServer\Services;
 
 use AuthServer\Exceptions\ValidationFailed;
 use AuthServer\Models\Client;
+use AuthServer\Models\GrantType;
 
 class InputValidator
 {
@@ -79,14 +80,15 @@ class InputValidator
 
         self::validateParams($query, $required_fields);
 
-        if (!in_array($query['grant_type'], ['authorization_code', 'refresh_token'])) {
+        $grantType = GrantType::tryFrom($query['grant_type']);
+        if ($grantType === null) {
             throw new ValidationFailed('unsupported flow');
         }
 
-        if ($query['grant_type'] === 'authorization_code' && !isset($query['code'])) {
+        if ($grantType === GrantType::AuthorizationCode && !isset($query['code'])) {
             throw new ValidationFailed("missing required field 'code'");
         }
-        if ($query['grant_type'] === 'refresh_token') {
+        if ($grantType === GrantType::RefreshToken) {
             $rt = $query['refresh_token'] ?? '';
             if ($rt === '' || trim($rt) === '' || $rt === 'undefined') {
                 throw new ValidationFailed("missing required field 'refresh_token'");

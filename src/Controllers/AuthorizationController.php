@@ -66,7 +66,7 @@ class AuthorizationController
                 );
             }
 
-            if (isset($session) && $session !== null) {
+            if (isset($session)) {
                 $login = $this->auth_service->createAuthorizedLogin(
                     $session,
                     $realm,

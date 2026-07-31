@@ -156,6 +156,42 @@ class TokenService
         file_put_contents("$dir/keys.json", json_encode($keys, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
     }
 
+    public function createClientCredentialsToken(
+        Realm $realm,
+        Client $client,
+        string $scope
+    ): array {
+        $now = time();
+        $kid = $realm->getKeysId();
+
+        $access_token = $this->createToken(
+            [
+                "exp" => $now + $realm->getAccessTokenExpiresIn(),
+                "iat" => $now,
+                "jti" => get_guid(),
+                "iss" => $this->issuer . "/realms/" . $realm->getName(),
+                "aud" => $client->getName(),
+                "sub" => $client->getName(),
+                "typ" => "Bearer",
+                "azp" => $client->getName(),
+                "allowed-origins" => [
+                    $client->getUri()
+                ],
+                "client_id" => $client->getName(),
+                "scope" => $scope,
+            ],
+            $kid
+        );
+
+        return [
+            "access_token" => $access_token,
+            "expires_in" => $realm->getAccessTokenExpiresIn(),
+            "token_type" => "Bearer",
+            "scope" => $scope,
+            "not-before-policy" => 0,
+        ];
+    }
+
     public function createTokenBundle(
         Realm $realm,
         Session $session,

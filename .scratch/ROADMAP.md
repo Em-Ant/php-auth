@@ -24,7 +24,7 @@
 
 ## Login Methods
 
-- [ ] Client Credentials grant (`grant_type=client_credentials`)
+- [x] Client Credentials grant (`grant_type=client_credentials`)
 - [ ] Resource Owner Password grant (`grant_type=password`)
 - [ ] Email magic link (`Mailer` interface + `NativeMailer` adapter)
 - [ ] SMTP adapter (future VPS deployment)
@@ -53,7 +53,8 @@
 ## PHP 8 / PHPStan
 
 - [x] Enums (LoginStatus, LoginEvent)
-- [ ] Enums for remaining domain concepts (GrantType, ResponseMode, etc.)
+- [x] `GrantType` enum (Client Credentials)
+- [ ] Remaining domain enums (ResponseMode, etc.)
 - [ ] Readonly properties, constructor promotion
 - [ ] Named arguments, match expressions
 - [ ] PHPStan level 5 → 6 → 7 → 8 → 9 (incrementally)

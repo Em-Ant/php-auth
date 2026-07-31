@@ -11,7 +11,8 @@
   "check_session_iframe": "<<ISSUER>>/protocol/openid-connect/login-status-iframe.html",
   "grant_types_supported": [
     "authorization_code",
-    "refresh_token"
+    "refresh_token",
+    "client_credentials"
   ],
   "acr_values_supported": [
     "0",

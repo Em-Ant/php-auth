@@ -134,6 +134,14 @@ class InputValidatorTest extends TestCase
         $this->expectNotToPerformAssertions();
     }
 
+    public function testValidateTokenParamsClientCredentials(): void
+    {
+        InputValidator::validateTokenParams([
+            'grant_type' => 'client_credentials', 'client_id' => 'app',
+        ]);
+        $this->expectNotToPerformAssertions();
+    }
+
     public function testValidateTokenParamsMissingGrantTypeThrows(): void
     {
         $this->expectException(ValidationFailed::class);

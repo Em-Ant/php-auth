@@ -215,9 +215,30 @@ USERINFO_CHECK=$(curl -sS -o /dev/null -w "%{http_code}" \
 
 [ "$USERINFO_CHECK" = "401" ] && ok "Revoked access token rejected at userinfo" || fail "Revoked access token was accepted at userinfo (got $USERINFO_CHECK)"
 
-# ── Step 12: Introspect revoked & garbage tokens ────────────────
+# ── Step 12: Client Credentials grant ───────────────────────────
 echo ""
-echo "=== Step 12: Introspect revoked & garbage tokens ==="
+echo "=== Step 12: Client Credentials grant ==="
+CC_RESPONSE=$(curl -sS -X POST \
+    -d "grant_type=client_credentials&client_id=$CLIENT" \
+    "$BASE_URL/realms/$REALM/protocol/openid-connect/token")
+
+CC_ACCESS=$(echo "$CC_RESPONSE" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+CC_SCOPE=$(echo "$CC_RESPONSE" | sed -n 's/.*"scope":"\([^"]*\)".*/\1/p')
+
+[ -n "$CC_ACCESS" ] && ok "Got client_credentials access_token" || { fail "No access_token"; exit 1; }
+echo "$CC_RESPONSE" | grep -q '"refresh_token"' && fail "client_credentials should not issue refresh_token" || ok "No refresh_token issued"
+echo "$CC_RESPONSE" | grep -q '"id_token"' && fail "client_credentials should not issue id_token" || ok "No id_token issued"
+[ -n "$CC_SCOPE" ] && ok "Scope: $CC_SCOPE" || fail "No scope in response"
+
+CC_INTRO=$(curl -sS -X POST \
+    -d "token=${CC_ACCESS}&client_id=$CLIENT" \
+    "$BASE_URL/realms/$REALM/protocol/openid-connect/token/introspect")
+
+echo "$CC_INTRO" | grep -q '"active":true' && ok "client_credentials token is active" || { fail "client_credentials token not active"; exit 1; }
+
+# ── Step 13: Introspect revoked & garbage tokens ────────────────
+echo ""
+echo "=== Step 13: Introspect revoked & garbage tokens ==="
 
 INTRO_REVOKED=$(curl -sS -X POST \
     -d "token=${NEW_ACCESS}&client_id=$CLIENT" \

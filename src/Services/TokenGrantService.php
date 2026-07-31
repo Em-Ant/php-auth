@@ -11,7 +11,7 @@ use AuthServer\Interfaces\LoginRepository as ILoginRepo;
 use AuthServer\Interfaces\SessionRepository as ISessionRepo;
 use AuthServer\Interfaces\UserRepository as IUserRepo;
 use AuthServer\Models\Client;
-use AuthServer\Models\Login;
+use AuthServer\Models\GrantType;
 use AuthServer\Models\LoginEvent;
 use AuthServer\Models\LoginStatus;
 use AuthServer\Models\Realm;
@@ -58,7 +58,7 @@ class TokenGrantService
         InputValidator::validateTokenParams($params);
 
         $client_id = $params['client_id'];
-        $client_secret = $params['code'] ?? '';
+        $client_secret = $params['client_secret'] ?? '';
         $grant_type = $params['grant_type'];
         $code = $params['code'] ?? '';
         $redirect_uri = $params['redirect_uri'] ?? '';
@@ -79,7 +79,7 @@ class TokenGrantService
             $this->validateClientSecret($hashed_secret, $client_secret);
         }
 
-        if ($grant_type === 'authorization_code') {
+        if ($grant_type === GrantType::AuthorizationCode->value) {
             InputValidator::validateRedirectUri($client, $redirect_uri);
             return $this->getTokensByCode(
                 $code,
@@ -89,12 +89,17 @@ class TokenGrantService
             );
         }
 
-        if ($grant_type === 'refresh_token') {
+        if ($grant_type === GrantType::RefreshToken->value) {
             return $this->getTokensByRefreshToken(
                 $refresh_token,
                 $realm,
                 $client
             );
+        }
+
+        if ($grant_type === GrantType::ClientCredentials->value) {
+            $scope = $params['scope'] ?? '';
+            return $this->getClientCredentialsTokens($realm, $client, $scope);
         }
 
         $this->logger->error("unsupported token flow $grant_type");
@@ -125,6 +130,9 @@ class TokenGrantService
         }
 
         $session_id = $login->getSessionId();
+        if ($session_id === null) {
+            throw new StorageFailed('invalid session');
+        }
         $session = $this->session_repository->findById($session_id);
         if ($session === null) {
             throw new StorageFailed("invalid session $session_id");
@@ -190,6 +198,9 @@ class TokenGrantService
         }
 
         $session_id = $login->getSessionId();
+        if ($session_id === null) {
+            throw new StorageFailed('invalid session');
+        }
         $session = $this->session_repository->findById($session_id);
         if ($session === null) {
             throw new StorageFailed("invalid session $session_id");
@@ -247,5 +258,30 @@ class TokenGrantService
         ) {
             throw new ValidationFailed('invalid client secret');
         }
+    }
+
+    private function getClientCredentialsTokens(
+        Realm $realm,
+        Client $client,
+        string $scope
+    ): array {
+        $this->logger->info(
+            "generating tokens via client_credentials grant for {$client->getName()}"
+        );
+
+        $requested_scope = $scope === '' ? implode(' ', $realm->getScope()) : $scope;
+        $allowed_scope = $realm->getScope();
+
+        foreach (explode(' ', $requested_scope) as $s) {
+            if ($s !== '' && !in_array($s, $allowed_scope, true)) {
+                throw new ValidationFailed('invalid scope');
+            }
+        }
+
+        return $this->token_service->createClientCredentialsToken(
+            $realm,
+            $client,
+            $requested_scope
+        );
     }
 }

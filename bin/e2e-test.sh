@@ -205,5 +205,26 @@ INTRO_REVOKED=$(curl -sS -X POST \
 
 echo "$INTRO_REVOKED" | grep -q '"active":false' && ok "Revoked access token shows inactive" || fail "Revoked access token should be inactive"
 
+# ── Step 11: Client Credentials grant ─────────────────────────
+echo ""
+echo "=== Step 11: Client Credentials grant ==="
+CC_RESPONSE=$(curl -sS -X POST \
+    -d "grant_type=client_credentials&client_id=kc_app" \
+    "$BASE/realms/test/protocol/openid-connect/token")
+
+CC_ACCESS=$(echo "$CC_RESPONSE" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+CC_SCOPE=$(echo "$CC_RESPONSE" | sed -n 's/.*"scope":"\([^"]*\)".*/\1/p')
+
+[ -n "$CC_ACCESS" ] && ok "Got client_credentials access_token" || { fail "No access_token"; exit 1; }
+echo "$CC_RESPONSE" | grep -q '"refresh_token"' && fail "client_credentials should not issue refresh_token" || ok "No refresh_token issued"
+echo "$CC_RESPONSE" | grep -q '"id_token"' && fail "client_credentials should not issue id_token" || ok "No id_token issued"
+[ -n "$CC_SCOPE" ] && ok "Scope: $CC_SCOPE" || fail "No scope in response"
+
+CC_INTRO=$(curl -sS -X POST \
+    -d "token=${CC_ACCESS}&client_id=kc_app" \
+    "$BASE/realms/test/protocol/openid-connect/token/introspect")
+
+echo "$CC_INTRO" | grep -q '"active":true' && ok "client_credentials token is active" || { fail "client_credentials token not active"; exit 1; }
+
 # ── All done ──────────────────────────────────────────────────
 exit $FAIL

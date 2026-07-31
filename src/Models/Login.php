@@ -73,7 +73,7 @@ class Login implements \JsonSerializable
     {
         return $this->id;
     }
-    public function getSessionId(): string
+    public function getSessionId(): ?string
     {
         return $this->session_id;
     }

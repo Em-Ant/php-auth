@@ -37,7 +37,7 @@ class TokenController
         if (str_starts_with($authHeader, 'Basic ')) {
             $cred = explode(':', base64_decode(substr($authHeader, 6)));
             if (!isset($body['client_id'])) {
-                $body['client_id'] = $cred[0] ?? null;
+                $body['client_id'] = $cred[0];
             }
             if (!isset($body['client_secret'])) {
                 $body['client_secret'] = $cred[1] ?? null;
