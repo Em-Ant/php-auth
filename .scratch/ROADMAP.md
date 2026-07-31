@@ -19,6 +19,7 @@
 ## Admin API
 
 - [ ] CRUD endpoints: realms, clients, users, key assignment
+- [ ] Scope/role configuration (client scopes, roles, scope↔role mappings) — see `.scratch/scopes/`
 - [ ] Audit log table + query endpoint
 - [ ] Password policy per realm (min length, complexity)
 
