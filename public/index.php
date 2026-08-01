@@ -20,7 +20,7 @@ if (function_exists('opcache_invalidate') && filter_var(ini_get('opcache.enable'
     opcache_invalidate(__FILE__, true);
 }
 
-require __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/../vendor/autoload.php';
 
 $container = require __DIR__ . '/../config/di.php';
 $containerObj = new \DI\Container($container);
@@ -195,11 +195,11 @@ $app->group('/admin/migrations', function (\Slim\Routing\RouteCollectorProxy $gr
 
 // Adminer — DB browser UI (included directly, handles its own routing)
 $app->any('/admin/db', function () {
-    include __DIR__ . '/../db_admin/index.php';
+    include_once __DIR__ . '/../db_admin/index.php';
     die();
 });
 $app->any('/admin/db/{path:.*}', function () {
-    include __DIR__ . '/../db_admin/index.php';
+    include_once __DIR__ . '/../db_admin/index.php';
     die();
 });
 

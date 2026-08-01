@@ -10,4 +10,4 @@ if (php_sapi_name() === 'cli-server') {
 }
 
 chdir(__DIR__);
-require __DIR__ . '/public/index.php';
+require_once __DIR__ . '/public/index.php';

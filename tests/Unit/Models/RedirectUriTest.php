@@ -49,7 +49,8 @@ class RedirectUriTest extends TestCase
     public function testInvalidResponseModeThrows(): void
     {
         $this->expectException(\InvalidArgumentException::class);
-        new RedirectUri('http://example.com/cb', 'invalid', ['code' => 'abc']);
+        $uri = new RedirectUri('http://example.com/cb', 'invalid', ['code' => 'abc']);
+        self::assertInstanceOf(RedirectUri::class, $uri);
     }
 
     #[DataProvider('specialCharsProvider')]

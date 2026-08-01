@@ -62,8 +62,8 @@ fi
 LOGIN_ID=$(echo "$AUTH_PAGE" | sed -n 's/.*action="[^"]*?q=\([^"]*\)".*/\1/p')
 CSRF_TOKEN=$(echo "$AUTH_PAGE" | sed -n 's/.*name="csrf_token"\s*value="\([^"]*\)".*/\1/p')
 
-[ -n "$LOGIN_ID" ]   && ok "Extracted login_id: ${LOGIN_ID:0:8}..."   || { fail "login_id missing"; exit 1; }
-[ -n "$CSRF_TOKEN" ] && ok "Extracted csrf_token: ${CSRF_TOKEN:0:8}..." || { fail "csrf_token missing"; exit 1; }
+[[ -n "$LOGIN_ID" ]]   && ok "Extracted login_id: ${LOGIN_ID:0:8}..."   || { fail "login_id missing"; exit 1; }
+[[ -n "$CSRF_TOKEN" ]] && ok "Extracted csrf_token: ${CSRF_TOKEN:0:8}..." || { fail "csrf_token missing"; exit 1; }
 
 # ── Step 3: POST login (authenticate) ──────────────────────────
 echo ""
@@ -75,7 +75,7 @@ HTTP_CODE=$(curl -sS -c "$COOKIE_JAR" -b "$COOKIE_JAR" \
     -d "email=test@example.com&password=tst&csrf_token=${CSRF_TOKEN}" \
     "$BASE_URL/realms/$REALM/protocol/openid-connect/login-actions/authenticate?q=${LOGIN_ID}")
 
-if [ "$HTTP_CODE" != "302" ]; then
+if [[ "$HTTP_CODE" != "302" ]]; then
     fail "Login expected 302, got $HTTP_CODE"
     exit 1
 fi
@@ -84,7 +84,7 @@ ok "Login returned 302 redirect"
 LOCATION=$(grep -i '^location:' "$HEADER_DUMP" | sed 's/.*location: //I' | tr -d '\r\n')
 AUTH_CODE=$(echo "$LOCATION" | sed 's/.*code=\([^&]*\).*/\1/')
 
-if [ -n "$AUTH_CODE" ]; then
+if [[ -n "$AUTH_CODE" ]]; then
     ok "Auth code: ${AUTH_CODE:0:8}..."
 else
     fail "No auth code in Location header"
@@ -104,10 +104,10 @@ REFRESH_TOKEN=$(echo "$TOKEN_RESPONSE" | sed -n 's/.*"refresh_token":"\([^"]*\)"
 ID_TOKEN=$(echo "$TOKEN_RESPONSE" | sed -n 's/.*"id_token":"\([^"]*\)".*/\1/p')
 TOKEN_TYPE=$(echo "$TOKEN_RESPONSE" | sed -n 's/.*"token_type":"\([^"]*\)".*/\1/p')
 
-[ -n "$ACCESS_TOKEN" ] && ok "Got access_token"  || { fail "No access_token"; exit 1; }
-[ -n "$REFRESH_TOKEN" ] && ok "Got refresh_token" || fail "No refresh_token"
-[ -n "$ID_TOKEN" ]      && ok "Got id_token"      || fail "No id_token"
-[ "$TOKEN_TYPE" = "Bearer" ] && ok "token_type is Bearer" || fail "token_type: $TOKEN_TYPE"
+[[ -n "$ACCESS_TOKEN" ]] && ok "Got access_token"  || { fail "No access_token"; exit 1; }
+[[ -n "$REFRESH_TOKEN" ]] && ok "Got refresh_token" || fail "No refresh_token"
+[[ -n "$ID_TOKEN" ]]      && ok "Got id_token"      || fail "No id_token"
+[[ "$TOKEN_TYPE" = "Bearer" ]] && ok "token_type is Bearer" || fail "token_type: $TOKEN_TYPE"
 
 # ── Step 5: Introspect active tokens ────────────────────────────
 echo ""
@@ -162,8 +162,8 @@ REFRESH_RESPONSE=$(curl -sS -X POST \
 NEW_ACCESS=$(echo "$REFRESH_RESPONSE" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
 NEW_REFRESH=$(echo "$REFRESH_RESPONSE" | sed -n 's/.*"refresh_token":"\([^"]*\)".*/\1/p')
 
-[ -n "$NEW_ACCESS" ] && ok "Refresh produced new access_token" || fail "No access_token after refresh"
-[ -n "$NEW_REFRESH" ] && [ "$NEW_REFRESH" != "$REFRESH_TOKEN" ] \
+[[ -n "$NEW_ACCESS" ]] && ok "Refresh produced new access_token" || fail "No access_token after refresh"
+[[ -n "$NEW_REFRESH" ]] && [[ "$NEW_REFRESH" != "$REFRESH_TOKEN" ]] \
     && ok "Refresh token rotated" \
     || fail "Refresh token not rotated"
 
@@ -173,7 +173,7 @@ echo "=== Step 8: 3p-cookies pages & login-status-iframe ==="
 for step in step1.html step2.html; do
     HTTP_CODE=$(curl -sS -o /dev/null -w "%{http_code}" \
         "$BASE_URL/realms/$REALM/protocol/openid-connect/3p-cookies/$step")
-    if [ "$HTTP_CODE" = "200" ]; then
+    if [[ "$HTTP_CODE" = "200" ]]; then
         ok "3p-cookies/$step returns 200"
     else
         fail "3p-cookies/$step returned $HTTP_CODE"
@@ -182,7 +182,7 @@ done
 
 HTTP_CODE=$(curl -sS -o /dev/null -w "%{http_code}" \
     "$BASE_URL/realms/$REALM/protocol/openid-connect/login-status-iframe.html")
-[ "$HTTP_CODE" = "200" ] && ok "login-status-iframe.html returns 200" || fail "login-status-iframe.html returned $HTTP_CODE"
+[[ "$HTTP_CODE" = "200" ]] && ok "login-status-iframe.html returns 200" || fail "login-status-iframe.html returned $HTTP_CODE"
 
 # ── Step 10: Revoke refresh token ─────────────────────────────
 echo ""
@@ -191,14 +191,14 @@ REVOKE_CODE=$(curl -sS -o /dev/null -w "%{http_code}" -X POST \
     -d "token=${NEW_REFRESH}&client_id=$CLIENT" \
     "$BASE_URL/realms/$REALM/protocol/openid-connect/revoke")
 
-[ "$REVOKE_CODE" = "200" ] && ok "Revoke returns 200" || { fail "Revoke expected 200, got $REVOKE_CODE"; exit 1; }
+[[ "$REVOKE_CODE" = "200" ]] && ok "Revoke returns 200" || { fail "Revoke expected 200, got $REVOKE_CODE"; exit 1; }
 
 USED_REFRESH=$(curl -sS -X POST \
     -d "grant_type=refresh_token&client_id=$CLIENT&refresh_token=${NEW_REFRESH}" \
     "$BASE_URL/realms/$REALM/protocol/openid-connect/token" \
     | grep -cE 'expired|invalid' || true)
 
-[ "$USED_REFRESH" -gt 0 ] && ok "Revoked refresh token rejected" || fail "Revoked refresh token was accepted"
+[[ "$USED_REFRESH" -gt 0 ]] && ok "Revoked refresh token rejected" || fail "Revoked refresh token was accepted"
 
 # ── Step 11: Revoke access token ─────────────────────────────
 echo ""
@@ -207,13 +207,13 @@ REVOKE_AT=$(curl -sS -o /dev/null -w "%{http_code}" -X POST \
     -d "token_type_hint=access_token&token=${NEW_ACCESS}&client_id=$CLIENT" \
     "$BASE_URL/realms/$REALM/protocol/openid-connect/revoke")
 
-[ "$REVOKE_AT" = "200" ] && ok "Revoke access token returns 200" || { fail "Revoke access token expected 200, got $REVOKE_AT"; exit 1; }
+[[ "$REVOKE_AT" = "200" ]] && ok "Revoke access token returns 200" || { fail "Revoke access token expected 200, got $REVOKE_AT"; exit 1; }
 
 USERINFO_CHECK=$(curl -sS -o /dev/null -w "%{http_code}" \
     -H "Authorization: Bearer ${NEW_ACCESS}" \
     "$BASE_URL/realms/$REALM/protocol/openid-connect/userinfo")
 
-[ "$USERINFO_CHECK" = "401" ] && ok "Revoked access token rejected at userinfo" || fail "Revoked access token was accepted at userinfo (got $USERINFO_CHECK)"
+[[ "$USERINFO_CHECK" = "401" ]] && ok "Revoked access token rejected at userinfo" || fail "Revoked access token was accepted at userinfo (got $USERINFO_CHECK)"
 
 # ── Step 12: Client Credentials grant ───────────────────────────
 echo ""
@@ -225,10 +225,10 @@ CC_RESPONSE=$(curl -sS -X POST \
 CC_ACCESS=$(echo "$CC_RESPONSE" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
 CC_SCOPE=$(echo "$CC_RESPONSE" | sed -n 's/.*"scope":"\([^"]*\)".*/\1/p')
 
-[ -n "$CC_ACCESS" ] && ok "Got client_credentials access_token" || { fail "No access_token"; exit 1; }
+[[ -n "$CC_ACCESS" ]] && ok "Got client_credentials access_token" || { fail "No access_token"; exit 1; }
 echo "$CC_RESPONSE" | grep -q '"refresh_token"' && fail "client_credentials should not issue refresh_token" || ok "No refresh_token issued"
 echo "$CC_RESPONSE" | grep -q '"id_token"' && fail "client_credentials should not issue id_token" || ok "No id_token issued"
-[ -n "$CC_SCOPE" ] && ok "Scope: $CC_SCOPE" || fail "No scope in response"
+[[ -n "$CC_SCOPE" ]] && ok "Scope: $CC_SCOPE" || fail "No scope in response"
 
 CC_INTRO=$(curl -sS -X POST \
     -d "token=${CC_ACCESS}&client_id=$CLIENT" \
@@ -256,6 +256,6 @@ BAD_AUTH_CODE=$(curl -sS -o /dev/null -w "%{http_code}" -X POST \
     -d "token=${NEW_ACCESS}&client_id=nonexistent" \
     "$BASE_URL/realms/$REALM/protocol/openid-connect/token/introspect")
 
-[ "$BAD_AUTH_CODE" = "401" ] && ok "Bad client returns 401" || fail "Bad client expected 401, got $BAD_AUTH_CODE"
+[[ "$BAD_AUTH_CODE" = "401" ]] && ok "Bad client returns 401" || fail "Bad client expected 401, got $BAD_AUTH_CODE"
 
 exit $FAIL

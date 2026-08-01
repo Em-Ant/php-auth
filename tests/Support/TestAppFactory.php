@@ -188,11 +188,11 @@ class TestAppFactory
 
         // Adminer
         $app->any('/admin/db', function () {
-            include __DIR__ . '/../../db_admin/index.php';
+            include_once __DIR__ . '/../../db_admin/index.php';
             die();
         });
         $app->any('/admin/db/{path:.*}', function () {
-            include __DIR__ . '/../../db_admin/index.php';
+            include_once __DIR__ . '/../../db_admin/index.php';
             die();
         });
 

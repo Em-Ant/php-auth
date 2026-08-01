@@ -26,5 +26,5 @@ function adminer_object()
 }
 
 // include original Adminer or Adminer Editor
-include("adminer.php");
+include_once("adminer.php");
 ?>
