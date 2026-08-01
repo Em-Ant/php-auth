@@ -221,7 +221,7 @@ composer check          # stan + cs_check — run before committing
 
 - **Single entrypoint**: `public/index.php` loads the DI container, wires all
   routes and middleware inline.
-- **DI container**: PHP-DI with autowiring. Definitions in `config/di.php`.
+- **DI container**: PHP-DI with autowiring. Definitions in `src/Config/Definitions.php`.
 - **No framework magic**: Slim 4 with PSR-7/PSR-15 middleware.
 - **SQLite backend**: Repositories take `\PDO` directly. In-memory SQLite for tests.
 - **Versioned migrations**: Plain SQL files in `migrations/` (`.up.sql` / `.down.sql`).

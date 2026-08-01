@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AuthServer;
 
+use AuthServer\Config\Definitions;
 use AuthServer\Controllers;
 use AuthServer\Middleware\CorsMiddleware;
 use AuthServer\Middleware\RequestLogger;
@@ -22,8 +23,7 @@ if (function_exists('opcache_invalidate') && filter_var(ini_get('opcache.enable'
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
-$container = require_once __DIR__ . '/../config/di.php';
-$containerObj = new \DI\Container($container);
+$containerObj = new \DI\Container(Definitions::get());
 $app = Bridge::create($containerObj);
 
 $basePath = $containerObj->get('base_path');

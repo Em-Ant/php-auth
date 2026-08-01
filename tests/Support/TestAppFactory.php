@@ -27,6 +27,7 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use Slim\Exception\HttpNotFoundException;
 use Slim\Psr7\Response;
+use AuthServer\Config\Definitions;
 use AuthServer\Controllers\Admin\MigrationsController;
 
 class TestAppFactory
@@ -41,7 +42,7 @@ class TestAppFactory
 
         $pdo->exec('PRAGMA foreign_keys = ON');
 
-        $di = require_once __DIR__ . '/../../config/di.php';
+        $di = Definitions::get();
 
         // Override PDO with in-memory SQLite
         $di[\PDO::class] = $pdo;
