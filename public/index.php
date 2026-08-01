@@ -22,7 +22,7 @@ if (function_exists('opcache_invalidate') && filter_var(ini_get('opcache.enable'
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
-$container = require __DIR__ . '/../config/di.php';
+$container = require_once __DIR__ . '/../config/di.php';
 $containerObj = new \DI\Container($container);
 $app = Bridge::create($containerObj);
 

@@ -27,11 +27,9 @@ $action = htmlspecialchars($sub_path . "/realms/$realm/protocol/openid-connect/l
         <p class="error"><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?> </p>
     <?php endif; ?>
     <button aria-label="submit" class="submit" type="submit">
-        <span role="image" alt="open lock icon" class="icon">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-                <path d="M368 192H192v-80a64 64 0 11128 0 16 16 0 0032 0 96 96 0 10-192 0v80h-16a64.07 64.07 0 00-64 64v176a64.07 64.07 0 0064 64h224a64.07 64.07 0 0064-64V256a64.07 64.07 0 00-64-64z" />
-            </svg>
-        </span>
+        <svg aria-hidden="true" focusable="false" class="icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+            <path d="M368 192H192v-80a64 64 0 11128 0 16 16 0 0032 0 96 96 0 10-192 0v80h-16a64.07 64.07 0 00-64 64v176a64.07 64.07 0 0064 64h224a64.07 64.07 0 0064-64V256a64.07 64.07 0 00-64-64z" />
+        </svg>
     </button>
 
 </form>

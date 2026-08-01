@@ -60,7 +60,6 @@ input:focus {
 }
 button {
   color: #61677c;
-  font-weight: bold;
   box-shadow: -5px -5px 20px #fff, 5px 5px 20px #babecc;
   transition: all 0.2s ease-in-out;
   cursor: pointer;
@@ -104,12 +103,8 @@ button.submit {
   flex: 1;
 }
 
-span.icon {
-  display: flex;
+svg.icon {
   height: 1.5em;
-  justify-content: center;
-}
-
-span.icon svg {
+  width: auto;
   fill: #4257b8;
 }

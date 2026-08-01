@@ -46,9 +46,9 @@ class InputValidatorTest extends TestCase
 
     public function testValidateRedirectUriMismatchThrows(): void
     {
-        $client = new Client('c-1', 'app', 'r-1', null, 'http://example.com', false, '2025-01-01 00:00:00');
+        $client = new Client('c-1', 'app', 'r-1', null, 'https://example.com', false, '2025-01-01 00:00:00');
         $this->expectException(ValidationFailed::class);
-        InputValidator::validateRedirectUri($client, 'http://other.com');
+        InputValidator::validateRedirectUri($client, 'https://other.com');
     }
 
     // ── validateQueryParams ────────────────────────────────────

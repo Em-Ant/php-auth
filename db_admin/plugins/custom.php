@@ -12,10 +12,10 @@ class CustomCredentials
                 'Adminer config not found. Copy db_admin/config.example.php to db_admin/config.php'
             );
         }
-        $this->config = require $configFile;
+        $this->config = require_once $configFile;
     }
 
-    function loginForm()
+    public function loginForm()
     {
         $adminer = adminer();
         echo "<table cellspacing='0' class='layout'>\n";
@@ -28,12 +28,12 @@ class CustomCredentials
         return true;
     }
 
-    function navigation()
+    public function navigation()
     {
         return true;
     }
 
-    function credentials()
+    public function credentials()
     {
         $username = $_GET["username"];
         $password = get_password();
@@ -47,7 +47,7 @@ class CustomCredentials
         return [SERVER, $username, $password];
     }
 
-    function login($login, $password)
+    public function login($login, $password)
     {
         foreach ($this->config['users'] as $user) {
             if ($user['user'] === $login && $user['pass'] === $password) {
