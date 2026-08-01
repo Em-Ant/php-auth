@@ -2,7 +2,7 @@ name: Deploy
 
 on:
   push:
-    branches: [improvements]
+    branches: [develop]
 
 jobs:
   test:
@@ -91,5 +91,3 @@ jobs:
           REALM: test
           CLIENT: kc_app
           REDIRECT_URI: https://www.keycloak.org/app
-
-
