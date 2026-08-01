@@ -12,7 +12,7 @@ class CustomCredentials
                 'Adminer config not found. Copy db_admin/config.example.php to db_admin/config.php'
             );
         }
-        $this->config = require_once $configFile;
+        $this->config = require $configFile;
     }
 
     public function loginForm()

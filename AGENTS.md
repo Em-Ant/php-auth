@@ -42,11 +42,11 @@ Single-context. See `.agent/docs/domain.md`.
 
 ### Entrypoint
 
-`public/index.php` is the single entrypoint. It loads `config/di.php` (PHP-DI definitions), creates the container, and wires Slim with all routes and middleware live — no separate route files.
+`public/index.php` is the single entrypoint. It loads the PHP-DI definitions via `Definitions::get()`, creates the container, and wires Slim with all routes and middleware live — no separate route files.
 
 ### DI container
 
-`config/di.php` defines every service, repository, controller, and middleware as PHP-DI entries. Autowiring is used wherever possible. Key bindings:
+`src/Config/Definitions.php` (`Definitions::get()`) defines every service, repository, controller, and middleware as PHP-DI entries. Autowiring is used wherever possible. Key bindings:
 
 | Interface | Implementation |
 |---|---|
@@ -60,7 +60,7 @@ Config parameters (`issuer`, `base_path`, `password_hashing`, `rate_limiting`, e
 
 ### Testing
 
-- **Integration tests** (`tests/Integration/`) bootstrap via `TestAppFactory::createApp()`, which loads `config/di.php`, overrides `\PDO` with in-memory SQLite, runs migrations + seed, and returns a fully wired Slim app.
+- **Integration tests** (`tests/Integration/`) bootstrap via `TestAppFactory::createApp()`, which gets the definitions from `Definitions::get()`, overrides `\PDO` with in-memory SQLite, runs migrations + seed, and returns a fully wired Slim app.
 - **Repository tests** extend `RepositoryTestCase` which provides an in-memory SQLite with migrations + seed applied.
 - **E2E test** (`bin/e2e-test.sh`) starts the PHP dev server, runs the full OIDC flow via curl (auth → login → token → refresh), and verifies every step.
 
@@ -83,9 +83,9 @@ Apply these almost religiously. If a pragmatic violation is needed, consult the 
 - **`declare(strict_types=1)`** — used consistently across all `src/` files
 - **PHP 8 features for NEW code** — enums, readonly properties, constructor promotion, named arguments, match expressions, union types. Do NOT rewrite existing code that isn't being touched; only use new features in new/modified files.
 - **Accurate typing** — typed properties, typed params and return types everywhere, avoid `mixed` where possible, use `|null` unions explicitly (no nullable `?type` in new code). This makes PHPStan level bumps mechanical.
-- **`$sub_path` global** — set in `config/di.php` from `config.ini` `base_path`, used in views for URL prefixing behind reverse proxies
+- **`$sub_path` global** — set in `Definitions::get()` from `config.ini` `base_path`, used in views for URL prefixing behind reverse proxies
 - **`AUTH_SESSION` cookie** format: `{realm}\{session_id}` (backslash-separated)
-- **`md5` used for `at_hash`** in ID tokens — non-standard but intentional
+- **`at_hash`** in ID tokens is OIDC-compliant: left-most half of SHA-256 over the access token, base64url-encoded (see `TokenService::calculateAtHash()`)
 - no nested ternaries
 - avoid nested if blocks if possible, use early returns instead. Mandatory to avoid 3 levels of nested conditional blocks
 

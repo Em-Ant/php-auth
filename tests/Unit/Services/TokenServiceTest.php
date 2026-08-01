@@ -249,15 +249,19 @@ class TokenServiceTest extends TestCase
         self::assertSame(['basic', 'admin'], $payload['realm_access']['roles']);
     }
 
-    public function testIdTokenContainsAtHashAsMd5(): void
+    public function testIdTokenContainsSpecCompliantAtHash(): void
     {
         $bundle = $this->tokenService->createTokenBundle(
             $this->realm, $this->session, $this->login, $this->client, $this->user,
         );
         $idPayload = $this->tokenService->decodeTokenPayload($bundle['id_token']);
 
+        $hash = hash('sha256', $bundle['access_token'], true);
+        $expected = Base64Utils::b64UrlEncode(substr($hash, 0, (int)(strlen($hash) / 2)));
+
         self::assertSame('ID', $idPayload['typ']);
-        self::assertSame(md5($bundle['access_token']), $idPayload['at_hash']);
+        self::assertSame($expected, $idPayload['at_hash']);
+        self::assertNotSame(md5($bundle['access_token']), $idPayload['at_hash']);
     }
 
     public function testRefreshTokenContainsExpectedClaims(): void

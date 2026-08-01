@@ -343,13 +343,20 @@ class TokenService
                 "azp" => $client->getName(),
                 "nonce" => $login->getNonce(),
                 "session_state" => $session->getId(),
-                "at_hash" => md5($access_token),
+                "at_hash" => self::calculateAtHash($access_token),
                 "acr" => $session->getAcr(),
                 "sid" => $session->getId(),
                 "preferred_username" => $user->getName()
             ],
             $keys_id
         );
+    }
+
+    private static function calculateAtHash(string $accessToken): string
+    {
+        $hash = hash('sha256', $accessToken, true);
+
+        return Base64Utils::b64UrlEncode(substr($hash, 0, (int)(strlen($hash) / 2)));
     }
 
     private static function removeBeginEnd(string $pem): string
