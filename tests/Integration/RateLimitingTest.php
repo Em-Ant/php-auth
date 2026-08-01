@@ -6,6 +6,7 @@ namespace AuthServer\Tests\Integration;
 
 use AuthServer\Middleware\RateLimitingMiddleware;
 use AuthServer\Response\JsonResponse;
+use AuthServer\Services\Database;
 use AuthServer\Services\RateLimiter;
 use DI\Bridge\Slim\Bridge;
 use PHPUnit\Framework\TestCase;
@@ -61,11 +62,7 @@ class RateLimitingTest extends TestCase
 
     private static function createPdo(): \PDO
     {
-        $pdo = new \PDO('sqlite::memory:', '', '', [
-            \PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION,
-            \PDO::ATTR_DEFAULT_FETCH_MODE => \PDO::FETCH_ASSOC,
-            \PDO::ATTR_EMULATE_PREPARES => false,
-        ]);
+        $pdo = Database::connect('sqlite::memory:');
         $pdo->exec('
             CREATE TABLE IF NOT EXISTS rate_limits (
                 ip          TEXT NOT NULL,

@@ -28,6 +28,7 @@ use AuthServer\Repositories\SessionRepository;
 use AuthServer\Repositories\TokenBlacklistRepository;
 use AuthServer\Repositories\UserRepository;
 use AuthServer\Services\AuthenticationOrchestrator;
+use AuthServer\Services\Database;
 use AuthServer\Services\FilesystemKeyStore;
 use AuthServer\Services\HttpSessionCookieHandler;
 use AuthServer\Services\InputValidator;
@@ -72,11 +73,7 @@ final class Definitions
             // ── PDO (shared) ──
 
             \PDO::class => function () use ($root) {
-                return new \PDO("sqlite:{$root}/db/data.db", '', '', [
-                    \PDO::ATTR_EMULATE_PREPARES => false,
-                    \PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION,
-                    \PDO::ATTR_DEFAULT_FETCH_MODE => \PDO::FETCH_ASSOC,
-                ]);
+                return Database::connect("sqlite:{$root}/db/data.db");
             },
 
             // ── Logger ──

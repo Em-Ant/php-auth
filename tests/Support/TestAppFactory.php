@@ -20,6 +20,7 @@ use AuthServer\Middleware\RateLimitingMiddleware;
 use AuthServer\Middleware\ValidateAccessToken;
 use AuthServer\Response\JsonResponse;
 use AuthServer\Services\InMemorySessionCookieHandler;
+use AuthServer\Services\Database;
 use AuthServer\Services\RateLimiter;
 use DI\Bridge\Slim\Bridge;
 use Psr\Http\Message\ResponseInterface;
@@ -34,11 +35,7 @@ class TestAppFactory
 {
     public static function createApp(array $overrides = []): \Slim\App
     {
-        $pdo = new \PDO('sqlite::memory:', '', '', [
-            \PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION,
-            \PDO::ATTR_DEFAULT_FETCH_MODE => \PDO::FETCH_ASSOC,
-            \PDO::ATTR_EMULATE_PREPARES => false,
-        ]);
+        $pdo = Database::connect('sqlite::memory:');
 
         $pdo->exec('PRAGMA foreign_keys = ON');
 

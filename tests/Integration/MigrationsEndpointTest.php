@@ -6,6 +6,7 @@ namespace AuthServer\Tests\Integration;
 
 use AuthServer\Middleware\AdminMiddleware;
 use AuthServer\Repositories\MigrationRepository;
+use AuthServer\Services\Database;
 use AuthServer\Services\MigrationRunner;
 use AuthServer\Controllers\Admin\MigrationsController;
 use DI\Bridge\Slim\Bridge;
@@ -22,11 +23,7 @@ class MigrationsEndpointTest extends TestCase
 
     public static function setUpBeforeClass(): void
     {
-        self::$pdo = new \PDO('sqlite::memory:', '', '', [
-            \PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION,
-            \PDO::ATTR_DEFAULT_FETCH_MODE => \PDO::FETCH_ASSOC,
-            \PDO::ATTR_EMULATE_PREPARES => false,
-        ]);
+        self::$pdo = Database::connect('sqlite::memory:');
 
         $migrationRepo = new MigrationRepository(self::$pdo);
         $runner = new MigrationRunner(
