@@ -21,13 +21,15 @@
 - [ ] CRUD endpoints: realms, clients, users, key assignment
 - [ ] Audit log table + query endpoint
 - [ ] Password policy per realm (min length, complexity)
+- [ ] Offline revocation: admin-initiated revoke of a user's sessions/logins + offline tokens (`offline_sessions`) — owned here, see [token-lifecycle #04](token-lifecycle/issues/04-offline-revocation.md)
+- [ ] Maintenance task: blacklist purge + expired-session cleanup (admin-triggered; manual / deploy-time / CI-scheduled) — see [token-lifecycle #05](token-lifecycle/issues/05-cleanup-job.md)
 
 ## Scopes & Roles
 
 Scope/role model and mapping, Keycloak-style. See `.scratch/scopes/PRD.md`.
 
 - [x] Well-known `scope_supported` derived from realm scopes ([#01](scopes/issues/01-well-known-from-realm-scopes.md))
-- [ ] Client scopes + client roles ([#02](scopes/issues/02-client-scopes-and-roles.md))
+- [ ] Client scopes + client roles ([#02](scopes/issues/02-client-scopes-and-roles.md)) — also gates `offline_access` per client
 - [ ] Scope↔role mapping, Keycloak-style ([#03](scopes/issues/03-scope-role-mapping.md))
 - [ ] Admin API config surface for scopes/roles/mappings ([#04](scopes/issues/04-admin-api-configuration.md))
 
@@ -40,13 +42,17 @@ Scope/role model and mapping, Keycloak-style. See `.scratch/scopes/PRD.md`.
 - [ ] Social login (generic OAuth2 adapter for Google, GitHub, GitLab)
 - [ ] 2FA/TOTP (authenticator app)
 
-## Token Lifecycle
+## Token Lifecycle & Offline Tokens
+
+See [token-lifecycle/PRD.md](token-lifecycle/PRD.md) for the detailed situation.
 
 - [x] Token Introspection (`POST /token/introspect`, RFC 7662)
 - [x] Token Revocation (`POST /realms/{realm}/protocol/openid-connect/revoke`, RFC 7009)
 - [x] Token blacklist table
-- [ ] Cleanup job (purge expired blacklist entries)
-- [ ] Offline revocation
+- [ ] Offline access: long-living refresh token when `offline_access` granted (realm-config offline TTL; dedicated per-client `offline_sessions`; survives SSO logout) — **prod requires scopes #02 first** — [#03](token-lifecycle/issues/03-offline-token-support.md)
+- [ ] User consent screen for privileged scopes (`offline_access`, `prompt=consent`) — **planned, can be delayed**; client gating (scopes #02) is the control until then
+- [ ] Offline revocation — admin-initiated revoke-by-user/session, deferred to Admin API — [#04](token-lifecycle/issues/04-offline-revocation.md)
+- [ ] Cleanup task: purge blacklist + expired sessions — admin-triggered (manual / deploy-time / CI-scheduled), owned by Admin API — [#05](token-lifecycle/issues/05-cleanup-job.md)
 
 ## Customizable Login Form
 
