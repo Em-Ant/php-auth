@@ -73,15 +73,7 @@
     "normal"
   ],
   "claims_parameter_supported": false,
-  "scope_supported": [
-    "openid",
-    "profile",
-    "user",
-    "admin",
-    "read",
-    "write",
-    "acr"
-  ],
+  "scope_supported": <<SCOPE_SUPPORTED>>,
   "prompt_values_supported": [
     "none"
   ],

@@ -83,6 +83,19 @@ class MiscEndpointsTest extends TestCase
         $this->assertEquals(404, $res->getStatusCode());
     }
 
+    public function testScopeSupportedDerivedFromRealm(): void
+    {
+        $res = $this->handle($this->createRequest(
+            'GET',
+            '/realms/test/.well-known/openid-configuration'
+        ));
+        $this->assertEquals(200, $res->getStatusCode());
+        $body = json_decode((string) $res->getBody(), true);
+        $this->assertEquals(['openid', 'profile', 'email'], $body['scope_supported']);
+        $this->assertNotContains('acr', $body['scope_supported']);
+        $this->assertNotContains('write', $body['scope_supported']);
+    }
+
     public function testLoginStatusIframeReturns200(): void
     {
         $res = $this->handle($this->createRequest(

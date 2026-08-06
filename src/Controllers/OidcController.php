@@ -51,6 +51,11 @@ class OidcController
             $this->issuer . '/realms/' . $realm->getName(),
             $data
         );
+        $data = str_replace(
+            '<<SCOPE_SUPPORTED>>',
+            (string) json_encode(array_values(array_unique(array_merge(['openid'], $realm->getScope())))),
+            $data
+        );
 
         $response->getBody()->write($data);
         return $response->withHeader('Content-Type', 'application/json');

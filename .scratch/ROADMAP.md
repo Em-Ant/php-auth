@@ -19,9 +19,17 @@
 ## Admin API
 
 - [ ] CRUD endpoints: realms, clients, users, key assignment
-- [ ] Scope/role configuration (client scopes, roles, scope↔role mappings) — see `.scratch/scopes/`
 - [ ] Audit log table + query endpoint
 - [ ] Password policy per realm (min length, complexity)
+
+## Scopes & Roles
+
+Scope/role model and mapping, Keycloak-style. See `.scratch/scopes/PRD.md`.
+
+- [x] Well-known `scope_supported` derived from realm scopes ([#01](scopes/issues/01-well-known-from-realm-scopes.md))
+- [ ] Client scopes + client roles ([#02](scopes/issues/02-client-scopes-and-roles.md))
+- [ ] Scope↔role mapping, Keycloak-style ([#03](scopes/issues/03-scope-role-mapping.md))
+- [ ] Admin API config surface for scopes/roles/mappings ([#04](scopes/issues/04-admin-api-configuration.md))
 
 ## Login Methods
 

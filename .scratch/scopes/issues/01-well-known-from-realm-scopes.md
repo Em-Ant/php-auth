@@ -1,6 +1,6 @@
 # Phase 1 — Derive well-known `scope_supported` from realm scopes
 
-status: **TODO** (first step of `.scratch/scopes/PRD.md`)
+status: **DONE** (first step of `.scratch/scopes/PRD.md`)
 
 ## Problem
 
