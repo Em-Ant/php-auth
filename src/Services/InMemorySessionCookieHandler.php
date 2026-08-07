@@ -7,12 +7,13 @@ namespace AuthServer\Services;
 use AuthServer\Interfaces\SessionCookieHandler;
 use AuthServer\Models\Realm;
 use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
 
 class InMemorySessionCookieHandler implements SessionCookieHandler
 {
     private ?string $data = null;
 
-    public function read(string $realmName): ?string
+    public function read(ServerRequestInterface $request, string $realmName): ?string
     {
         if ($this->data === null) {
             return null;

@@ -194,10 +194,6 @@ class TestAppFactory
             die();
         });
 
-        // Admin CRUD stub
-        $app->group('/api/admin', function () {
-        })->add($adminMw);
-
         return $app;
     }
 }

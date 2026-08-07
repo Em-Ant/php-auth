@@ -7,15 +7,16 @@ namespace AuthServer\Services;
 use AuthServer\Exceptions\StorageFailed;
 use AuthServer\Interfaces\SessionRepository;
 use AuthServer\Models\Session;
+use AuthServer\Models\SessionStatus;
 use DateTime;
 
 class SessionOrchestrator
 {
-    private SessionRepository $session_repository;
+    private SessionRepository $sessionRepository;
 
-    public function __construct(SessionRepository $session_repository)
+    public function __construct(SessionRepository $sessionRepository)
     {
-        $this->session_repository = $session_repository;
+        $this->sessionRepository = $sessionRepository;
     }
 
     public function ensureValidSession(
@@ -23,8 +24,8 @@ class SessionOrchestrator
         int $session_expires_in,
         int $idle_session_expires_in
     ): ?Session {
-        $session = $this->session_repository->findById($session_id);
-        if ($session === null || $session->getStatus() !== 'ACTIVE') {
+        $session = $this->sessionRepository->findById($session_id);
+        if ($session === null || $session->getStatus() !== SessionStatus::Active) {
             return null;
         }
         return $this->checkExpiry($session, $session_expires_in, $idle_session_expires_in)
@@ -38,11 +39,13 @@ class SessionOrchestrator
         int $idle_exp_in_s
     ): bool {
         $now = new DateTime('now', new \DateTimeZone('UTC'));
-        $is_expired = $session->getCreatedAt()->add(
+        $created_at = $session->getCreatedAt();
+
+        $is_expired = (clone $created_at)->add(
             new \DateInterval("PT{$exp_in_s}S")
         ) < $now;
 
-        $is_idle_for_too_long = $session->getCreatedAt()->add(
+        $is_idle_for_too_long = (clone $created_at)->add(
             new \DateInterval("PT{$idle_exp_in_s}S")
         ) < $now;
 
@@ -51,7 +54,7 @@ class SessionOrchestrator
 
     public function expire(string $session_id): void
     {
-        $ok = $this->session_repository->setExpired($session_id);
+        $ok = $this->sessionRepository->setExpired($session_id);
         if (!$ok) {
             throw new StorageFailed("unable to set session $session_id to expired");
         }
@@ -59,7 +62,7 @@ class SessionOrchestrator
 
     public function create(string $realm_id, string $user_id): Session
     {
-        $session = $this->session_repository->create($realm_id, $user_id, '0');
+        $session = $this->sessionRepository->create($realm_id, $user_id, '0');
         if ($session === null) {
             throw new StorageFailed('unable to create session');
         }
@@ -68,7 +71,7 @@ class SessionOrchestrator
 
     public function refresh(string $session_id): void
     {
-        $ok = $this->session_repository->refresh($session_id);
+        $ok = $this->sessionRepository->refresh($session_id);
         if (!$ok) {
             throw new StorageFailed("error refreshing session $session_id");
         }

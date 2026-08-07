@@ -46,7 +46,7 @@ class AuthorizationController
         /** @var Realm */
         $realm = $request->getAttribute(Realm::class);
         $realm_name = $realm->getName();
-        $current_session_id = $this->sessionCookie->read($realm_name);
+        $current_session_id = $this->sessionCookie->read($request, $realm_name);
 
         try {
             $query = $request->getQueryParams();

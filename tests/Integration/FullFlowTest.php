@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace AuthServer\Tests\Integration;
 
+use AuthServer\Interfaces\SessionCookieHandler;
+use AuthServer\Services\InMemorySessionCookieHandler;
 use AuthServer\Tests\Support\TestAppFactory;
 use PHPUnit\Framework\Attributes\Depends;
 use PHPUnit\Framework\TestCase;
@@ -331,6 +333,63 @@ class FullFlowTest extends TestCase
         self::assertSame(200, $response->getStatusCode());
         $tokens = json_decode((string) $response->getBody(), true);
         self::assertArrayHasKey('access_token', $tokens);
+    }
+
+    public function testPkceExchangeWithoutVerifierReturns400(): void
+    {
+        $handler = self::$app->getContainer()->get(SessionCookieHandler::class);
+        if ($handler instanceof InMemorySessionCookieHandler) {
+            $handler->reset();
+        }
+
+        $codeVerifier = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk';
+        $codeChallenge = rtrim(strtr(base64_encode(hash('sha256', $codeVerifier, true)), '+/', '-_'), '=');
+
+        $request = $this->createRequest('GET', '/realms/test/protocol/openid-connect/auth', [
+            'client_id' => 'local',
+            'redirect_uri' => 'http://localhost:5173',
+            'response_type' => 'code',
+            'response_mode' => 'query',
+            'scope' => 'openid',
+            'state' => 'pkce-missing-v-st',
+            'nonce' => 'pkce-missing-v-nc',
+            'code_challenge_method' => 'S256',
+            'code_challenge' => $codeChallenge,
+        ]);
+
+        $response = $this->handle($request);
+        self::assertSame(200, $response->getStatusCode());
+        $body = (string) $response->getBody();
+
+        preg_match('/action="[^"]*\?q=([^"]+)"/', $body, $m);
+        $loginId = $m[1];
+        preg_match('/name="csrf_token"\s*value="([^"]+)"/', $body, $m);
+        $csrfToken = $m[1];
+
+        $request = $this->createRequest('POST', '/realms/test/protocol/openid-connect/login-actions/authenticate', ['q' => $loginId], [
+            'email' => 'test@example.com',
+            'password' => 'tst',
+            'csrf_token' => $csrfToken,
+        ]);
+
+        $response = $this->handle($request);
+        self::assertSame(302, $response->getStatusCode());
+        preg_match('/code=([^&]+)/', $response->getHeaderLine('Location'), $m);
+        $pkceCode = $m[1];
+
+        $request = $this->createRequest('POST', '/realms/test/protocol/openid-connect/token', [], [
+            'grant_type' => 'authorization_code',
+            'client_id' => 'local',
+            'code' => $pkceCode,
+            'redirect_uri' => 'http://localhost:5173',
+            'refresh_token' => '',
+        ]);
+
+        $response = $this->handle($request);
+        self::assertSame(400, $response->getStatusCode());
+        $error = json_decode((string) $response->getBody(), true);
+        self::assertSame('Invalid request', $error['error']);
+        self::assertStringContainsString('code_verifier', $error['error_description']);
     }
 
     // ── SSO: no session cookie → shows login form ─────────────

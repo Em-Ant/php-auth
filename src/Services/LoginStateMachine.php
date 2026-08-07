@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AuthServer\Services;
 
+use AuthServer\Exceptions\StorageFailed;
 use AuthServer\Exceptions\ValidationFailed;
 use AuthServer\Interfaces\LoginRepository as ILoginRepo;
 use AuthServer\Models\Login;
@@ -53,7 +54,7 @@ class LoginStateMachine
         );
 
         if (!$ok) {
-            throw new \RuntimeException('failed to persist authenticated login');
+            throw new StorageFailed('failed to persist authenticated login');
         }
 
         $this->logger->info('login ' . $login->getId() . ' authenticated');
@@ -79,7 +80,7 @@ class LoginStateMachine
         );
 
         if (!$ok) {
-            throw new \RuntimeException('failed to persist activated login');
+            throw new StorageFailed('failed to persist activated login');
         }
 
         $this->logger->info('login ' . $login->getId() . ' activated');
@@ -105,7 +106,7 @@ class LoginStateMachine
         );
 
         if (!$ok) {
-            throw new \RuntimeException('failed to persist refreshed login');
+            throw new StorageFailed('failed to persist refreshed login');
         }
 
         $this->logger->info('login ' . $login->getId() . ' refreshed');
@@ -124,7 +125,7 @@ class LoginStateMachine
         $ok = $this->loginRepository->setExpired($login->getId());
 
         if (!$ok) {
-            throw new \RuntimeException('failed to persist expired login');
+            throw new StorageFailed('failed to persist expired login');
         }
 
         $this->logger->info('login ' . $login->getId() . ' expired');

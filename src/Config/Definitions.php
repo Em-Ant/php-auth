@@ -28,6 +28,7 @@ use AuthServer\Repositories\SessionRepository;
 use AuthServer\Repositories\TokenBlacklistRepository;
 use AuthServer\Repositories\UserRepository;
 use AuthServer\Services\AuthenticationOrchestrator;
+use AuthServer\Services\ClientAuthenticator;
 use AuthServer\Services\Database;
 use AuthServer\Services\FilesystemKeyStore;
 use AuthServer\Services\HttpSessionCookieHandler;
@@ -128,6 +129,7 @@ final class Definitions
             InputValidator::class => \DI\autowire(),
             LoginStateMachine::class => \DI\autowire(),
             ScopeResolver::class => \DI\autowire(),
+            ClientAuthenticator::class => \DI\autowire(),
             RateLimiter::class => \DI\autowire(),
             MigrationRunner::class => \DI\autowire()
                 ->constructorParameter('migrationsDir', \DI\get('migrations_dir')),

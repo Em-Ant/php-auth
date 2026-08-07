@@ -8,7 +8,7 @@ interface LoginRepository
 {
     public function findById(string $id): ?Login;
     public function findByCode(string $code): ?Login;
-    public function findByrefreshToken(string $token): ?Login;
+    public function findByRefreshToken(string $token): ?Login;
 
     public function createPending(
         string $client_id,

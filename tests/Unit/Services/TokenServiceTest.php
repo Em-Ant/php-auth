@@ -138,34 +138,37 @@ class TokenServiceTest extends TestCase
 
     // ── validateToken ─────────────────────────────────────────
 
-    public function testValidateTokenReturnsOneForValidToken(): void
+    public function testValidateTokenReturnsTrueForValidToken(): void
     {
         $payload = ['sub' => 'user-1', 'exp' => time() + 300];
         $token = $this->tokenService->createToken($payload, self::KID);
 
-        $result = $this->tokenService->validateToken($token, $this->realm);
-        self::assertSame(1, $result);
+        self::assertTrue($this->tokenService->validateToken($token, $this->realm));
     }
 
-    public function testValidateTokenReturnsZeroForTamperedToken(): void
+    public function testValidateTokenReturnsFalseForTamperedToken(): void
     {
         $payload = ['sub' => 'user-1', 'exp' => time() + 300];
         $token = $this->tokenService->createToken($payload, self::KID);
         $parts = explode('.', $token);
         $tampered = $parts[0] . '.' . $parts[1] . '.invalidsignature';
 
-        $result = $this->tokenService->validateToken($tampered, $this->realm);
-        self::assertSame(0, $result);
+        self::assertFalse($this->tokenService->validateToken($tampered, $this->realm));
     }
 
-    public function testValidateTokenReturnsZeroForBadAlgorithm(): void
+    public function testValidateTokenReturnsFalseForBadAlgorithm(): void
     {
         $header = Base64Utils::b64UrlEncode(json_encode(['typ' => 'JWT', 'alg' => 'HS256', 'kid' => self::KID]));
         $payload = Base64Utils::b64UrlEncode(json_encode(['sub' => 'user-1']));
         $token = "$header.$payload.fakesig";
 
-        $result = $this->tokenService->validateToken($token, $this->realm);
-        self::assertSame(0, $result);
+        self::assertFalse($this->tokenService->validateToken($token, $this->realm));
+    }
+
+    public function testValidateTokenReturnsFalseForMalformedToken(): void
+    {
+        self::assertFalse($this->tokenService->validateToken('not-a-jwt', $this->realm));
+        self::assertFalse($this->tokenService->validateToken('', $this->realm));
     }
 
     // ── tokenIsExpired ────────────────────────────────────────
@@ -197,6 +200,17 @@ class TokenServiceTest extends TestCase
         self::assertSame('user-1', $decoded['sub']);
         self::assertSame('val', $decoded['custom']);
         self::assertArrayHasKey('exp', $decoded);
+    }
+
+    public function testDecodeTokenPayloadReturnsEmptyForMalformedToken(): void
+    {
+        self::assertSame([], $this->tokenService->decodeTokenPayload('not-a-jwt'));
+    }
+
+    public function testDecodeTokenSafelyReturnsNullForMalformedToken(): void
+    {
+        self::assertNull($this->tokenService->decodeTokenSafely('not-a-jwt'));
+        self::assertNull($this->tokenService->decodeTokenSafely('a.b'));
     }
 
     // ── createTokenBundle (full integration of sub-methods) ───
@@ -281,8 +295,8 @@ class TokenServiceTest extends TestCase
             $this->realm, $this->session, $this->login, $this->client, $this->user,
         );
 
-        self::assertSame(1, $this->tokenService->validateToken($bundle['access_token'], $this->realm));
-        self::assertSame(1, $this->tokenService->validateToken($bundle['id_token'], $this->realm));
-        self::assertSame(1, $this->tokenService->validateToken($bundle['refresh_token'], $this->realm));
+        self::assertTrue($this->tokenService->validateToken($bundle['access_token'], $this->realm));
+        self::assertTrue($this->tokenService->validateToken($bundle['id_token'], $this->realm));
+        self::assertTrue($this->tokenService->validateToken($bundle['refresh_token'], $this->realm));
     }
 }

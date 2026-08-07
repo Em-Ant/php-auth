@@ -81,6 +81,9 @@ class InputValidator
 
     public static function validateCodeChallenge(?string $code_challenge, ?string $code_verifier): void
     {
+        if ($code_verifier === null) {
+            throw new ValidationFailed('invalid code_verifier');
+        }
         if ($code_challenge !== Base64Utils::b64UrlEncode(hash('sha256', $code_verifier, true))) {
             throw new ValidationFailed('code_verifier does not match code_challenge');
         }

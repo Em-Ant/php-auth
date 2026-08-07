@@ -172,4 +172,10 @@ class InputValidatorTest extends TestCase
         $this->expectException(ValidationFailed::class);
         InputValidator::validateCodeChallenge('challenge-abc', 'wrong-verifier');
     }
+
+    public function testValidateCodeChallengeMissingVerifierThrows(): void
+    {
+        $this->expectException(ValidationFailed::class);
+        InputValidator::validateCodeChallenge('challenge-abc', null);
+    }
 }

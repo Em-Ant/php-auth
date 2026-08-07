@@ -6,7 +6,6 @@ namespace AuthServer\Services;
 
 use AuthServer\Exceptions\AuthenticationFailed;
 use AuthServer\Exceptions\ValidationFailed;
-use AuthServer\Interfaces\ClientRepository as IClientRepo;
 use AuthServer\Interfaces\LoginRepository as ILoginRepo;
 use AuthServer\Models\LoginStatus;
 use AuthServer\Models\Realm;
@@ -15,25 +14,22 @@ use Psr\Log\LoggerInterface;
 
 class TokenIntrospectionService
 {
-    private IClientRepo $client_repository;
-    private ILoginRepo $login_repository;
-    private SecretsService $secrets_service;
-    private TokenService $token_service;
+    private ILoginRepo $loginRepository;
+    private ClientAuthenticator $clientAuthenticator;
+    private TokenService $tokenService;
     private TokenBlacklistRepository $tokenBlacklistRepository;
     private LoggerInterface $logger;
 
     public function __construct(
-        IClientRepo $client_repo,
-        ILoginRepo $login_repo,
-        SecretsService $secrets_service,
-        TokenService $token_service,
+        ILoginRepo $loginRepo,
+        ClientAuthenticator $clientAuthenticator,
+        TokenService $tokenService,
         TokenBlacklistRepository $tokenBlacklistRepository,
         LoggerInterface $logger
     ) {
-        $this->client_repository = $client_repo;
-        $this->login_repository = $login_repo;
-        $this->secrets_service = $secrets_service;
-        $this->token_service = $token_service;
+        $this->loginRepository = $loginRepo;
+        $this->clientAuthenticator = $clientAuthenticator;
+        $this->tokenService = $tokenService;
         $this->tokenBlacklistRepository = $tokenBlacklistRepository;
         $this->logger = $logger;
     }
@@ -49,7 +45,7 @@ class TokenIntrospectionService
         $clientId = $params['client_id'] ?? '';
         $this->validateIntrospectClient($clientId, $params);
 
-        $decoded = $this->decodeTokenSafely($token);
+        $decoded = $this->tokenService->decodeTokenSafely($token);
         if ($decoded === null) {
             return ['active' => false];
         }
@@ -65,42 +61,16 @@ class TokenIntrospectionService
 
     private function validateIntrospectClient(string $clientId, array $params): void
     {
-        $client = $this->client_repository->findByName($clientId);
+        $client = $this->clientAuthenticator->authenticate($clientId, $params);
         if ($client === null) {
-            $this->logger->info("introspect: client $clientId not found");
+            $this->logger->info("introspect: client $clientId authentication failed");
             throw new AuthenticationFailed('invalid client');
-        }
-
-        if ($client->requiresAuth()) {
-            $clientSecret = $params['client_secret'] ?? '';
-            $hashedSecret = $client->getClientSecret();
-            if (
-                $clientSecret === ''
-                || !$this->secrets_service->validatePassword($clientSecret, $hashedSecret)
-            ) {
-                $this->logger->info("introspect: invalid client secret for $clientId");
-                throw new AuthenticationFailed('invalid client');
-            }
-        }
-    }
-
-    private function decodeTokenSafely(string $token): ?array
-    {
-        try {
-            $parts = explode('.', $token);
-            if (count($parts) !== 3) {
-                return null;
-            }
-            $payload = json_decode(\AuthServer\Services\Base64Utils::b64UrlDecode($parts[1]), true);
-            return is_array($payload) ? $payload : null;
-        } catch (\Throwable $e) {
-            return null;
         }
     }
 
     private function introspectRefreshToken(string $token, array $decoded, Realm $realm): array
     {
-        $login = $this->login_repository->findByrefreshToken($token);
+        $login = $this->loginRepository->findByRefreshToken($token);
         if ($login === null || $login->getStatus() !== LoginStatus::Active) {
             return ['active' => false];
         }
@@ -127,7 +97,7 @@ class TokenIntrospectionService
 
     private function introspectAccessToken(string $token, array $decoded, Realm $realm): array
     {
-        $isValid = $this->token_service->validateToken($token, $realm);
+        $isValid = $this->tokenService->validateToken($token, $realm);
         if (!$isValid) {
             return ['active' => false];
         }

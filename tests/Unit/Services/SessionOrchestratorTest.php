@@ -7,6 +7,7 @@ namespace AuthServer\Tests\Unit\Services;
 use AuthServer\Exceptions\StorageFailed;
 use AuthServer\Interfaces\SessionRepository;
 use AuthServer\Models\Session;
+use AuthServer\Models\SessionStatus;
 use AuthServer\Services\SessionOrchestrator;
 use PHPUnit\Framework\TestCase;
 
@@ -60,6 +61,30 @@ class SessionOrchestratorTest extends TestCase
     {
         $session = new Session('s-id', 'r-id', 'u-id', '0', '2020-01-01 00:00:00', null, 'ACTIVE');
         self::assertFalse($this->svc->checkExpiry($session, 1, 1));
+    }
+
+    public function testCheckExpiryDoesNotMutateSessionCreatedAt(): void
+    {
+        $created = '2025-01-01 00:00:00';
+        $session = new Session('s-id', 'r-id', 'u-id', '0', $created, null, 'ACTIVE');
+
+        $this->svc->checkExpiry($session, 86400, 1800);
+        $this->svc->checkExpiry($session, 86400, 1800);
+
+        self::assertSame(
+            $created,
+            $session->getCreatedAt()->format('Y-m-d H:i:s'),
+            'checkExpiry must not shift created_at in place'
+        );
+    }
+
+    public function testCheckExpiryAppliesIdleTimeoutToOriginalCreatedAt(): void
+    {
+        // Created 2h ago: within session expiry (86400) but idle timeout (1800) exceeded.
+        $created = gmdate('Y-m-d H:i:s', time() - 7200);
+        $session = new Session('s-id', 'r-id', 'u-id', '0', $created, null, 'ACTIVE');
+
+        self::assertFalse($this->svc->checkExpiry($session, 86400, 1800));
     }
 
     // ── expire ────────────────────────────────────────────────

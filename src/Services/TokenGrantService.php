@@ -6,7 +6,6 @@ namespace AuthServer\Services;
 
 use AuthServer\Exceptions\StorageFailed;
 use AuthServer\Exceptions\ValidationFailed;
-use AuthServer\Interfaces\ClientRepository as IClientRepo;
 use AuthServer\Interfaces\LoginRepository as ILoginRepo;
 use AuthServer\Interfaces\SessionRepository as ISessionRepo;
 use AuthServer\Interfaces\UserRepository as IUserRepo;
@@ -15,41 +14,39 @@ use AuthServer\Models\GrantType;
 use AuthServer\Models\LoginEvent;
 use AuthServer\Models\LoginStatus;
 use AuthServer\Models\Realm;
+use AuthServer\Models\SessionStatus;
 use Psr\Log\LoggerInterface;
 
 class TokenGrantService
 {
     private SessionOrchestrator $sessionOrchestrator;
-    private IClientRepo $client_repository;
-    private ISessionRepo $session_repository;
-    private IUserRepo $user_repository;
-    private ILoginRepo $login_repository;
+    private ISessionRepo $sessionRepository;
+    private IUserRepo $userRepository;
+    private ILoginRepo $loginRepository;
     private LoginStateMachine $loginStateMachine;
-    private SecretsService $secrets_service;
-    private TokenService $token_service;
+    private ClientAuthenticator $clientAuthenticator;
+    private TokenService $tokenService;
     private ScopeResolver $scopeResolver;
     private LoggerInterface $logger;
 
     public function __construct(
         SessionOrchestrator $sessionOrchestrator,
-        IClientRepo $client_repo,
-        ISessionRepo $session_repo,
-        IUserRepo $user_repo,
-        ILoginRepo $login_repo,
+        ISessionRepo $sessionRepo,
+        IUserRepo $userRepo,
+        ILoginRepo $loginRepo,
         LoginStateMachine $loginStateMachine,
-        SecretsService $secrets_service,
-        TokenService $token_service,
+        ClientAuthenticator $clientAuthenticator,
+        TokenService $tokenService,
         ScopeResolver $scopeResolver,
         LoggerInterface $logger
     ) {
         $this->sessionOrchestrator = $sessionOrchestrator;
-        $this->client_repository = $client_repo;
-        $this->session_repository = $session_repo;
-        $this->user_repository = $user_repo;
-        $this->login_repository = $login_repo;
+        $this->sessionRepository = $sessionRepo;
+        $this->userRepository = $userRepo;
+        $this->loginRepository = $loginRepo;
         $this->loginStateMachine = $loginStateMachine;
-        $this->secrets_service = $secrets_service;
-        $this->token_service = $token_service;
+        $this->clientAuthenticator = $clientAuthenticator;
+        $this->tokenService = $tokenService;
         $this->scopeResolver = $scopeResolver;
         $this->logger = $logger;
     }
@@ -61,25 +58,18 @@ class TokenGrantService
         InputValidator::validateTokenParams($params);
 
         $client_id = $params['client_id'];
-        $client_secret = $params['client_secret'] ?? '';
         $grant_type = $params['grant_type'];
         $code = $params['code'] ?? '';
         $redirect_uri = $params['redirect_uri'] ?? '';
         $refresh_token = $params['refresh_token'] ?? '';
         $code_verifier = $params['code_verifier'] ?? null;
 
-        $client = $this->client_repository->findByName($client_id);
+        $client = $this->clientAuthenticator->authenticate($client_id, $params);
         if ($client === null) {
             $this->logger->info(
-                "client $client_id not found while generating tokens"
+                "client $client_id authentication failed while generating tokens"
             );
             throw new ValidationFailed('invalid client');
-        }
-
-        if ($client->requiresAuth()) {
-            $hashed_secret = $client->getClientSecret();
-            $this->logger->info("$client_id requires secret validation");
-            $this->validateClientSecret($hashed_secret, $client_secret);
         }
 
         if ($grant_type === GrantType::AuthorizationCode->value) {
@@ -116,7 +106,7 @@ class TokenGrantService
         ?string $code_verifier
     ): array {
         $this->logger->info("generating tokens from authorization code $code");
-        $login = $this->login_repository->findByCode($code);
+        $login = $this->loginRepository->findByCode($code);
 
         if ($login === null) {
             $this->logger->error("invalid authorization code");
@@ -136,7 +126,7 @@ class TokenGrantService
         if ($session_id === null) {
             throw new StorageFailed('invalid session');
         }
-        $session = $this->session_repository->findById($session_id);
+        $session = $this->sessionRepository->findById($session_id);
         if ($session === null) {
             throw new StorageFailed("invalid session $session_id");
         }
@@ -151,12 +141,12 @@ class TokenGrantService
             throw new ValidationFailed('session expired');
         }
 
-        $user = $this->user_repository->findById($session->getUserId());
+        $user = $this->userRepository->findById($session->getUserId());
         if ($user === null) {
             throw new StorageFailed('invalid session');
         }
 
-        $token_bundle = $this->token_service->createTokenBundle(
+        $token_bundle = $this->tokenService->createTokenBundle(
             $realm,
             $session,
             $login,
@@ -182,7 +172,7 @@ class TokenGrantService
     ): array {
         $this->logger->info("generating tokens from refresh token");
 
-        $login = $this->login_repository->findByrefreshToken($refresh_token);
+        $login = $this->loginRepository->findByRefreshToken($refresh_token);
         if ($login === null) {
             $this->logger->error("invalid refresh token");
             throw new ValidationFailed('invalid refresh token');
@@ -194,7 +184,7 @@ class TokenGrantService
 
         $login = $this->loginStateMachine->transition($login, LoginEvent::CheckExpiry, $realm);
 
-        $expired = $this->token_service->tokenIsExpired($refresh_token);
+        $expired = $this->tokenService->tokenIsExpired($refresh_token);
         if ($expired) {
             $this->loginStateMachine->transition($login, LoginEvent::Expire, $realm);
             throw new ValidationFailed('refresh_token is expired');
@@ -204,11 +194,11 @@ class TokenGrantService
         if ($session_id === null) {
             throw new StorageFailed('invalid session');
         }
-        $session = $this->session_repository->findById($session_id);
+        $session = $this->sessionRepository->findById($session_id);
         if ($session === null) {
             throw new StorageFailed("invalid session $session_id");
         }
-        if ($session->getStatus() !== 'ACTIVE') {
+        if ($session->getStatus() !== SessionStatus::Active) {
             $this->logger->error("invalid status for session $session_id - not active");
             throw new ValidationFailed('invalid session status');
         }
@@ -223,13 +213,13 @@ class TokenGrantService
             throw new ValidationFailed('session expired');
         }
 
-        $user = $this->user_repository->findById($session->getUserId());
+        $user = $this->userRepository->findById($session->getUserId());
         if ($user === null) {
             $this->logger->error("invalid user for active session $session_id");
             throw new StorageFailed('invalid session');
         }
 
-        $token_bundle = $this->token_service->createTokenBundle(
+        $token_bundle = $this->tokenService->createTokenBundle(
             $realm,
             $session,
             $login,
@@ -248,21 +238,6 @@ class TokenGrantService
         return $token_bundle;
     }
 
-    private function validateClientSecret(
-        string $hashed_secret,
-        string $client_secret
-    ): void {
-        if (
-            $client_secret === '' ||
-            !$this->secrets_service->validatePassword(
-                $client_secret,
-                $hashed_secret
-            )
-        ) {
-            throw new ValidationFailed('invalid client secret');
-        }
-    }
-
     private function getClientCredentialsTokens(
         Realm $realm,
         Client $client,
@@ -279,7 +254,7 @@ class TokenGrantService
             false
         );
 
-        return $this->token_service->createClientCredentialsToken(
+        return $this->tokenService->createClientCredentialsToken(
             $realm,
             $client,
             $granted_scope

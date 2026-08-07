@@ -172,13 +172,13 @@ class LoginRepositoryTest extends RepositoryTestCase
         $this->repo->setAuthenticated($login->getId(), $this->createSession(), 'code-rt');
         $this->repo->setActive($login->getId(), 'rt-findme');
 
-        $found = $this->repo->findByrefreshToken('rt-findme');
+        $found = $this->repo->findByRefreshToken('rt-findme');
         self::assertNotNull($found);
         self::assertSame($login->getId(), $found->getId());
     }
 
     public function testFindByRefreshTokenReturnsNullForMissing(): void
     {
-        self::assertNull($this->repo->findByrefreshToken('bogus'));
+        self::assertNull($this->repo->findByRefreshToken('bogus'));
     }
 }

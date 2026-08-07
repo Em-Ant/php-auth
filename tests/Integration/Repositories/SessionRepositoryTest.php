@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AuthServer\Tests\Integration\Repositories;
 
+use AuthServer\Models\SessionStatus;
 use AuthServer\Repositories\SessionRepository;
 use AuthServer\Tests\Integration\RepositoryTestCase;
 use Psr\Log\LoggerInterface;
@@ -26,7 +27,7 @@ class SessionRepositoryTest extends RepositoryTestCase
             '0',
         );
         self::assertNotNull($session);
-        self::assertSame('ACTIVE', $session->getStatus());
+        self::assertSame(SessionStatus::Active, $session->getStatus());
         self::assertSame('0', $session->getAcr());
 
         $found = $this->repo->findById($session->getId());
@@ -62,12 +63,12 @@ class SessionRepositoryTest extends RepositoryTestCase
             '586d7bb3-d386-4b57-9e99-b2a460f20b47',
             '0',
         );
-        self::assertSame('ACTIVE', $session->getStatus());
+        self::assertSame(SessionStatus::Active, $session->getStatus());
 
         $result = $this->repo->setExpired($session->getId());
         self::assertTrue($result);
 
         $expired = $this->repo->findById($session->getId());
-        self::assertSame('EXPIRED', $expired->getStatus());
+        self::assertSame(SessionStatus::Expired, $expired->getStatus());
     }
 }

@@ -67,7 +67,7 @@ class LoginRepository implements IRepo
         }
     }
 
-    public function findByrefreshToken(string $token): ?Login
+    public function findByRefreshToken(string $token): ?Login
     {
         try {
             $statement = $this->db->prepare(

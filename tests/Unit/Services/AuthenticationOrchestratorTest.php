@@ -287,7 +287,7 @@ class AuthenticationOrchestratorTest extends TestCase
 
     public function testLogoutValidIdTokenExpiresSession(): void
     {
-        $this->tokenService->method('validateToken')->willReturn(1);
+        $this->tokenService->method('validateToken')->willReturn(true);
         $this->tokenService->method('decodeTokenPayload')->willReturn(['sid' => 's-id']);
         $this->sessionOrch->expects($this->once())->method('expire')->with('s-id');
 
@@ -297,7 +297,7 @@ class AuthenticationOrchestratorTest extends TestCase
 
     public function testLogoutInvalidTokenThrows(): void
     {
-        $this->tokenService->method('validateToken')->willReturn(0);
+        $this->tokenService->method('validateToken')->willReturn(false);
         $this->expectException(ValidationFailed::class);
         $this->svc->logout('bad-token', $this->realm);
     }
@@ -306,7 +306,7 @@ class AuthenticationOrchestratorTest extends TestCase
 
     public function testParseValidTokenReturnsPayload(): void
     {
-        $this->tokenService->method('validateToken')->willReturn(1);
+        $this->tokenService->method('validateToken')->willReturn(true);
         $this->tokenService->method('tokenIsExpired')->willReturn(false);
         $this->tokenService->method('decodeTokenPayload')->willReturn(['sub' => 'u-id']);
 
@@ -316,14 +316,14 @@ class AuthenticationOrchestratorTest extends TestCase
 
     public function testParseValidTokenInvalidThrows(): void
     {
-        $this->tokenService->method('validateToken')->willReturn(0);
+        $this->tokenService->method('validateToken')->willReturn(false);
         $this->expectException(ValidationFailed::class);
         $this->svc->parseValidToken('bad-token', $this->realm);
     }
 
     public function testParseValidTokenExpiredThrows(): void
     {
-        $this->tokenService->method('validateToken')->willReturn(1);
+        $this->tokenService->method('validateToken')->willReturn(true);
         $this->tokenService->method('tokenIsExpired')->willReturn(true);
         $this->expectException(ValidationFailed::class);
         $this->svc->parseValidToken('expired-token', $this->realm);

@@ -27,35 +27,40 @@ class TokenService
         $this->keyStore = $keyStore;
     }
 
-    public function validateToken(string $token, Realm $realm): int
+    public function validateToken(string $token, Realm $realm): bool
     {
-
         $kid = $realm->getKeysId();
         $keySet = $this->keyStore->findKeys($kid);
         $public_key = $keySet->publicKey;
 
-        $t = explode('.', $token);
-        $header = json_decode(Base64Utils::b64UrlDecode($t[0]), true);
-
-        if ($header['alg'] !== 'RS256') {
-            return 0;
+        $parts = explode('.', $token);
+        if (count($parts) !== 3) {
+            return false;
         }
 
-        $data = "$t[0].$t[1]";
-        $signature = Base64Utils::b64UrlDecode($t[2]);
+        $header = json_decode(Base64Utils::b64UrlDecode($parts[0]), true);
+        if (!is_array($header) || ($header['alg'] ?? null) !== 'RS256') {
+            return false;
+        }
 
-        return openssl_verify(
+        $data = "$parts[0].$parts[1]";
+        $signature = Base64Utils::b64UrlDecode($parts[2]);
+
+        $result = openssl_verify(
             $data,
             $signature,
             $public_key,
             "sha256WithRSAEncryption"
         );
+
+        return $result === 1;
     }
 
     public function tokenIsExpired(string $token): bool
     {
         $decoded = $this->decodeTokenPayload($token);
-        return $decoded['exp'] < time();
+        $exp = $decoded['exp'] ?? 0;
+        return $exp < time();
     }
 
     public function createToken(array $payload, string $keys_id): string
@@ -85,8 +90,19 @@ class TokenService
 
     public function decodeTokenPayload(string $token): array
     {
-        $t = explode('.', $token);
-        return json_decode(Base64Utils::b64UrlDecode($t[1]), true);
+        return $this->decodeTokenSafely($token) ?? [];
+    }
+
+    public function decodeTokenSafely(string $token): ?array
+    {
+        $parts = explode('.', $token);
+        if (count($parts) !== 3) {
+            return null;
+        }
+
+        $payload = json_decode(Base64Utils::b64UrlDecode($parts[1]), true);
+
+        return is_array($payload) ? $payload : null;
     }
 
 

@@ -203,11 +203,6 @@ $app->any('/admin/db/{path:.*}', function () {
     die();
 });
 
-// Admin CRUD API (realms, clients, users, etc.)
-$app->group('/api/admin', function (\Slim\Routing\RouteCollectorProxy $group) {
-    // Future: realms, clients, users CRUD
-})->add($adminMiddleware);
-
 // Health endpoints
 $app->get('/health', function (ServerRequestInterface $request, ResponseInterface $response) {
     return JsonResponse::create($response, ['status' => 'ok']);

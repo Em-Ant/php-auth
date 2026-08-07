@@ -14,7 +14,7 @@ class Session implements \JsonSerializable
     private string $user_id;
     private DateTime $created_at;
     private ?DateTime $updated_at;
-    private string $status;
+    private SessionStatus $status;
 
     public function __construct(
         string $id,
@@ -36,7 +36,7 @@ class Session implements \JsonSerializable
         $this->updated_at = is_null($updated_at)
             ? null
             : (\DateTime::createFromFormat('Y-m-d H:i:s', $updated_at, $utc) ?: null);
-        $this->status = is_null($status) ? 'ACTIVE' : $status;
+        $this->status = SessionStatus::from($status ?? 'ACTIVE');
     }
 
     public function getId(): string
@@ -63,7 +63,7 @@ class Session implements \JsonSerializable
     {
         return $this->updated_at;
     }
-    public function getStatus(): string
+    public function getStatus(): SessionStatus
     {
         return $this->status;
     }
@@ -71,6 +71,7 @@ class Session implements \JsonSerializable
     public function jsonSerialize(): array
     {
         $data = get_object_vars($this);
+        $data['status'] = $this->status->value;
         $data['created_at'] = $data['created_at']->format('Y-m-d H:i:s');
         $data['updated_at'] = isset($data['updated_at']) ?
             $data['updated_at']->format('Y-m-d H:i:s') :
