@@ -17,11 +17,13 @@ use AuthServer\Models\Session;
 use AuthServer\Models\User;
 use AuthServer\Services\AuthenticationOrchestrator;
 use AuthServer\Services\LoginStateMachine;
+use AuthServer\Services\ScopeResolver;
 use AuthServer\Services\SecretsService;
 use AuthServer\Services\SessionOrchestrator;
 use AuthServer\Services\TokenService;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 
 class AuthenticationOrchestratorTest extends TestCase
 {
@@ -58,6 +60,7 @@ class AuthenticationOrchestratorTest extends TestCase
             $this->stateMachine,
             $this->secretsService,
             $this->tokenService,
+            new ScopeResolver(new NullLogger()),
             $this->logger,
         );
 
@@ -83,14 +86,25 @@ class AuthenticationOrchestratorTest extends TestCase
 
     public function testValidateRequiredLoginScopePasses(): void
     {
-        $this->svc->validateRequiredLoginScope(['openid', 'profile'], 'openid');
-        $this->expectNotToPerformAssertions();
+        $this->clientRepo->expects($this->once())
+            ->method('findByName')
+            ->with('my-app')
+            ->willReturn($this->client);
+        $this->svc->validateRequiredLoginScope($this->realm, 'my-app', 'openid');
     }
 
     public function testValidateRequiredLoginScopeMissingOpenidThrows(): void
     {
+        $this->clientRepo->method('findByName')->with('my-app')->willReturn($this->client);
         $this->expectException(ValidationFailed::class);
-        $this->svc->validateRequiredLoginScope(['profile'], 'email');
+        $this->svc->validateRequiredLoginScope($this->realm, 'my-app', 'profile');
+    }
+
+    public function testValidateRequiredLoginScopeClientNotFoundThrows(): void
+    {
+        $this->clientRepo->method('findByName')->with('ghost')->willReturn(null);
+        $this->expectException(ValidationFailed::class);
+        $this->svc->validateRequiredLoginScope($this->realm, 'ghost', 'openid');
     }
 
     // ── initializeLogin ───────────────────────────────────────
@@ -248,8 +262,10 @@ class AuthenticationOrchestratorTest extends TestCase
         $login = $this->createMock(Login::class);
         $login->method('getScope')->willReturn('openid');
         $login->method('getId')->willReturn('login-1');
+        $login->method('getClientId')->willReturn('c-id');
 
         $this->loginRepo->method('findById')->with('login-1')->willReturn($login);
+        $this->clientRepo->method('findById')->with('c-id')->willReturn($this->client);
         $this->sessionOrch->method('create')->willReturn($this->session);
         $this->secretsService->method('generateCode')->willReturn('code-xyz');
 

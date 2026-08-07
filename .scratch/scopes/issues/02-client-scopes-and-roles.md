@@ -1,6 +1,6 @@
 # Phase 2 — Client scopes + client roles
 
-status: **TODO** (second step of `.scratch/scopes/PRD.md`)
+status: **PARTIAL** — client-scope gating done (2026-08-07); client roles deferred to a follow-up
 
 ## Problem
 
@@ -69,3 +69,39 @@ resolve(?string $requested, Client $client, Realm $realm, bool $requireOpenid): 
   `invalid scope`, even if the realm allows it.
 - Seeded clients keep working (scope NULL → inherit realm, defaults unchanged).
 - All existing tests + `composer check` stay green.
+
+## Comments
+
+### 2026-08-07 — Client-scope gating shipped; client roles split out
+
+Decided to deliver only the **client-scope gating** half of this issue first (it
+unblocks `offline_access` per-client gating for token-lifecycle #03). The client
+role axis (sections 2 + 4 below) is deferred to a dedicated follow-up issue —
+the roadmap item was split accordingly.
+
+Implementation notes:
+
+- Migration `003_client_scope` adds `clients.scope varchar(100) DEFAULT NULL`
+  (`NULL` = inherit `realms.scope`).
+- New `AuthServer\Services\ScopeResolver` centralizes the check; the 4
+  duplicated validations were removed (`validateRequiredLoginScope`,
+  `createAuthorizedLogin`, `authenticateLogin`, `getClientCredentialsTokens`).
+  `InputValidator::validateScope` was deleted.
+- **Semantics: strict rejection** (`invalid scope`), not PRD narrowing — a
+  requested scope must be in both the client's effective allow-list and the
+  realm's. This matches the issue's Acceptance criteria and preserves the
+  existing `invalid scope` behaviour for `client_credentials`.
+- `openid` is **implicitly always allowed** even if omitted from
+  `clients.scope` (Keycloak parity: it is a built-in scope every client has).
+  `requireOpenid=true` still rejects a request without `openid` in the
+  auth-code flow.
+- `client_credentials` with an omitted `scope` now grants the client's
+  *effective* allow-list (was: realm scope).
+- `db/seed.sql` unchanged — seeded clients keep `scope NULL` (inherit).
+- Tests: `ScopeResolverTest` (unit) + `ClientScopeTest` (integration,
+  auth-code + client_credentials + `offline_access` gating). 267 tests green;
+  `composer check` clean.
+
+Outstanding for the follow-up: client role storage decision (normalized `roles`
+table vs pragmatic `users.client_roles` JSON), `resource_access.<client>.roles`
+claims, and introspection passthrough.

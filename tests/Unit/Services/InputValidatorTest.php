@@ -11,23 +11,6 @@ use PHPUnit\Framework\TestCase;
 
 class InputValidatorTest extends TestCase
 {
-    // ── validateScope ──────────────────────────────────────────
-
-    public function testValidateScopePasses(): void
-    {
-        self::assertTrue(InputValidator::validateScope(['openid', 'profile'], 'openid'));
-    }
-
-    public function testValidateScopeMissingOpenidReturnsFalse(): void
-    {
-        self::assertFalse(InputValidator::validateScope(['profile'], 'email'));
-    }
-
-    public function testValidateScopeUnknownScopeReturnsFalse(): void
-    {
-        self::assertFalse(InputValidator::validateScope(['openid'], 'openid unknown'));
-    }
-
     // ── validateRedirectUri ────────────────────────────────────
 
     public function testValidateRedirectUriExactMatch(): void

@@ -1,0 +1,1 @@
+ALTER TABLE clients ADD COLUMN scope varchar(100) DEFAULT NULL;

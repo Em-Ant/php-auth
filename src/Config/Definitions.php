@@ -35,6 +35,7 @@ use AuthServer\Services\InputValidator;
 use AuthServer\Services\LoginStateMachine;
 use AuthServer\Services\MigrationRunner;
 use AuthServer\Services\RateLimiter;
+use AuthServer\Services\ScopeResolver;
 use AuthServer\Services\SecretsService;
 use AuthServer\Services\SessionOrchestrator;
 use AuthServer\Services\TokenGrantService;
@@ -126,6 +127,7 @@ final class Definitions
             TokenIntrospectionService::class => \DI\autowire(),
             InputValidator::class => \DI\autowire(),
             LoginStateMachine::class => \DI\autowire(),
+            ScopeResolver::class => \DI\autowire(),
             RateLimiter::class => \DI\autowire(),
             MigrationRunner::class => \DI\autowire()
                 ->constructorParameter('migrationsDir', \DI\get('migrations_dir')),

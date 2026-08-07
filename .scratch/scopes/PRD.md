@@ -73,7 +73,12 @@ Per-flow behavior:
 
 ### Phase 2 — Client scopes + client roles
 
-- Add `clients.scope` (NULL = inherit realm) via migration.
+> **Status (2026-08-07):** client-scope gating shipped (see
+> [issues/02](issues/02-client-scopes-and-roles.md)). The client-role axis
+> (roles table/column, `resource_access.<client>.roles`) remains.
+
+- Add `clients.scope` (NULL = inherit realm) via migration. ✅ (migration
+  `003_client_scope`)
 - Introduce the client role axis:
   - Target (Keycloak-style): `roles` table (`id, realm_id, client_id NULL=realm,
     name, description`) + `user_role_assignments` (`user_id, role_id`).
@@ -81,7 +86,8 @@ Per-flow behavior:
     `users.client_roles` column (JSON `{client: [roles]}`) — less schema churn,
     less normalized.
 - `ScopeResolver` service centralizes `requested ∩ realm ∩ client`
-  (kills the 3 duplicated validations).
+  (kills the 3 duplicated validations). ✅ — delivered as **strict rejection**
+  of disallowed scopes (see `issues/02` Comments); `openid` implicitly allowed.
 - Touch: migrations, `Client`/`User` models + repos, `config/di.php`, auth-code
   + client_credentials flows, introspection (`resource_access` passthrough).
 - Issue: `issues/02-client-scopes-and-roles.md`

@@ -12,6 +12,7 @@ class Client implements \JsonSerializable
     private ?string $client_secret;
     private string $uri;
     private bool $require_auth;
+    private ?string $scope;
     private \DateTime $created_at;
 
 
@@ -22,7 +23,8 @@ class Client implements \JsonSerializable
         ?string $client_secret,
         string $uri,
         bool $require_auth,
-        string $created_at
+        string $created_at,
+        ?string $scope = null
     ) {
         $this->id = $id;
         $this->name = $name;
@@ -30,6 +32,7 @@ class Client implements \JsonSerializable
         $this->uri = $uri;
         $this->client_secret = $client_secret;
         $this->require_auth = $require_auth;
+        $this->scope = $scope;
         $utc = new \DateTimeZone('UTC');
         $this->created_at =
             \DateTime::createFromFormat('Y-m-d H:i:s', $created_at, $utc);
@@ -58,6 +61,10 @@ class Client implements \JsonSerializable
     public function requiresAuth(): bool
     {
         return $this->require_auth;
+    }
+    public function getScope(): ?array
+    {
+        return $this->scope === null ? null : explode(' ', $this->scope);
     }
     public function getCreatedAt(): \DateTime
     {

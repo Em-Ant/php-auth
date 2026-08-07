@@ -27,6 +27,7 @@ class TokenGrantService
     private LoginStateMachine $loginStateMachine;
     private SecretsService $secrets_service;
     private TokenService $token_service;
+    private ScopeResolver $scopeResolver;
     private LoggerInterface $logger;
 
     public function __construct(
@@ -38,6 +39,7 @@ class TokenGrantService
         LoginStateMachine $loginStateMachine,
         SecretsService $secrets_service,
         TokenService $token_service,
+        ScopeResolver $scopeResolver,
         LoggerInterface $logger
     ) {
         $this->sessionOrchestrator = $sessionOrchestrator;
@@ -48,6 +50,7 @@ class TokenGrantService
         $this->loginStateMachine = $loginStateMachine;
         $this->secrets_service = $secrets_service;
         $this->token_service = $token_service;
+        $this->scopeResolver = $scopeResolver;
         $this->logger = $logger;
     }
 
@@ -269,19 +272,17 @@ class TokenGrantService
             "generating tokens via client_credentials grant for {$client->getName()}"
         );
 
-        $requested_scope = $scope === '' ? implode(' ', $realm->getScope()) : $scope;
-        $allowed_scope = $realm->getScope();
-
-        foreach (explode(' ', $requested_scope) as $s) {
-            if ($s !== '' && !in_array($s, $allowed_scope, true)) {
-                throw new ValidationFailed('invalid scope');
-            }
-        }
+        $granted_scope = $this->scopeResolver->resolve(
+            $scope === '' ? null : $scope,
+            $client,
+            $realm,
+            false
+        );
 
         return $this->token_service->createClientCredentialsToken(
             $realm,
             $client,
-            $requested_scope
+            $granted_scope
         );
     }
 }

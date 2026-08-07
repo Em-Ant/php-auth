@@ -42,7 +42,8 @@ class ClientRepository implements IRepo
                 $r['client_secret'],
                 $r['uri'],
                 (bool) $r['require_auth'],
-                $r['created_at']
+                $r['created_at'],
+                $r['scope']
             );
         } catch (\PDOException $e) {
             $this->logger->error($e->getMessage());
@@ -73,7 +74,8 @@ class ClientRepository implements IRepo
                 $r['client_secret'],
                 $r['uri'],
                 (bool) $r['require_auth'],
-                $r['created_at']
+                $r['created_at'],
+                $r['scope']
             );
         } catch (\PDOException $e) {
             $this->logger->error($e->getMessage());

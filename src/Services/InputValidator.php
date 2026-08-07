@@ -10,23 +10,6 @@ use AuthServer\Models\GrantType;
 
 class InputValidator
 {
-    public static function validateScope(array $allowed_scope, string $requested_scope): bool
-    {
-        $input_scope_array = explode(' ', $requested_scope);
-        $valid = true;
-        $required_found = false;
-        foreach ($input_scope_array as $s) {
-            if ($s === 'openid') {
-                $required_found = true;
-            }
-            if (!in_array($s, $allowed_scope)) {
-                $valid = false;
-                break;
-            }
-        }
-        return $valid && $required_found;
-    }
-
     public static function validateRedirectUri(Client $client, string $redirect_uri): void
     {
         $_redirect_uri = rtrim($redirect_uri, '/');

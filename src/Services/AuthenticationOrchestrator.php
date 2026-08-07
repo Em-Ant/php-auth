@@ -27,6 +27,7 @@ class AuthenticationOrchestrator
     private LoginStateMachine $loginStateMachine;
     private SecretsService $secrets_service;
     private TokenService $token_service;
+    private ScopeResolver $scopeResolver;
     private LoggerInterface $logger;
 
     public function __construct(
@@ -37,6 +38,7 @@ class AuthenticationOrchestrator
         LoginStateMachine $loginStateMachine,
         SecretsService $secrets_service,
         TokenService $token_service,
+        ScopeResolver $scopeResolver,
         LoggerInterface $logger
     ) {
         $this->sessionOrchestrator = $sessionOrchestrator;
@@ -46,19 +48,20 @@ class AuthenticationOrchestrator
         $this->loginStateMachine = $loginStateMachine;
         $this->secrets_service = $secrets_service;
         $this->token_service = $token_service;
+        $this->scopeResolver = $scopeResolver;
         $this->logger = $logger;
     }
 
     public function validateRequiredLoginScope(
-        array $realm_allowed_scope,
+        Realm $realm,
+        string $client_name,
         string $required_scope
     ): void {
-        if (!InputValidator::validateScope($realm_allowed_scope, $required_scope)) {
-            $this->logger->info(
-                "scope '$required_scope' not allowed for realm"
-            );
-            throw new ValidationFailed('scope not allowed for realm');
+        $client = $this->client_repository->findByName($client_name);
+        if ($client === null) {
+            throw new ValidationFailed('invalid client id');
         }
+        $this->scopeResolver->resolve($required_scope, $client, $realm, true);
     }
 
     public function initializeLogin(
@@ -130,9 +133,7 @@ class AuthenticationOrchestrator
                 "invalid user $user_id for session $session_id"
             );
         }
-        if (!InputValidator::validateScope($realm->getScope(), $query['scope'])) {
-            throw new AuthenticationFailed('invalid realm scope');
-        }
+        $this->scopeResolver->resolve($query['scope'], $client, $realm, true);
 
         $code = $this->secrets_service->generateCode();
 
@@ -216,9 +217,11 @@ class AuthenticationOrchestrator
         }
 
         $scope = $login->getScope();
-        if (!InputValidator::validateScope($realm->getScope(), $scope)) {
-            throw new AuthenticationFailed('invalid user scope');
+        $client = $this->client_repository->findById($login->getClientId());
+        if ($client === null) {
+            throw new StorageFailed("invalid client for login $login_id");
         }
+        $this->scopeResolver->resolve($scope, $client, $realm, true);
 
         $session = $this->sessionOrchestrator->create(
             $realm->getId(),

@@ -54,7 +54,8 @@ class AuthorizationController
             $prompt = $query['prompt'] ?? '';
 
             $this->auth_service->validateRequiredLoginScope(
-                $realm->getScope(),
+                $realm,
+                $query['client_id'],
                 $scope
             );
 
