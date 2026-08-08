@@ -27,7 +27,7 @@ class TokenService
         $this->keyStore = $keyStore;
     }
 
-    public function validateToken(string $token, Realm $realm): bool
+    public function verifySignature(string $token, Realm $realm): bool
     {
         $kid = $realm->getKeysId();
         $keySet = $this->keyStore->findKeys($kid);
@@ -54,13 +54,6 @@ class TokenService
         );
 
         return $result === 1;
-    }
-
-    public function tokenIsExpired(string $token): bool
-    {
-        $decoded = $this->decodeTokenPayload($token);
-        $exp = $decoded['exp'] ?? 0;
-        return $exp < time();
     }
 
     public function createToken(array $payload, string $keys_id): string

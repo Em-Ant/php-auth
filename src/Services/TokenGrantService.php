@@ -26,6 +26,7 @@ class TokenGrantService
     private LoginStateMachine $loginStateMachine;
     private ClientAuthenticator $clientAuthenticator;
     private TokenService $tokenService;
+    private TokenValidator $tokenValidator;
     private ScopeResolver $scopeResolver;
     private LoggerInterface $logger;
 
@@ -37,6 +38,7 @@ class TokenGrantService
         LoginStateMachine $loginStateMachine,
         ClientAuthenticator $clientAuthenticator,
         TokenService $tokenService,
+        TokenValidator $tokenValidator,
         ScopeResolver $scopeResolver,
         LoggerInterface $logger
     ) {
@@ -47,6 +49,7 @@ class TokenGrantService
         $this->loginStateMachine = $loginStateMachine;
         $this->clientAuthenticator = $clientAuthenticator;
         $this->tokenService = $tokenService;
+        $this->tokenValidator = $tokenValidator;
         $this->scopeResolver = $scopeResolver;
         $this->logger = $logger;
     }
@@ -184,8 +187,8 @@ class TokenGrantService
 
         $login = $this->loginStateMachine->transition($login, LoginEvent::CheckExpiry, $realm);
 
-        $expired = $this->tokenService->tokenIsExpired($refresh_token);
-        if ($expired) {
+        $valid = $this->tokenValidator->validate($refresh_token, $realm, 'Refresh');
+        if ($valid === null) {
             $this->loginStateMachine->transition($login, LoginEvent::Expire, $realm);
             throw new ValidationFailed('refresh_token is expired');
         }

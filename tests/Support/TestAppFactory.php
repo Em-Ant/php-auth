@@ -118,7 +118,6 @@ class TestAppFactory
                 $oidcController = $container->get(OidcController::class);
                 $errorController = $container->get(ErrorController::class);
                 $authOrchestrator = $container->get(\AuthServer\Services\AuthenticationOrchestrator::class);
-                $tokenBlacklistRepo = $container->get(\AuthServer\Repositories\TokenBlacklistRepository::class);
 
                 $group->get('/auth', [$authController, 'authorize']);
                 $group->post('/login-actions/authenticate', [$authController, 'login']);
@@ -129,7 +128,7 @@ class TestAppFactory
                 $group->get('/error', [$errorController, 'error']);
                 $group->get('/certs', [$oidcController, 'sendKeys']);
                 $group->get('/userinfo', [$oidcController, 'sendUserInfo'])
-                    ->add(new ValidateAccessToken($authOrchestrator, $tokenBlacklistRepo));
+                    ->add(new ValidateAccessToken($authOrchestrator));
 
                 $group->get('/login-status-iframe.html', function (ServerRequestInterface $request, ResponseInterface $response) {
                     $response->getBody()->write(file_get_contents(__DIR__ . '/../../src/views/login-iframe.html'));

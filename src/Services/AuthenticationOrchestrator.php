@@ -26,7 +26,7 @@ class AuthenticationOrchestrator
     private ILoginRepo $loginRepository;
     private LoginStateMachine $loginStateMachine;
     private SecretsService $secretsService;
-    private TokenService $tokenService;
+    private TokenValidator $tokenValidator;
     private ScopeResolver $scopeResolver;
     private LoggerInterface $logger;
 
@@ -37,7 +37,7 @@ class AuthenticationOrchestrator
         ILoginRepo $loginRepo,
         LoginStateMachine $loginStateMachine,
         SecretsService $secretsService,
-        TokenService $tokenService,
+        TokenValidator $tokenValidator,
         ScopeResolver $scopeResolver,
         LoggerInterface $logger
     ) {
@@ -47,7 +47,7 @@ class AuthenticationOrchestrator
         $this->loginRepository = $loginRepo;
         $this->loginStateMachine = $loginStateMachine;
         $this->secretsService = $secretsService;
-        $this->tokenService = $tokenService;
+        $this->tokenValidator = $tokenValidator;
         $this->scopeResolver = $scopeResolver;
         $this->logger = $logger;
     }
@@ -248,12 +248,15 @@ class AuthenticationOrchestrator
     public function logout(string $id_token, Realm $realm): bool
     {
         $this->logger->info("logging out for id token");
-        $token_valid = $this->tokenService->validateToken($id_token, $realm);
-        if (!$token_valid) {
+        $claims = $this->tokenValidator->validateIdTokenHint($id_token, $realm);
+        if ($claims === null) {
             throw new ValidationFailed('invalid id_token');
         }
-        $token_parsed = $this->tokenService->decodeTokenPayload($id_token);
-        $session_id = $token_parsed['sid'];
+
+        $session_id = $claims['sid'] ?? '';
+        if ($session_id === '') {
+            throw new ValidationFailed('invalid id_token');
+        }
 
         $this->logger->info("token contains session id $session_id");
 
@@ -275,18 +278,13 @@ class AuthenticationOrchestrator
 
     public function parseValidToken(string $token, Realm $realm): array
     {
-        $is_valid = $this->tokenService->validateToken($token, $realm);
-        $is_expired = $this->tokenService->tokenIsExpired($token);
-        if (!$is_valid) {
-            $this->logger->error("invalid token");
+        $claims = $this->tokenValidator->validate($token, $realm, 'Bearer');
+        if ($claims === null) {
+            $this->logger->error("invalid or expired access token");
             throw new ValidationFailed('Token verification failed');
         }
-        if ($is_expired) {
-            $this->logger->error("token expired");
-            throw new ValidationFailed('Token is expired');
-        }
 
-        return $this->tokenService->decodeTokenPayload($token);
+        return $claims;
     }
 
     public function validateLogoutRedirectUri(
@@ -297,7 +295,7 @@ class AuthenticationOrchestrator
             return null;
         }
 
-        $payload = $this->tokenService->decodeTokenSafely($id_token);
+        $payload = $this->tokenValidator->decodeClaimsOnly($id_token);
         if ($payload === null) {
             return null;
         }

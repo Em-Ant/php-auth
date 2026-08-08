@@ -123,7 +123,6 @@ $app->group(
         $oidcController = $containerObj->get(Controllers\OidcController::class);
         $errorController = $containerObj->get(Controllers\ErrorController::class);
         $authOrchestrator = $containerObj->get(\AuthServer\Services\AuthenticationOrchestrator::class);
-        $tokenBlacklistRepo = $containerObj->get(\AuthServer\Repositories\TokenBlacklistRepository::class);
         $tokenGrantService = $containerObj->get(\AuthServer\Services\TokenGrantService::class);
         $revocationService = $containerObj->get(\AuthServer\Services\TokenRevocationService::class);
         $introspectionService = $containerObj->get(\AuthServer\Services\TokenIntrospectionService::class);
@@ -139,7 +138,7 @@ $app->group(
         $group->get('/error', [$errorController, 'error']);
         $group->get('/certs', [$oidcController, 'sendKeys']);
         $group->get('/userinfo', [$oidcController, 'sendUserInfo'])
-            ->add(new Middleware\ValidateAccessToken($authOrchestrator, $tokenBlacklistRepo));
+            ->add(new Middleware\ValidateAccessToken($authOrchestrator));
 
         // Login status iframe (used for 3rd-party cookie detection)
         $group->get(

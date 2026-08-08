@@ -43,6 +43,7 @@ use AuthServer\Services\TokenGrantService;
 use AuthServer\Services\TokenIntrospectionService;
 use AuthServer\Services\TokenRevocationService;
 use AuthServer\Services\TokenService;
+use AuthServer\Services\TokenValidator;
 use AuthServer\Services\ViewRenderer;
 use Monolog\Handler\StreamHandler;
 use Monolog\Logger;
@@ -104,6 +105,11 @@ final class Definitions
             // ── Token service ──
 
             TokenService::class => \DI\autowire()
+                ->constructorParameter('issuer', \DI\get('issuer')),
+
+            // ── Token validator ──
+
+            TokenValidator::class => \DI\autowire()
                 ->constructorParameter('issuer', \DI\get('issuer')),
 
             // ── Secrets service ──

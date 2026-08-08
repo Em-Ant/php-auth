@@ -20,7 +20,7 @@ use AuthServer\Services\LoginStateMachine;
 use AuthServer\Services\ScopeResolver;
 use AuthServer\Services\SecretsService;
 use AuthServer\Services\SessionOrchestrator;
-use AuthServer\Services\TokenService;
+use AuthServer\Services\TokenValidator;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -32,7 +32,7 @@ class AuthenticationOrchestratorTest extends TestCase
     private ILoginRepo $loginRepo;
     private LoginStateMachine $stateMachine;
     private SecretsService $secretsService;
-    private TokenService $tokenService;
+    private TokenValidator $tokenValidator;
     private LoggerInterface $logger;
     private SessionOrchestrator $sessionOrch;
     private AuthenticationOrchestrator $svc;
@@ -48,7 +48,7 @@ class AuthenticationOrchestratorTest extends TestCase
         $this->loginRepo = $this->createMock(ILoginRepo::class);
         $this->stateMachine = $this->createMock(LoginStateMachine::class);
         $this->secretsService = $this->createMock(SecretsService::class);
-        $this->tokenService = $this->createMock(TokenService::class);
+        $this->tokenValidator = $this->createMock(TokenValidator::class);
         $this->logger = $this->createMock(LoggerInterface::class);
         $this->sessionOrch = $this->createMock(SessionOrchestrator::class);
 
@@ -59,7 +59,7 @@ class AuthenticationOrchestratorTest extends TestCase
             $this->loginRepo,
             $this->stateMachine,
             $this->secretsService,
-            $this->tokenService,
+            $this->tokenValidator,
             new ScopeResolver(new NullLogger()),
             $this->logger,
         );
@@ -287,8 +287,7 @@ class AuthenticationOrchestratorTest extends TestCase
 
     public function testLogoutValidIdTokenExpiresSession(): void
     {
-        $this->tokenService->method('validateToken')->willReturn(true);
-        $this->tokenService->method('decodeTokenPayload')->willReturn(['sid' => 's-id']);
+        $this->tokenValidator->method('validateIdTokenHint')->willReturn(['sid' => 's-id']);
         $this->sessionOrch->expects($this->once())->method('expire')->with('s-id');
 
         $result = $this->svc->logout('valid.id.token', $this->realm);
@@ -297,7 +296,7 @@ class AuthenticationOrchestratorTest extends TestCase
 
     public function testLogoutInvalidTokenThrows(): void
     {
-        $this->tokenService->method('validateToken')->willReturn(false);
+        $this->tokenValidator->method('validateIdTokenHint')->willReturn(null);
         $this->expectException(ValidationFailed::class);
         $this->svc->logout('bad-token', $this->realm);
     }
@@ -345,7 +344,7 @@ class AuthenticationOrchestratorTest extends TestCase
 
     public function testValidateLogoutRedirectUriAcceptsRegisteredTarget(): void
     {
-        $this->tokenService->method('decodeTokenSafely')->willReturn(['azp' => 'my-app']);
+        $this->tokenValidator->method('decodeClaimsOnly')->willReturn(['azp' => 'my-app']);
         $this->clientRepo->method('findByName')->with('my-app')->willReturn($this->client);
 
         $result = $this->svc->validateLogoutRedirectUri('id-token', 'http://example.com');
@@ -354,7 +353,7 @@ class AuthenticationOrchestratorTest extends TestCase
 
     public function testValidateLogoutRedirectUriAcceptsSubpathTarget(): void
     {
-        $this->tokenService->method('decodeTokenSafely')->willReturn(['azp' => 'my-app']);
+        $this->tokenValidator->method('decodeClaimsOnly')->willReturn(['azp' => 'my-app']);
         $this->clientRepo->method('findByName')->with('my-app')->willReturn($this->client);
 
         $result = $this->svc->validateLogoutRedirectUri('id-token', 'http://example.com/logged-out');
@@ -363,7 +362,7 @@ class AuthenticationOrchestratorTest extends TestCase
 
     public function testValidateLogoutRedirectUriFallsBackToAud(): void
     {
-        $this->tokenService->method('decodeTokenSafely')->willReturn(['aud' => 'my-app']);
+        $this->tokenValidator->method('decodeClaimsOnly')->willReturn(['aud' => 'my-app']);
         $this->clientRepo->method('findByName')->with('my-app')->willReturn($this->client);
 
         $result = $this->svc->validateLogoutRedirectUri('id-token', 'http://example.com');
@@ -372,7 +371,7 @@ class AuthenticationOrchestratorTest extends TestCase
 
     public function testValidateLogoutRedirectUriRejectsUnregisteredTarget(): void
     {
-        $this->tokenService->method('decodeTokenSafely')->willReturn(['azp' => 'my-app']);
+        $this->tokenValidator->method('decodeClaimsOnly')->willReturn(['azp' => 'my-app']);
         $this->clientRepo->method('findByName')->with('my-app')->willReturn($this->client);
 
         $result = $this->svc->validateLogoutRedirectUri('id-token', 'http://evil.com');
@@ -387,7 +386,7 @@ class AuthenticationOrchestratorTest extends TestCase
 
     public function testValidateLogoutRedirectUriWithoutClientClaimReturnsNull(): void
     {
-        $this->tokenService->method('decodeTokenSafely')->willReturn(['sid' => 's-id']);
+        $this->tokenValidator->method('decodeClaimsOnly')->willReturn(['sid' => 's-id']);
         $this->clientRepo->method('findByName')->with('my-app')->willReturn($this->client);
 
         $result = $this->svc->validateLogoutRedirectUri('id-token', 'http://example.com');
@@ -396,7 +395,7 @@ class AuthenticationOrchestratorTest extends TestCase
 
     public function testValidateLogoutRedirectUriUnknownClientReturnsNull(): void
     {
-        $this->tokenService->method('decodeTokenSafely')->willReturn(['azp' => 'ghost']);
+        $this->tokenValidator->method('decodeClaimsOnly')->willReturn(['azp' => 'ghost']);
         $this->clientRepo->method('findByName')->with('ghost')->willReturn(null);
 
         $result = $this->svc->validateLogoutRedirectUri('id-token', 'http://example.com');
@@ -413,9 +412,7 @@ class AuthenticationOrchestratorTest extends TestCase
 
     public function testParseValidTokenReturnsPayload(): void
     {
-        $this->tokenService->method('validateToken')->willReturn(true);
-        $this->tokenService->method('tokenIsExpired')->willReturn(false);
-        $this->tokenService->method('decodeTokenPayload')->willReturn(['sub' => 'u-id']);
+        $this->tokenValidator->method('validate')->willReturn(['sub' => 'u-id']);
 
         $result = $this->svc->parseValidToken('good-token', $this->realm);
         self::assertSame('u-id', $result['sub']);
@@ -423,15 +420,14 @@ class AuthenticationOrchestratorTest extends TestCase
 
     public function testParseValidTokenInvalidThrows(): void
     {
-        $this->tokenService->method('validateToken')->willReturn(false);
+        $this->tokenValidator->method('validate')->willReturn(null);
         $this->expectException(ValidationFailed::class);
         $this->svc->parseValidToken('bad-token', $this->realm);
     }
 
     public function testParseValidTokenExpiredThrows(): void
     {
-        $this->tokenService->method('validateToken')->willReturn(true);
-        $this->tokenService->method('tokenIsExpired')->willReturn(true);
+        $this->tokenValidator->method('validate')->willReturn(null);
         $this->expectException(ValidationFailed::class);
         $this->svc->parseValidToken('expired-token', $this->realm);
     }

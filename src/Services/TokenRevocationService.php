@@ -17,7 +17,7 @@ class TokenRevocationService
     private ISessionRepo $sessionRepository;
     private LoginStateMachine $loginStateMachine;
     private ClientAuthenticator $clientAuthenticator;
-    private TokenService $tokenService;
+    private TokenValidator $tokenValidator;
     private TokenBlacklistRepository $tokenBlacklistRepository;
     private LoggerInterface $logger;
 
@@ -26,7 +26,7 @@ class TokenRevocationService
         ISessionRepo $sessionRepo,
         LoginStateMachine $loginStateMachine,
         ClientAuthenticator $clientAuthenticator,
-        TokenService $tokenService,
+        TokenValidator $tokenValidator,
         TokenBlacklistRepository $tokenBlacklistRepository,
         LoggerInterface $logger
     ) {
@@ -34,7 +34,7 @@ class TokenRevocationService
         $this->sessionRepository = $sessionRepo;
         $this->loginStateMachine = $loginStateMachine;
         $this->clientAuthenticator = $clientAuthenticator;
-        $this->tokenService = $tokenService;
+        $this->tokenValidator = $tokenValidator;
         $this->tokenBlacklistRepository = $tokenBlacklistRepository;
         $this->logger = $logger;
     }
@@ -65,24 +65,18 @@ class TokenRevocationService
         }
 
         // Access token path
-        $decoded = $this->tokenService->decodeTokenSafely($token);
-        if ($decoded === null) {
+        $claims = $this->tokenValidator->validate(
+            $token,
+            $realm,
+            'Bearer',
+            $client->getName()
+        );
+        if ($claims === null) {
             return;
         }
 
-        $aud = $decoded['aud'] ?? $decoded['azp'] ?? '';
-        if ((string) $aud !== $client->getName()) {
-            $this->logger->info("revoke: token not issued to $clientId");
-            return;
-        }
-
-        $isValid = $this->tokenService->validateToken($token, $realm);
-        if (!$isValid) {
-            return;
-        }
-
-        $jti = $decoded['jti'] ?? '';
-        $exp = $decoded['exp'] ?? 0;
+        $jti = $claims['jti'] ?? '';
+        $exp = $claims['exp'] ?? 0;
         if ($jti !== '') {
             $this->tokenBlacklistRepository->add($jti, $exp);
             $this->logger->info("revoke: blacklisted jti $jti");

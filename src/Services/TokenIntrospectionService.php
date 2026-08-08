@@ -9,28 +9,24 @@ use AuthServer\Exceptions\ValidationFailed;
 use AuthServer\Interfaces\LoginRepository as ILoginRepo;
 use AuthServer\Models\LoginStatus;
 use AuthServer\Models\Realm;
-use AuthServer\Repositories\TokenBlacklistRepository;
 use Psr\Log\LoggerInterface;
 
 class TokenIntrospectionService
 {
     private ILoginRepo $loginRepository;
     private ClientAuthenticator $clientAuthenticator;
-    private TokenService $tokenService;
-    private TokenBlacklistRepository $tokenBlacklistRepository;
+    private TokenValidator $tokenValidator;
     private LoggerInterface $logger;
 
     public function __construct(
         ILoginRepo $loginRepo,
         ClientAuthenticator $clientAuthenticator,
-        TokenService $tokenService,
-        TokenBlacklistRepository $tokenBlacklistRepository,
+        TokenValidator $tokenValidator,
         LoggerInterface $logger
     ) {
         $this->loginRepository = $loginRepo;
         $this->clientAuthenticator = $clientAuthenticator;
-        $this->tokenService = $tokenService;
-        $this->tokenBlacklistRepository = $tokenBlacklistRepository;
+        $this->tokenValidator = $tokenValidator;
         $this->logger = $logger;
     }
 
@@ -45,18 +41,18 @@ class TokenIntrospectionService
         $clientId = $params['client_id'] ?? '';
         $this->validateIntrospectClient($clientId, $params);
 
-        $decoded = $this->tokenService->decodeTokenSafely($token);
-        if ($decoded === null) {
+        $claims = $this->tokenValidator->validate($token, $realm);
+        if ($claims === null) {
             return ['active' => false];
         }
 
-        $typ = $decoded['typ'] ?? '';
+        $typ = $claims['typ'] ?? '';
 
         if ($typ === 'Refresh') {
-            return $this->introspectRefreshToken($token, $decoded, $realm);
+            return $this->introspectRefreshToken($token, $claims);
         }
 
-        return $this->introspectAccessToken($token, $decoded, $realm);
+        return $this->introspectAccessToken($claims);
     }
 
     private function validateIntrospectClient(string $clientId, array $params): void
@@ -68,15 +64,10 @@ class TokenIntrospectionService
         }
     }
 
-    private function introspectRefreshToken(string $token, array $decoded, Realm $realm): array
+    private function introspectRefreshToken(string $token, array $decoded): array
     {
         $login = $this->loginRepository->findByRefreshToken($token);
         if ($login === null || $login->getStatus() !== LoginStatus::Active) {
-            return ['active' => false];
-        }
-
-        $exp = $decoded['exp'] ?? 0;
-        if ($exp < time()) {
             return ['active' => false];
         }
 
@@ -85,7 +76,7 @@ class TokenIntrospectionService
             'sub' => $decoded['sub'] ?? '',
             'aud' => $decoded['aud'] ?? '',
             'iss' => $decoded['iss'] ?? '',
-            'exp' => $exp,
+            'exp' => $decoded['exp'] ?? 0,
             'iat' => $decoded['iat'] ?? 0,
             'jti' => $decoded['jti'] ?? '',
             'token_type' => 'refresh_token',
@@ -95,23 +86,10 @@ class TokenIntrospectionService
         ];
     }
 
-    private function introspectAccessToken(string $token, array $decoded, Realm $realm): array
+    private function introspectAccessToken(array $decoded): array
     {
-        $isValid = $this->tokenService->validateToken($token, $realm);
-        if (!$isValid) {
-            return ['active' => false];
-        }
-
         $exp = $decoded['exp'] ?? 0;
-        if ($exp < time()) {
-            return ['active' => false];
-        }
-
         $jti = $decoded['jti'] ?? '';
-        if ($jti !== '' && $this->tokenBlacklistRepository->exists($jti)) {
-            return ['active' => false];
-        }
-
         $typ = $decoded['typ'] ?? 'Bearer';
 
         return [

@@ -7,7 +7,6 @@ namespace AuthServer\Tests\Unit\Middleware;
 use AuthServer\Exceptions\ValidationFailed;
 use AuthServer\Middleware\ValidateAccessToken;
 use AuthServer\Models\Realm;
-use AuthServer\Repositories\TokenBlacklistRepository;
 use AuthServer\Services\AuthenticationOrchestrator;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
@@ -17,17 +16,14 @@ use Psr\Http\Server\RequestHandlerInterface;
 class ValidateAccessTokenTest extends TestCase
 {
     private AuthenticationOrchestrator $authService;
-    private TokenBlacklistRepository $tokenBlacklistRepository;
     private ValidateAccessToken $middleware;
     private Realm $realm;
 
     protected function setUp(): void
     {
         $this->authService = $this->createMock(AuthenticationOrchestrator::class);
-        $this->tokenBlacklistRepository = $this->createMock(TokenBlacklistRepository::class);
         $this->middleware = new ValidateAccessToken(
             $this->authService,
-            $this->tokenBlacklistRepository,
         );
         $this->realm = new Realm(
             'r-id', 'test', 'k-id', 1800, 300, 300, 300, 86400, 1800,
@@ -87,7 +83,6 @@ class ValidateAccessTokenTest extends TestCase
 
         $parsed = ['sub' => 'u-id', 'preferred_username' => 'emant', 'jti' => 'jti-1'];
         $this->authService->method('parseValidToken')->willReturn($parsed);
-        $this->tokenBlacklistRepository->method('exists')->with('jti-1')->willReturn(false);
 
         $request->expects(self::once())
             ->method('withAttribute')
@@ -110,7 +105,6 @@ class ValidateAccessTokenTest extends TestCase
 
         $parsed = ['sub' => 'u-1', 'jti' => 'jti-2'];
         $this->authService->method('parseValidToken')->willReturn($parsed);
-        $this->tokenBlacklistRepository->method('exists')->with('jti-2')->willReturn(false);
 
         $enrichedRequest = $this->createMock(ServerRequestInterface::class);
         $request->method('withAttribute')->willReturn($enrichedRequest);
