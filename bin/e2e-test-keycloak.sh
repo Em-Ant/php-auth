@@ -258,4 +258,54 @@ BAD_AUTH_CODE=$(curl -sS -o /dev/null -w "%{http_code}" -X POST \
 
 [[ "$BAD_AUTH_CODE" = "401" ]] && ok "Bad client returns 401" || fail "Bad client expected 401, got $BAD_AUTH_CODE"
 
+# ── Step 14: prompt=none (no session) ────────────────────────
+echo ""
+echo "=== Step 14: prompt=none (no session) ==="
+# Only the no-session branch is checked: silent auth depends on the
+# Secure AUTH_SESSION cookie reaching the server, which can fail for
+# infra reasons unrelated to the code. That case is covered by the
+# PHPUnit integration test (FullFlowTest::testPromptNoneWithValidSessionReturnsCode).
+PN_URL="$BASE_URL/realms/$REALM/protocol/openid-connect/auth?client_id=$CLIENT&redirect_uri=$REDIRECT_URI&response_type=code&response_mode=query&scope=openid&state=e2e-pn&nonce=e2e-pn&prompt=none"
+
+> "$HEADER_DUMP"
+PN_CODE=$(curl -sS -o /dev/null -w "%{http_code}" -D "$HEADER_DUMP" "$PN_URL")
+
+[[ "$PN_CODE" = "302" ]] && ok "prompt=none (no session) returns 302" || { fail "prompt=none (no session) expected 302, got $PN_CODE"; exit 1; }
+
+PN_LOCATION=$(grep -i '^location:' "$HEADER_DUMP" 2>/dev/null | sed 's/.*location: //I' | tr -d '\r\n' || true)
+echo "$PN_LOCATION" | grep -q 'error=login_required' \
+    && ok "prompt=none returns error=login_required" \
+    || { fail "prompt=none missing error=login_required"; echo "  Location: $PN_LOCATION"; }
+echo "$PN_LOCATION" | grep -q 'state=e2e-pn' \
+    && ok "prompt=none echoes state" \
+    || { fail "prompt=none missing state"; echo "  Location: $PN_LOCATION"; }
+
+# ── Step 15: Logout redirect validation ──────────────────────
+echo ""
+echo "=== Step 15: Logout redirect validation ==="
+NEG_REDIRECT_URI="https://evil.com"
+
+> "$HEADER_DUMP"
+LG_CODE=$(curl -sS -o /dev/null -w "%{http_code}" -D "$HEADER_DUMP" \
+    "$BASE_URL/realms/$REALM/protocol/openid-connect/logout?id_token_hint=${ID_TOKEN}&post_logout_redirect_uri=$REDIRECT_URI")
+
+[[ "$LG_CODE" = "302" ]] && ok "Logout to registered uri returns 302" || { fail "Logout expected 302, got $LG_CODE"; exit 1; }
+
+LG_LOCATION=$(grep -i '^location:' "$HEADER_DUMP" 2>/dev/null | sed 's/.*location: //I' | tr -d '\r\n' || true)
+echo "$LG_LOCATION" | grep -q "$REDIRECT_URI" \
+    && ok "Logout redirects to registered uri" \
+    || fail "Logout did not redirect to registered uri: $LG_LOCATION"
+
+> "$HEADER_DUMP"
+LG_CODE=$(curl -sS -o /dev/null -w "%{http_code}" -D "$HEADER_DUMP" \
+    "$BASE_URL/realms/$REALM/protocol/openid-connect/logout?id_token_hint=${ID_TOKEN}&post_logout_redirect_uri=${NEG_REDIRECT_URI}")
+
+LG_LOCATION=$(grep -i '^location:' "$HEADER_DUMP" 2>/dev/null | sed 's/.*location: //I' | tr -d '\r\n' || true)
+
+if echo "$LG_LOCATION" | grep -q "$NEG_REDIRECT_URI"; then
+    fail "Logout redirected to unregistered uri"
+else
+    ok "Logout does not redirect to unregistered uri"
+fi
+
 exit $FAIL

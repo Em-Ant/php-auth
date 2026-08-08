@@ -34,14 +34,28 @@ class LogoutController
         /** @var Realm */
         $realm = $request->getAttribute(Realm::class);
         $query = $request->getQueryParams();
-        $redirect = $query['post_logout_redirect_uri'] ?? '';
+        $post_logout_redirect_uri = $query['post_logout_redirect_uri'] ?? '';
         $id_token = $query['id_token_hint'] ?? '';
 
         try {
+            if ($id_token === '') {
+                $response = $this->sessionCookie->delete($realm, $response);
+                return $response->withStatus(204);
+            }
+
             $this->auth_service->logout($id_token, $realm);
             $response = $this->sessionCookie->delete($realm, $response);
+
+            $redirect_uri = $this->auth_service->validateLogoutRedirectUri(
+                $id_token,
+                $post_logout_redirect_uri
+            );
+            if ($redirect_uri === null) {
+                return $response->withStatus(204);
+            }
+
             return $response
-                ->withHeader('Location', $redirect)
+                ->withHeader('Location', $redirect_uri)
                 ->withStatus(302);
         } catch (ValidationFailed | AuthenticationFailed $e) {
             return JsonResponse::error(

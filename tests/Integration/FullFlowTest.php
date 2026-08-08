@@ -112,6 +112,50 @@ class FullFlowTest extends TestCase
         return rtrim(strtr(base64_encode(hash('sha256', $verifier, true)), '+/', '-_'), '=');
     }
 
+    private function resetSessionCookie(): void
+    {
+        $handler = self::$app->getContainer()->get(SessionCookieHandler::class);
+        if ($handler instanceof InMemorySessionCookieHandler) {
+            $handler->reset();
+        }
+    }
+
+    private function promptAuth(
+        string $state,
+        string $redirectUri,
+        string $clientId = 'local',
+        string $realm = 'test',
+    ): ResponseInterface {
+        $request = $this->createRequest(
+            'GET',
+            '/realms/' . $realm . '/protocol/openid-connect/auth',
+            [
+                'client_id' => $clientId,
+                'redirect_uri' => $redirectUri,
+                'response_type' => 'code',
+                'response_mode' => 'query',
+                'scope' => 'openid',
+                'state' => $state,
+                'nonce' => 'nc',
+                'prompt' => 'none',
+            ]
+        );
+
+        return $this->handle($request);
+    }
+
+    private function requestLogout(string $idToken, string $postLogoutRedirectUri = ''): ResponseInterface
+    {
+        $query = ['id_token_hint' => $idToken];
+        if ($postLogoutRedirectUri !== '') {
+            $query['post_logout_redirect_uri'] = $postLogoutRedirectUri;
+        }
+
+        $request = $this->createRequest('GET', '/realms/test/protocol/openid-connect/logout', $query);
+
+        return $this->handle($request);
+    }
+
     private function exchangeCode(string $code, array $extra = []): ResponseInterface
     {
         $request = $this->createRequest('POST', '/realms/test/protocol/openid-connect/token', [], array_merge([
@@ -275,10 +319,120 @@ class FullFlowTest extends TestCase
         self::assertStringStartsWith('http://localhost:5173', $response->getHeaderLine('Location'));
     }
 
+    // ── Logout redirect validation ────────────────────────────
+
+    public function testLogoutAcceptsSubpathOfRegisteredUri(): void
+    {
+        $tokens = $this->completeLogin('logout-sub-st', 'logout-sub-nc');
+
+        $response = $this->requestLogout($tokens['id_token'], 'http://localhost:5173/logged-out');
+
+        self::assertSame(302, $response->getStatusCode());
+        self::assertSame('http://localhost:5173/logged-out', $response->getHeaderLine('Location'));
+    }
+
+    public function testLogoutRejectsUnregisteredUri(): void
+    {
+        $tokens = $this->completeLogin('logout-bad-st', 'logout-bad-nc');
+
+        $response = $this->requestLogout($tokens['id_token'], 'http://evil.com');
+
+        self::assertSame(204, $response->getStatusCode());
+        self::assertSame('', $response->getHeaderLine('Location'));
+    }
+
+    public function testLogoutWithoutIdTokenDoesNotRedirect(): void
+    {
+        $this->resetSessionCookie();
+
+        $response = $this->requestLogout('', 'http://localhost:5173');
+
+        self::assertSame(204, $response->getStatusCode());
+        self::assertSame('', $response->getHeaderLine('Location'));
+    }
+
+    // ── prompt=none ────────────────────────────────────────────
+
+    public function testPromptNoneWithoutSessionRedirectsWithLoginRequired(): void
+    {
+        $this->resetSessionCookie();
+
+        $response = $this->promptAuth('pn-st', 'http://localhost:5173');
+
+        self::assertSame(302, $response->getStatusCode());
+        $location = $response->getHeaderLine('Location');
+        self::assertStringStartsWith('http://localhost:5173', $location);
+        self::assertStringContainsString('error=login_required', $location);
+        self::assertStringContainsString('state=pn-st', $location);
+    }
+
+    public function testPromptNoneWithUnregisteredRedirectDoesNotRedirect(): void
+    {
+        $this->resetSessionCookie();
+
+        $response = $this->promptAuth('pn-bad', 'http://evil.com');
+
+        self::assertSame(302, $response->getStatusCode());
+        $location = $response->getHeaderLine('Location');
+        self::assertStringNotContainsString('http://evil.com', $location);
+        self::assertStringContainsString('/protocol/openid-connect/error', $location);
+    }
+
+    public function testPromptNoneWithValidSessionReturnsCode(): void
+    {
+        $this->resetSessionCookie();
+
+        [, $loginResponse] = $this->getFormAndLogin('pn-ses-st', 'pn-ses-nc', 'tst');
+        self::assertSame(302, $loginResponse->getStatusCode());
+
+        $response = $this->promptAuth('pn-ses-2-st', 'http://localhost:5173');
+
+        self::assertSame(302, $response->getStatusCode());
+        $location = $response->getHeaderLine('Location');
+        self::assertStringStartsWith('http://localhost:5173?code=', $location);
+        self::assertStringContainsString('state=pn-ses-2-st', $location);
+    }
+
+    public function testPromptNoneMissingScopeReturns400(): void
+    {
+        $request = $this->createRequest('GET', '/realms/test/protocol/openid-connect/auth', [
+            'client_id' => 'local',
+            'redirect_uri' => 'http://localhost:5173',
+            'response_type' => 'code',
+            'response_mode' => 'query',
+            'state' => 'st',
+            'nonce' => 'nc',
+            'prompt' => 'none',
+        ]);
+
+        $response = $this->handle($request);
+        self::assertSame(400, $response->getStatusCode());
+        self::assertStringContainsString('scope', $this->decodeJson($response)['error_description']);
+    }
+
+    public function testPromptNoneMissingClientIdReturns400(): void
+    {
+        $request = $this->createRequest('GET', '/realms/test/protocol/openid-connect/auth', [
+            'redirect_uri' => 'http://localhost:5173',
+            'response_type' => 'code',
+            'response_mode' => 'query',
+            'scope' => 'openid',
+            'state' => 'st',
+            'nonce' => 'nc',
+            'prompt' => 'none',
+        ]);
+
+        $response = $this->handle($request);
+        self::assertSame(400, $response->getStatusCode());
+        self::assertStringContainsString('client_id', $this->decodeJson($response)['error_description']);
+    }
+
     // ── PKCE flow ─────────────────────────────────────────────
 
     public function testPkceFlow(): void
     {
+        $this->resetSessionCookie();
+
         $codeChallenge = $this->pkceChallenge(self::PKCE_VERIFIER);
 
         $tokens = $this->completeLogin('pkce-st', 'pkce-nc', [

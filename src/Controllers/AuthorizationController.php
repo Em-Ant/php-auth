@@ -12,6 +12,7 @@ use AuthServer\Models\Realm;
 use AuthServer\Models\RedirectUri;
 use AuthServer\Response\JsonResponse;
 use AuthServer\Services\AuthenticationOrchestrator;
+use AuthServer\Services\InputValidator;
 use AuthServer\Services\SessionOrchestrator;
 use AuthServer\Services\ViewRenderer;
 use Psr\Http\Message\ResponseInterface;
@@ -50,6 +51,7 @@ class AuthorizationController
 
         try {
             $query = $request->getQueryParams();
+            InputValidator::validateQueryParams($query);
             $scope = $query['scope'];
             $prompt = $query['prompt'] ?? '';
 
@@ -89,33 +91,23 @@ class AuthorizationController
                     ->withHeader('Location', (string) $redirect_uri)
                     ->withStatus(302);
             } elseif ($prompt === 'none') {
-                $redirect_uri = new RedirectUri(
-                    $query['redirect_uri'],
-                    $query['response_mode'],
-                    [
-                        'error' => 'login_required',
-                        'state' => $query['state'],
-                    ]
-                );
-                return $response
-                    ->withHeader('Location', (string) $redirect_uri)
-                    ->withStatus(302);
-            } else {
-                $pending = $this->auth_service->initializeLogin(
-                    $realm->getId(),
-                    $query
-                );
-
-                return $this->view->render($response, 'login_form.php', [
-                    'title' => 'Login',
-                    'login_id' => $pending['login_id'],
-                    'csrf_token' => $pending['csrf_token'],
-                    'realm' => $realm_name,
-                    'email' => '',
-                    'password' => '',
-                    'error' => false,
-                ]);
+                return $this->handlePromptNone($response, $realm, $query);
             }
+
+            $pending = $this->auth_service->initializeLogin(
+                $realm->getId(),
+                $query
+            );
+
+            return $this->view->render($response, 'login_form.php', [
+                'title' => 'Login',
+                'login_id' => $pending['login_id'],
+                'csrf_token' => $pending['csrf_token'],
+                'realm' => $realm_name,
+                'email' => '',
+                'password' => '',
+                'error' => false,
+            ]);
         } catch (ValidationFailed | AuthenticationFailed $e) {
             return JsonResponse::error(
                 $response,
@@ -201,6 +193,35 @@ class AuthorizationController
         } catch (StorageFailed $e) {
             return $this->redirectToError($response, $realm->getName(), $e->getMessage());
         }
+    }
+
+    private function handlePromptNone(
+        ResponseInterface $response,
+        Realm $realm,
+        array $query
+    ): ResponseInterface {
+        try {
+            $this->auth_service->ensureValidClient(
+                $query['client_id'],
+                $realm->getId(),
+                $query['redirect_uri']
+            );
+        } catch (ValidationFailed $e) {
+            return $this->redirectToError($response, $realm->getName(), $e->getMessage());
+        }
+
+        $redirect_uri = new RedirectUri(
+            $query['redirect_uri'],
+            $query['response_mode'],
+            [
+                'error' => 'login_required',
+                'state' => $query['state'],
+            ]
+        );
+
+        return $response
+            ->withHeader('Location', (string) $redirect_uri)
+            ->withStatus(302);
     }
 
     private function redirectToError(

@@ -8,6 +8,7 @@ Backlog of clean-code smells found during the codebase assessment (session ses_0
 - Dead admin routes (`/api/admin` stub) removed from `public/index.php` and `TestAppFactory.php`
 - `LoginStateMachine` persistence failures now throw `StorageFailed` instead of bare `RuntimeException`
 - `SessionCookieHandler` PSR-7 compliance: reads from `$request->getCookieParams()`, writes `Set-Cookie` header on the response, no more global `setcookie()` / `$_COOKIE`
+- [Open redirects](issues/08-open-redirects.md): `prompt=none` error branch + logout now validate the redirect target against the client's registered URI (spec in `.scratch/open-redirects/PRD.md`)
 
 ## Issues
 
@@ -18,4 +19,3 @@ Backlog of clean-code smells found during the codebase assessment (session ses_0
 5. [Basic-auth parsing duplicated](issues/05-basic-auth-parsing-duplication.md)
 6. [Naming and typing consistency](issues/06-naming-and-typing-consistency.md)
 7. [Static InputValidator + dead DI entry](issues/07-static-input-validator.md)
-8. [Open redirects](issues/08-open-redirects.md)

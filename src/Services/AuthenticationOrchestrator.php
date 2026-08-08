@@ -289,7 +289,39 @@ class AuthenticationOrchestrator
         return $this->tokenService->decodeTokenPayload($token);
     }
 
-    private function ensureValidClient(
+    public function validateLogoutRedirectUri(
+        string $id_token,
+        string $post_logout_redirect_uri
+    ): ?string {
+        if (trim($post_logout_redirect_uri) === '') {
+            return null;
+        }
+
+        $payload = $this->tokenService->decodeTokenSafely($id_token);
+        if ($payload === null) {
+            return null;
+        }
+
+        $client_name = $payload['azp'] ?? $payload['aud'] ?? null;
+        if (!is_string($client_name) || $client_name === '') {
+            return null;
+        }
+
+        $client = $this->clientRepository->findByName($client_name);
+        if ($client === null) {
+            return null;
+        }
+
+        try {
+            InputValidator::validateRedirectUri($client, $post_logout_redirect_uri);
+        } catch (ValidationFailed) {
+            return null;
+        }
+
+        return $post_logout_redirect_uri;
+    }
+
+    public function ensureValidClient(
         string $client_name,
         string $realm_id,
         string $redirect_uri

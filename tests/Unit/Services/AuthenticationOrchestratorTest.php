@@ -302,6 +302,113 @@ class AuthenticationOrchestratorTest extends TestCase
         $this->svc->logout('bad-token', $this->realm);
     }
 
+    // ── ensureValidClient ─────────────────────────────────────
+
+    public function testEnsureValidClientPasses(): void
+    {
+        $this->clientRepo->method('findByName')->with('my-app')->willReturn($this->client);
+
+        $result = $this->svc->ensureValidClient('my-app', 'r-id', 'http://example.com');
+        self::assertSame($this->client, $result);
+    }
+
+    public function testEnsureValidClientUnknownClientThrows(): void
+    {
+        $this->clientRepo->method('findByName')->with('ghost')->willReturn(null);
+        $this->expectException(ValidationFailed::class);
+        $this->svc->ensureValidClient('ghost', 'r-id', 'http://example.com');
+    }
+
+    public function testEnsureValidClientWrongRealmThrows(): void
+    {
+        $this->clientRepo->method('findByName')->with('my-app')->willReturn($this->client);
+        $this->expectException(ValidationFailed::class);
+        $this->svc->ensureValidClient('my-app', 'other-realm', 'http://example.com');
+    }
+
+    public function testEnsureValidClientUnregisteredRedirectThrows(): void
+    {
+        $this->clientRepo->method('findByName')->with('my-app')->willReturn($this->client);
+        $this->expectException(ValidationFailed::class);
+        $this->svc->ensureValidClient('my-app', 'r-id', 'http://evil.com');
+    }
+
+    public function testEnsureValidClientSubpathRedirectPasses(): void
+    {
+        $this->clientRepo->method('findByName')->with('my-app')->willReturn($this->client);
+
+        $result = $this->svc->ensureValidClient('my-app', 'r-id', 'http://example.com/logout');
+        self::assertSame($this->client, $result);
+    }
+
+    // ── validateLogoutRedirectUri ─────────────────────────────
+
+    public function testValidateLogoutRedirectUriAcceptsRegisteredTarget(): void
+    {
+        $this->tokenService->method('decodeTokenSafely')->willReturn(['azp' => 'my-app']);
+        $this->clientRepo->method('findByName')->with('my-app')->willReturn($this->client);
+
+        $result = $this->svc->validateLogoutRedirectUri('id-token', 'http://example.com');
+        self::assertSame('http://example.com', $result);
+    }
+
+    public function testValidateLogoutRedirectUriAcceptsSubpathTarget(): void
+    {
+        $this->tokenService->method('decodeTokenSafely')->willReturn(['azp' => 'my-app']);
+        $this->clientRepo->method('findByName')->with('my-app')->willReturn($this->client);
+
+        $result = $this->svc->validateLogoutRedirectUri('id-token', 'http://example.com/logged-out');
+        self::assertSame('http://example.com/logged-out', $result);
+    }
+
+    public function testValidateLogoutRedirectUriFallsBackToAud(): void
+    {
+        $this->tokenService->method('decodeTokenSafely')->willReturn(['aud' => 'my-app']);
+        $this->clientRepo->method('findByName')->with('my-app')->willReturn($this->client);
+
+        $result = $this->svc->validateLogoutRedirectUri('id-token', 'http://example.com');
+        self::assertSame('http://example.com', $result);
+    }
+
+    public function testValidateLogoutRedirectUriRejectsUnregisteredTarget(): void
+    {
+        $this->tokenService->method('decodeTokenSafely')->willReturn(['azp' => 'my-app']);
+        $this->clientRepo->method('findByName')->with('my-app')->willReturn($this->client);
+
+        $result = $this->svc->validateLogoutRedirectUri('id-token', 'http://evil.com');
+        self::assertNull($result);
+    }
+
+    public function testValidateLogoutRedirectUriEmptyTargetReturnsNull(): void
+    {
+        $result = $this->svc->validateLogoutRedirectUri('id-token', '');
+        self::assertNull($result);
+    }
+
+    public function testValidateLogoutRedirectUriWithoutClientClaimReturnsNull(): void
+    {
+        $this->tokenService->method('decodeTokenSafely')->willReturn(['sid' => 's-id']);
+        $this->clientRepo->method('findByName')->with('my-app')->willReturn($this->client);
+
+        $result = $this->svc->validateLogoutRedirectUri('id-token', 'http://example.com');
+        self::assertNull($result);
+    }
+
+    public function testValidateLogoutRedirectUriUnknownClientReturnsNull(): void
+    {
+        $this->tokenService->method('decodeTokenSafely')->willReturn(['azp' => 'ghost']);
+        $this->clientRepo->method('findByName')->with('ghost')->willReturn(null);
+
+        $result = $this->svc->validateLogoutRedirectUri('id-token', 'http://example.com');
+        self::assertNull($result);
+    }
+
+    public function testValidateLogoutRedirectUriUndecodableTokenReturnsNull(): void
+    {
+        $result = $this->svc->validateLogoutRedirectUri('not-a-jwt', 'http://example.com');
+        self::assertNull($result);
+    }
+
     // ── parseValidToken ───────────────────────────────────────
 
     public function testParseValidTokenReturnsPayload(): void
