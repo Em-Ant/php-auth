@@ -77,7 +77,7 @@ class TokenServiceTest extends TestCase
             state: 'state-1',
             nonce: 'nonce-1',
             scope: 'openid',
-            redirect_uri: 'http://example.com/cb',
+            redirect_uri: 'https://example.com/cb',
             response_mode: 'query',
             created_at: '2025-01-01 00:00:00',
             session_id: 'session-1',
@@ -95,7 +95,7 @@ class TokenServiceTest extends TestCase
             name: 'my-app',
             realm_id: 'r-id',
             client_secret: null,
-            uri: 'http://example.com',
+            uri: 'https://example.com',
             require_auth: false,
             created_at: '2025-01-01 00:00:00',
         );

@@ -134,29 +134,57 @@ class TokenPolicyTest extends TestCase
         return $tokenService->createToken($payload, self::KID);
     }
 
-    public function testExpiredSignedAccessTokenReportsInactive(): void
+    private function introspect(string $token): array
     {
-        $token = $this->craftToken('Bearer', ['exp' => time() - 1]);
-
         $request = $this->createRequest('POST', '/realms/test/protocol/openid-connect/token/introspect', [], [
             'token' => $token,
             'client_id' => 'local',
         ]);
         $response = $this->handle($request);
-        $body = json_decode((string) $response->getBody(), true);
-
         self::assertSame(200, $response->getStatusCode());
+        return json_decode((string) $response->getBody(), true);
+    }
+
+    private function revoke(string $token): ResponseInterface
+    {
+        $request = $this->createRequest('POST', '/realms/test/protocol/openid-connect/revoke', [], [
+            'token' => $token,
+            'token_type_hint' => 'access_token',
+            'client_id' => 'local',
+        ]);
+        return $this->handle($request);
+    }
+
+    private function userinfo(string $token): ResponseInterface
+    {
+        $request = $this->createRequest('GET', '/realms/test/protocol/openid-connect/userinfo', [], null, [
+            'Authorization' => 'Bearer ' . $token,
+        ]);
+        return $this->handle($request);
+    }
+
+    private function refresh(string $refreshToken): ResponseInterface
+    {
+        $request = $this->createRequest('POST', '/realms/test/protocol/openid-connect/token', [], [
+            'grant_type' => 'refresh_token',
+            'client_id' => 'local',
+            'refresh_token' => $refreshToken,
+        ]);
+        return $this->handle($request);
+    }
+
+    public function testExpiredSignedAccessTokenReportsInactive(): void
+    {
+        $token = $this->craftToken('Bearer', ['exp' => time() - 1]);
+        $body = $this->introspect($token);
+
         self::assertFalse($body['active']);
     }
 
     public function testExpiredSignedTokenRejectedAtUserinfo(): void
     {
         $token = $this->craftToken('Bearer', ['exp' => time() - 1]);
-
-        $request = $this->createRequest('GET', '/realms/test/protocol/openid-connect/userinfo', [], null, [
-            'Authorization' => 'Bearer ' . $token,
-        ]);
-        $response = $this->handle($request);
+        $response = $this->userinfo($token);
 
         self::assertSame(401, $response->getStatusCode());
     }
@@ -164,13 +192,7 @@ class TokenPolicyTest extends TestCase
     public function testTokenWithWrongIssuerReportsInactive(): void
     {
         $token = $this->craftToken('Bearer', ['iss' => self::ISSUER . '/realms/web']);
-
-        $request = $this->createRequest('POST', '/realms/test/protocol/openid-connect/token/introspect', [], [
-            'token' => $token,
-            'client_id' => 'local',
-        ]);
-        $response = $this->handle($request);
-        $body = json_decode((string) $response->getBody(), true);
+        $body = $this->introspect($token);
 
         self::assertFalse($body['active']);
     }
@@ -181,13 +203,7 @@ class TokenPolicyTest extends TestCase
         $parts = explode('.', $token);
         $tampered = $parts[0] . '.' . $parts[1] . '.badsignature';
 
-        $request = $this->createRequest('POST', '/realms/test/protocol/openid-connect/token/introspect', [], [
-            'token' => $tampered,
-            'client_id' => 'local',
-        ]);
-        $response = $this->handle($request);
-        $body = json_decode((string) $response->getBody(), true);
-
+        $body = $this->introspect($tampered);
         self::assertFalse($body['active']);
     }
 
@@ -209,25 +225,14 @@ class TokenPolicyTest extends TestCase
             $response->getHeaderLine('Location')
         );
 
-        $request = $this->createRequest('POST', '/realms/test/protocol/openid-connect/token', [], [
-            'grant_type' => 'refresh_token',
-            'client_id' => 'local',
-            'refresh_token' => $tokens['refresh_token'],
-        ]);
-        $response = $this->handle($request);
+        $response = $this->refresh($tokens['refresh_token']);
         self::assertSame(400, $response->getStatusCode(), 'session should be gone after logout');
     }
 
     public function testRevocationOfExpiredTokenIsSilentlyIgnored(): void
     {
         $token = $this->craftToken('Bearer', ['exp' => time() - 1]);
-
-        $request = $this->createRequest('POST', '/realms/test/protocol/openid-connect/revoke', [], [
-            'token' => $token,
-            'token_type_hint' => 'access_token',
-            'client_id' => 'local',
-        ]);
-        $response = $this->handle($request);
+        $response = $this->revoke($token);
 
         self::assertSame(200, $response->getStatusCode());
     }

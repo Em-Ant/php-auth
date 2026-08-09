@@ -142,7 +142,7 @@ class TokenValidatorTest extends TestCase
     public function testValidateRejectsWrongIssuer(): void
     {
         $payload = $this->validPayload();
-        $payload['iss'] = 'http://evil.example/realms/test';
+        $payload['iss'] = 'https://evil.example/realms/test';
 
         self::assertNull($this->validator->validate($this->createToken($payload), $this->realm));
     }
@@ -238,7 +238,7 @@ class TokenValidatorTest extends TestCase
     public function testValidateIdTokenHintRejectsForeignIssuer(): void
     {
         $payload = $this->validPayload('ID');
-        $payload['iss'] = 'http://evil.example/realms/test';
+        $payload['iss'] = 'https://evil.example/realms/test';
 
         self::assertNull($this->validator->validateIdTokenHint($this->createToken($payload), $this->realm));
     }

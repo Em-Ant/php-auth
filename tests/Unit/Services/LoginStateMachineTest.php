@@ -41,7 +41,7 @@ class LoginStateMachineTest extends TestCase
             state: 'state-1',
             nonce: 'nonce-1',
             scope: 'openid',
-            redirect_uri: 'http://example.com/cb',
+            redirect_uri: 'https://example.com/cb',
             response_mode: 'query',
             created_at: $createdAt ?? date('Y-m-d H:i:s'),
             session_id: null,

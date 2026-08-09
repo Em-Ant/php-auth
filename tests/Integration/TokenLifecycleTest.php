@@ -57,6 +57,34 @@ class TokenLifecycleTest extends TestCase
         return self::$app->handle($request);
     }
 
+    private function revoke(string $token, string $clientId, ?string $hint = null): ResponseInterface
+    {
+        $body = ['token' => $token, 'client_id' => $clientId];
+        if ($hint !== null) {
+            $body['token_type_hint'] = $hint;
+        }
+        $request = $this->createRequest('POST', '/realms/test/protocol/openid-connect/revoke', [], $body);
+        return $this->handle($request);
+    }
+
+    private function refresh(string $refreshToken, string $clientId = 'local'): ResponseInterface
+    {
+        $request = $this->createRequest('POST', '/realms/test/protocol/openid-connect/token', [], [
+            'grant_type' => 'refresh_token',
+            'client_id' => $clientId,
+            'refresh_token' => $refreshToken,
+        ]);
+        return $this->handle($request);
+    }
+
+    private function userinfo(string $token): ResponseInterface
+    {
+        $request = $this->createRequest('GET', '/realms/test/protocol/openid-connect/userinfo', [], null, [
+            'Authorization' => 'Bearer ' . $token,
+        ]);
+        return $this->handle($request);
+    }
+
     // ── Helper: full login flow to get tokens ────────────────
 
     private function doFullLogin(): array
@@ -129,11 +157,7 @@ class TokenLifecycleTest extends TestCase
 
     public function testRevokeGarbageTokenReturns200(): void
     {
-        $request = $this->createRequest('POST', '/realms/test/protocol/openid-connect/revoke', [], [
-            'token' => 'not-a-valid-jwt',
-            'client_id' => 'local',
-        ]);
-        $response = $this->handle($request);
+        $response = $this->revoke('not-a-valid-jwt', 'local');
 
         self::assertSame(200, $response->getStatusCode());
     }
@@ -142,21 +166,10 @@ class TokenLifecycleTest extends TestCase
     {
         $tokens = $this->doFullLogin();
 
-        // Revoke the refresh token
-        $request = $this->createRequest('POST', '/realms/test/protocol/openid-connect/revoke', [], [
-            'token' => $tokens['refresh_token'],
-            'client_id' => 'local',
-        ]);
-        $response = $this->handle($request);
+        $response = $this->revoke($tokens['refresh_token'], 'local');
         self::assertSame(200, $response->getStatusCode());
 
-        // Try to refresh with the revoked token
-        $request = $this->createRequest('POST', '/realms/test/protocol/openid-connect/token', [], [
-            'grant_type' => 'refresh_token',
-            'client_id' => 'local',
-            'refresh_token' => $tokens['refresh_token'],
-        ]);
-        $response = $this->handle($request);
+        $response = $this->refresh($tokens['refresh_token']);
         self::assertSame(400, $response->getStatusCode());
         $body = json_decode((string) $response->getBody(), true);
         self::assertStringContainsString('expired', strtolower($body['error_description'] ?? ''));
@@ -167,20 +180,11 @@ class TokenLifecycleTest extends TestCase
         $tokens = $this->doFullLogin();
 
         // Omitting token_type_hint — server should treat it as refresh token
-        $request = $this->createRequest('POST', '/realms/test/protocol/openid-connect/revoke', [], [
-            'token' => $tokens['refresh_token'],
-            'client_id' => 'local',
-        ]);
-        $response = $this->handle($request);
+        $response = $this->revoke($tokens['refresh_token'], 'local');
         self::assertSame(200, $response->getStatusCode());
 
         // Confirm refresh is dead
-        $request = $this->createRequest('POST', '/realms/test/protocol/openid-connect/token', [], [
-            'grant_type' => 'refresh_token',
-            'client_id' => 'local',
-            'refresh_token' => $tokens['refresh_token'],
-        ]);
-        $response = $this->handle($request);
+        $response = $this->refresh($tokens['refresh_token']);
         self::assertSame(400, $response->getStatusCode());
     }
 
@@ -188,20 +192,10 @@ class TokenLifecycleTest extends TestCase
     {
         $tokens = $this->doFullLogin();
 
-        // Revoke the access token
-        $request = $this->createRequest('POST', '/realms/test/protocol/openid-connect/revoke', [], [
-            'token' => $tokens['access_token'],
-            'token_type_hint' => 'access_token',
-            'client_id' => 'local',
-        ]);
-        $response = $this->handle($request);
+        $response = $this->revoke($tokens['access_token'], 'local', 'access_token');
         self::assertSame(200, $response->getStatusCode());
 
-        // Try userinfo with revoked token
-        $request = $this->createRequest('GET', '/realms/test/protocol/openid-connect/userinfo', [], null, [
-            'Authorization' => 'Bearer ' . $tokens['access_token'],
-        ]);
-        $response = $this->handle($request);
+        $response = $this->userinfo($tokens['access_token']);
         self::assertSame(401, $response->getStatusCode());
     }
 
@@ -210,19 +204,11 @@ class TokenLifecycleTest extends TestCase
         $tokens = $this->doFullLogin();
 
         // Try to revoke as a different client (kc_app vs local)
-        $request = $this->createRequest('POST', '/realms/test/protocol/openid-connect/revoke', [], [
-            'token' => $tokens['access_token'],
-            'token_type_hint' => 'access_token',
-            'client_id' => 'kc_app',
-        ]);
-        $response = $this->handle($request);
+        $response = $this->revoke($tokens['access_token'], 'kc_app', 'access_token');
         self::assertSame(200, $response->getStatusCode());
 
         // Token should still be valid for the original client (local)
-        $request = $this->createRequest('GET', '/realms/test/protocol/openid-connect/userinfo', [], null, [
-            'Authorization' => 'Bearer ' . $tokens['access_token'],
-        ]);
-        $response = $this->handle($request);
+        $response = $this->userinfo($tokens['access_token']);
         self::assertSame(200, $response->getStatusCode());
     }
 
@@ -230,29 +216,15 @@ class TokenLifecycleTest extends TestCase
     {
         $tokens = $this->doFullLogin();
 
-        // Revoke access token
-        $request = $this->createRequest('POST', '/realms/test/protocol/openid-connect/revoke', [], [
-            'token' => $tokens['access_token'],
-            'token_type_hint' => 'access_token',
-            'client_id' => 'local',
-        ]);
-        $this->handle($request);
+        $this->revoke($tokens['access_token'], 'local', 'access_token');
 
         // Get new tokens via refresh
-        $request = $this->createRequest('POST', '/realms/test/protocol/openid-connect/token', [], [
-            'grant_type' => 'refresh_token',
-            'client_id' => 'local',
-            'refresh_token' => $tokens['refresh_token'],
-        ]);
-        $response = $this->handle($request);
+        $response = $this->refresh($tokens['refresh_token']);
         self::assertSame(200, $response->getStatusCode());
         $newTokens = json_decode((string) $response->getBody(), true);
 
         // New access token should work at userinfo
-        $request = $this->createRequest('GET', '/realms/test/protocol/openid-connect/userinfo', [], null, [
-            'Authorization' => 'Bearer ' . $newTokens['access_token'],
-        ]);
-        $response = $this->handle($request);
+        $response = $this->userinfo($newTokens['access_token']);
         self::assertSame(200, $response->getStatusCode());
     }
 }

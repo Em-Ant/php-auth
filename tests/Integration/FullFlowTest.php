@@ -215,7 +215,7 @@ class FullFlowTest extends TestCase
 
     public function testAuthWithInvalidClientReturns400(): void
     {
-        $response = $this->getAuthForm('st', 'nc', clientId: 'ghost', redirectUri: 'http://example.com');
+        $response = $this->getAuthForm('st', 'nc', clientId: 'ghost', redirectUri: 'https://example.com');
 
         self::assertSame(400, $response->getStatusCode());
     }
@@ -335,7 +335,7 @@ class FullFlowTest extends TestCase
     {
         $tokens = $this->completeLogin('logout-bad-st', 'logout-bad-nc');
 
-        $response = $this->requestLogout($tokens['id_token'], 'http://evil.com');
+        $response = $this->requestLogout($tokens['id_token'], 'https://evil.com');
 
         self::assertSame(204, $response->getStatusCode());
         self::assertSame('', $response->getHeaderLine('Location'));
@@ -370,11 +370,11 @@ class FullFlowTest extends TestCase
     {
         $this->resetSessionCookie();
 
-        $response = $this->promptAuth('pn-bad', 'http://evil.com');
+        $response = $this->promptAuth('pn-bad', 'https://evil.com');
 
         self::assertSame(302, $response->getStatusCode());
         $location = $response->getHeaderLine('Location');
-        self::assertStringNotContainsString('http://evil.com', $location);
+        self::assertStringNotContainsString('https://evil.com', $location);
         self::assertStringContainsString('/protocol/openid-connect/error', $location);
     }
 

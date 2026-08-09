@@ -29,12 +29,12 @@ class ScopeResolverTest extends TestCase
         );
 
         $this->inheritClient = new Client(
-            'c-1', 'inherit-app', 'r-id', null, 'http://example.com', false, '2025-01-01 00:00:00',
+            'c-1', 'inherit-app', 'r-id', null, 'https://example.com', false, '2025-01-01 00:00:00',
             null,
         );
 
         $this->narrowClient = new Client(
-            'c-2', 'narrow-app', 'r-id', null, 'http://example.com', false, '2025-01-01 00:00:00',
+            'c-2', 'narrow-app', 'r-id', null, 'https://example.com', false, '2025-01-01 00:00:00',
             'openid profile',
         );
     }
@@ -60,7 +60,7 @@ class ScopeResolverTest extends TestCase
     public function testOpenidAlwaysAllowedEvenIfOmittedFromClientScope(): void
     {
         $client = new Client(
-            'c-3', 'openid-less-app', 'r-id', null, 'http://example.com', false, '2025-01-01 00:00:00',
+            'c-3', 'openid-less-app', 'r-id', null, 'https://example.com', false, '2025-01-01 00:00:00',
             'profile',
         );
         $granted = $this->resolver->resolve('openid profile', $client, $this->realm, true);
@@ -88,7 +88,7 @@ class ScopeResolverTest extends TestCase
     public function testScopeInClientButNotInRealmRejected(): void
     {
         $client = new Client(
-            'c-4', 'rogue-app', 'r-id', null, 'http://example.com', false, '2025-01-01 00:00:00',
+            'c-4', 'rogue-app', 'r-id', null, 'https://example.com', false, '2025-01-01 00:00:00',
             'openid admin',
         );
         $this->expectException(ValidationFailed::class);
@@ -103,7 +103,7 @@ class ScopeResolverTest extends TestCase
             'openid profile offline_access', '2025-01-01 00:00:00',
         );
         $client = new Client(
-            'c-5', 'web-app', 'r-2', null, 'http://example.com', false, '2025-01-01 00:00:00',
+            'c-5', 'web-app', 'r-2', null, 'https://example.com', false, '2025-01-01 00:00:00',
             'openid profile',
         );
 
@@ -119,7 +119,7 @@ class ScopeResolverTest extends TestCase
             'openid profile offline_access', '2025-01-01 00:00:00',
         );
         $client = new Client(
-            'c-6', 'offline-app', 'r-3', null, 'http://example.com', false, '2025-01-01 00:00:00',
+            'c-6', 'offline-app', 'r-3', null, 'https://example.com', false, '2025-01-01 00:00:00',
             'openid profile offline_access',
         );
 

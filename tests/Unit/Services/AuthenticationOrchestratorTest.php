@@ -71,7 +71,7 @@ class AuthenticationOrchestratorTest extends TestCase
         );
 
         $this->client = new Client(
-            'c-id', 'my-app', 'r-id', null, 'http://example.com', false, '2025-01-01 00:00:00',
+            'c-id', 'my-app', 'r-id', null, 'https://example.com', false, '2025-01-01 00:00:00',
         );
 
         $now = gmdate('Y-m-d H:i:s');
@@ -113,7 +113,7 @@ class AuthenticationOrchestratorTest extends TestCase
     {
         $query = [
             'client_id' => 'my-app',
-            'redirect_uri' => 'http://example.com',
+            'redirect_uri' => 'https://example.com',
             'response_type' => 'code',
             'response_mode' => 'query',
             'scope' => 'openid',
@@ -127,7 +127,7 @@ class AuthenticationOrchestratorTest extends TestCase
         $this->loginRepo->method('createPending')->willReturn(
             new Login(
                 id: 'login-1', client_id: 'c-id', state: 'st', nonce: 'nc',
-                scope: 'openid', redirect_uri: 'http://example.com', response_mode: 'query',
+                scope: 'openid', redirect_uri: 'https://example.com', response_mode: 'query',
                 created_at: date('Y-m-d H:i:s'), session_id: null,
                 authenticated_at: null, code: null, code_challenge: null,
                 csrf_token: 'csrf-abc', updated_at: null, refresh_token: null,
@@ -143,7 +143,7 @@ class AuthenticationOrchestratorTest extends TestCase
     public function testInitializeLoginNullFromRepoThrows(): void
     {
         $query = [
-            'client_id' => 'my-app', 'redirect_uri' => 'http://example.com',
+            'client_id' => 'my-app', 'redirect_uri' => 'https://example.com',
             'response_type' => 'code', 'response_mode' => 'query',
             'scope' => 'openid', 'state' => 'st', 'nonce' => 'nc',
             'code_challenge' => null,
@@ -182,7 +182,7 @@ class AuthenticationOrchestratorTest extends TestCase
     public function testCreateAuthorizedLoginHappyPath(): void
     {
         $query = [
-            'client_id' => 'my-app', 'redirect_uri' => 'http://example.com',
+            'client_id' => 'my-app', 'redirect_uri' => 'https://example.com',
             'response_type' => 'code', 'response_mode' => 'query',
             'scope' => 'openid', 'state' => 'st', 'nonce' => 'nc',
         ];
@@ -193,7 +193,7 @@ class AuthenticationOrchestratorTest extends TestCase
         $this->loginRepo->method('createAuthenticated')->willReturn(
             new Login(
                 id: 'login-2', client_id: 'c-id', state: 'st', nonce: 'nc',
-                scope: 'openid', redirect_uri: 'http://example.com', response_mode: 'query',
+                scope: 'openid', redirect_uri: 'https://example.com', response_mode: 'query',
                 created_at: date('Y-m-d H:i:s'), session_id: 's-id',
                 authenticated_at: date('Y-m-d H:i:s'), code: 'code-abc',
                 code_challenge: null, csrf_token: null, updated_at: null,
@@ -208,7 +208,7 @@ class AuthenticationOrchestratorTest extends TestCase
     public function testCreateAuthorizedLoginUserNotFoundThrows(): void
     {
         $query = [
-            'client_id' => 'my-app', 'redirect_uri' => 'http://example.com',
+            'client_id' => 'my-app', 'redirect_uri' => 'https://example.com',
             'response_type' => 'code', 'response_mode' => 'query',
             'scope' => 'openid', 'state' => 'st', 'nonce' => 'nc',
         ];
@@ -307,7 +307,7 @@ class AuthenticationOrchestratorTest extends TestCase
     {
         $this->clientRepo->method('findByName')->with('my-app')->willReturn($this->client);
 
-        $result = $this->svc->ensureValidClient('my-app', 'r-id', 'http://example.com');
+        $result = $this->svc->ensureValidClient('my-app', 'r-id', 'https://example.com');
         self::assertSame($this->client, $result);
     }
 
@@ -315,28 +315,28 @@ class AuthenticationOrchestratorTest extends TestCase
     {
         $this->clientRepo->method('findByName')->with('ghost')->willReturn(null);
         $this->expectException(ValidationFailed::class);
-        $this->svc->ensureValidClient('ghost', 'r-id', 'http://example.com');
+        $this->svc->ensureValidClient('ghost', 'r-id', 'https://example.com');
     }
 
     public function testEnsureValidClientWrongRealmThrows(): void
     {
         $this->clientRepo->method('findByName')->with('my-app')->willReturn($this->client);
         $this->expectException(ValidationFailed::class);
-        $this->svc->ensureValidClient('my-app', 'other-realm', 'http://example.com');
+        $this->svc->ensureValidClient('my-app', 'other-realm', 'https://example.com');
     }
 
     public function testEnsureValidClientUnregisteredRedirectThrows(): void
     {
         $this->clientRepo->method('findByName')->with('my-app')->willReturn($this->client);
         $this->expectException(ValidationFailed::class);
-        $this->svc->ensureValidClient('my-app', 'r-id', 'http://evil.com');
+        $this->svc->ensureValidClient('my-app', 'r-id', 'https://evil.com');
     }
 
     public function testEnsureValidClientSubpathRedirectPasses(): void
     {
         $this->clientRepo->method('findByName')->with('my-app')->willReturn($this->client);
 
-        $result = $this->svc->ensureValidClient('my-app', 'r-id', 'http://example.com/logout');
+        $result = $this->svc->ensureValidClient('my-app', 'r-id', 'https://example.com/logout');
         self::assertSame($this->client, $result);
     }
 
@@ -347,8 +347,8 @@ class AuthenticationOrchestratorTest extends TestCase
         $this->tokenValidator->method('decodeClaimsOnly')->willReturn(['azp' => 'my-app']);
         $this->clientRepo->method('findByName')->with('my-app')->willReturn($this->client);
 
-        $result = $this->svc->validateLogoutRedirectUri('id-token', 'http://example.com');
-        self::assertSame('http://example.com', $result);
+        $result = $this->svc->validateLogoutRedirectUri('id-token', 'https://example.com');
+        self::assertSame('https://example.com', $result);
     }
 
     public function testValidateLogoutRedirectUriAcceptsSubpathTarget(): void
@@ -356,8 +356,8 @@ class AuthenticationOrchestratorTest extends TestCase
         $this->tokenValidator->method('decodeClaimsOnly')->willReturn(['azp' => 'my-app']);
         $this->clientRepo->method('findByName')->with('my-app')->willReturn($this->client);
 
-        $result = $this->svc->validateLogoutRedirectUri('id-token', 'http://example.com/logged-out');
-        self::assertSame('http://example.com/logged-out', $result);
+        $result = $this->svc->validateLogoutRedirectUri('id-token', 'https://example.com/logged-out');
+        self::assertSame('https://example.com/logged-out', $result);
     }
 
     public function testValidateLogoutRedirectUriFallsBackToAud(): void
@@ -365,8 +365,8 @@ class AuthenticationOrchestratorTest extends TestCase
         $this->tokenValidator->method('decodeClaimsOnly')->willReturn(['aud' => 'my-app']);
         $this->clientRepo->method('findByName')->with('my-app')->willReturn($this->client);
 
-        $result = $this->svc->validateLogoutRedirectUri('id-token', 'http://example.com');
-        self::assertSame('http://example.com', $result);
+        $result = $this->svc->validateLogoutRedirectUri('id-token', 'https://example.com');
+        self::assertSame('https://example.com', $result);
     }
 
     public function testValidateLogoutRedirectUriRejectsUnregisteredTarget(): void
@@ -374,7 +374,7 @@ class AuthenticationOrchestratorTest extends TestCase
         $this->tokenValidator->method('decodeClaimsOnly')->willReturn(['azp' => 'my-app']);
         $this->clientRepo->method('findByName')->with('my-app')->willReturn($this->client);
 
-        $result = $this->svc->validateLogoutRedirectUri('id-token', 'http://evil.com');
+        $result = $this->svc->validateLogoutRedirectUri('id-token', 'https://evil.com');
         self::assertNull($result);
     }
 
@@ -389,7 +389,7 @@ class AuthenticationOrchestratorTest extends TestCase
         $this->tokenValidator->method('decodeClaimsOnly')->willReturn(['sid' => 's-id']);
         $this->clientRepo->method('findByName')->with('my-app')->willReturn($this->client);
 
-        $result = $this->svc->validateLogoutRedirectUri('id-token', 'http://example.com');
+        $result = $this->svc->validateLogoutRedirectUri('id-token', 'https://example.com');
         self::assertNull($result);
     }
 
@@ -398,13 +398,13 @@ class AuthenticationOrchestratorTest extends TestCase
         $this->tokenValidator->method('decodeClaimsOnly')->willReturn(['azp' => 'ghost']);
         $this->clientRepo->method('findByName')->with('ghost')->willReturn(null);
 
-        $result = $this->svc->validateLogoutRedirectUri('id-token', 'http://example.com');
+        $result = $this->svc->validateLogoutRedirectUri('id-token', 'https://example.com');
         self::assertNull($result);
     }
 
     public function testValidateLogoutRedirectUriUndecodableTokenReturnsNull(): void
     {
-        $result = $this->svc->validateLogoutRedirectUri('not-a-jwt', 'http://example.com');
+        $result = $this->svc->validateLogoutRedirectUri('not-a-jwt', 'https://example.com');
         self::assertNull($result);
     }
 
@@ -437,7 +437,7 @@ class AuthenticationOrchestratorTest extends TestCase
     public function testGetClientUriReturnsUri(): void
     {
         $this->clientRepo->method('findByName')->with('my-app')->willReturn($this->client);
-        self::assertSame('http://example.com', $this->svc->getClientUri('my-app'));
+        self::assertSame('https://example.com', $this->svc->getClientUri('my-app'));
     }
 
     public function testGetClientUriNotFoundThrows(): void

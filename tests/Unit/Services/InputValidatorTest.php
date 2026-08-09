@@ -15,15 +15,15 @@ class InputValidatorTest extends TestCase
 
     public function testValidateRedirectUriExactMatch(): void
     {
-        $client = new Client('c-1', 'app', 'r-1', null, 'http://example.com', false, '2025-01-01 00:00:00');
-        InputValidator::validateRedirectUri($client, 'http://example.com');
+        $client = new Client('c-1', 'app', 'r-1', null, 'https://example.com', false, '2025-01-01 00:00:00');
+        InputValidator::validateRedirectUri($client, 'https://example.com');
         $this->expectNotToPerformAssertions();
     }
 
     public function testValidateRedirectUriSubPathMatch(): void
     {
-        $client = new Client('c-1', 'app', 'r-1', null, 'http://example.com', false, '2025-01-01 00:00:00');
-        InputValidator::validateRedirectUri($client, 'http://example.com/callback');
+        $client = new Client('c-1', 'app', 'r-1', null, 'https://example.com', false, '2025-01-01 00:00:00');
+        InputValidator::validateRedirectUri($client, 'https://example.com/callback');
         $this->expectNotToPerformAssertions();
     }
 
@@ -40,7 +40,7 @@ class InputValidatorTest extends TestCase
     {
         $query = [
             'scope' => 'openid', 'client_id' => 'app', 'response_type' => 'code',
-            'response_mode' => 'query', 'redirect_uri' => 'http://example.com',
+            'response_mode' => 'query', 'redirect_uri' => 'https://example.com',
             'state' => 'st', 'nonce' => 'nc',
         ];
         InputValidator::validateQueryParams($query);
@@ -57,7 +57,7 @@ class InputValidatorTest extends TestCase
     {
         $query = [
             'scope' => 'openid', 'client_id' => 'app', 'response_type' => 'code',
-            'response_mode' => 'invalid', 'redirect_uri' => 'http://example.com',
+            'response_mode' => 'invalid', 'redirect_uri' => 'https://example.com',
             'state' => 'st', 'nonce' => 'nc',
         ];
         $this->expectException(ValidationFailed::class);
@@ -68,7 +68,7 @@ class InputValidatorTest extends TestCase
     {
         $query = [
             'scope' => 'profile', 'client_id' => 'app', 'response_type' => 'code',
-            'response_mode' => 'query', 'redirect_uri' => 'http://example.com',
+            'response_mode' => 'query', 'redirect_uri' => 'https://example.com',
             'state' => 'st', 'nonce' => 'nc',
         ];
         $this->expectException(ValidationFailed::class);
@@ -79,7 +79,7 @@ class InputValidatorTest extends TestCase
     {
         $query = [
             'scope' => 'openid', 'client_id' => 'app', 'response_type' => 'code',
-            'response_mode' => 'query', 'redirect_uri' => 'http://example.com',
+            'response_mode' => 'query', 'redirect_uri' => 'https://example.com',
             'state' => 'st', 'nonce' => 'nc',
             'code_challenge_method' => 'S256', 'code_challenge' => 'abc123',
         ];
@@ -91,7 +91,7 @@ class InputValidatorTest extends TestCase
     {
         $query = [
             'scope' => 'openid', 'client_id' => 'app', 'response_type' => 'code',
-            'response_mode' => 'query', 'redirect_uri' => 'http://example.com',
+            'response_mode' => 'query', 'redirect_uri' => 'https://example.com',
             'state' => 'st', 'nonce' => 'nc',
             'code_challenge_method' => 'plain',
         ];
