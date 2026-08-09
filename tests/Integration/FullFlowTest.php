@@ -6,15 +6,16 @@ namespace AuthServer\Tests\Integration;
 
 use AuthServer\Interfaces\SessionCookieHandler;
 use AuthServer\Services\InMemorySessionCookieHandler;
+use AuthServer\Tests\Support\IntegrationFlowTrait;
 use AuthServer\Tests\Support\TestAppFactory;
 use PHPUnit\Framework\Attributes\Depends;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
-use Psr\Http\Message\ServerRequestInterface;
-use Slim\Psr7\Factory\ServerRequestFactory;
 
 class FullFlowTest extends TestCase
 {
+    use IntegrationFlowTrait;
+
     private static \Slim\App $app;
     private static string $issuer = 'http://localhost:8000';
     private const PKCE_VERIFIER = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk';
@@ -22,34 +23,6 @@ class FullFlowTest extends TestCase
     public static function setUpBeforeClass(): void
     {
         self::$app = TestAppFactory::createApp();
-    }
-
-    private function createRequest(string $method, string $path, array $query = [], mixed $body = null, array $headers = []): ServerRequestInterface
-    {
-        $uri = $path;
-        if (!empty($query)) {
-            $uri .= '?' . http_build_query($query);
-        }
-        $request = (new ServerRequestFactory())->createServerRequest($method, $uri);
-
-        foreach ($headers as $name => $value) {
-            $request = $request->withHeader($name, $value);
-        }
-
-        if ($body !== null) {
-            $request->getBody()->write(is_string($body) ? $body : http_build_query($body));
-            $request->getBody()->rewind();
-            if (!is_string($body)) {
-                $request = $request->withHeader('Content-Type', 'application/x-www-form-urlencoded');
-            }
-        }
-
-        return $request;
-    }
-
-    private function handle(ServerRequestInterface $request): ResponseInterface
-    {
-        return self::$app->handle($request);
     }
 
     // ── Shared flow helpers ───────────────────────────────────

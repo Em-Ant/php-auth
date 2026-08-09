@@ -9,14 +9,14 @@ use AuthServer\Repositories\MigrationRepository;
 use AuthServer\Services\Database;
 use AuthServer\Services\MigrationRunner;
 use AuthServer\Controllers\Admin\MigrationsController;
+use AuthServer\Tests\Support\IntegrationFlowTrait;
 use DI\Bridge\Slim\Bridge;
 use PHPUnit\Framework\TestCase;
-use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
-use Slim\Psr7\Factory\ServerRequestFactory;
 
 class MigrationsEndpointTest extends TestCase
 {
+    use IntegrationFlowTrait;
     private static \Slim\App $app;
     private static string $apiKey = 'test-admin-key';
     private static \PDO $pdo;
@@ -46,35 +46,6 @@ class MigrationsEndpointTest extends TestCase
             $group->get('/status', [$controller, 'status']);
             $group->get('/dry-run', [$controller, 'dryRun']);
         })->add($adminMiddleware);
-    }
-
-    private function createRequest(string $method, string $path, array $query = [], mixed $body = null, array $headers = []): ServerRequestInterface
-    {
-        $uri = $path;
-        if (!empty($query)) {
-            $uri .= '?' . http_build_query($query);
-        }
-        $request = (new ServerRequestFactory())->createServerRequest($method, $uri);
-
-        foreach ($headers as $name => $value) {
-            $request = $request->withHeader($name, $value);
-        }
-
-        if ($body !== null) {
-            $request->getBody()->write(is_string($body) ? $body : http_build_query($body));
-            $request->getBody()->rewind();
-        }
-
-        if ($body !== null && is_array($body)) {
-            $request = $request->withHeader('Content-Type', 'application/x-www-form-urlencoded');
-        }
-
-        return $request;
-    }
-
-    private function handle(ServerRequestInterface $request): ResponseInterface
-    {
-        return self::$app->handle($request);
     }
 
     private function assertResponse(int $expectedStatus, ServerRequestInterface $request): array
