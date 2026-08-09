@@ -17,6 +17,7 @@ use AuthServer\Services\SessionOrchestrator;
 use AuthServer\Services\ViewRenderer;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
+use Psr\Log\LoggerInterface;
 
 class AuthorizationController
 {
@@ -25,6 +26,7 @@ class AuthorizationController
     private string $mount_path;
     private SessionCookieHandler $sessionCookie;
     private ViewRenderer $view;
+    private LoggerInterface $logger;
 
     public const INVALID_REQUEST = 'Invalid request';
 
@@ -34,12 +36,14 @@ class AuthorizationController
         string $mount_path,
         SessionCookieHandler $sessionCookie,
         ViewRenderer $view,
+        LoggerInterface $logger,
     ) {
         $this->auth_service = $service;
         $this->sessionOrchestrator = $sessionOrchestrator;
         $this->mount_path = $mount_path;
         $this->sessionCookie = $sessionCookie;
         $this->view = $view;
+        $this->logger = $logger;
     }
 
     public function authorize(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
@@ -116,7 +120,7 @@ class AuthorizationController
                 400
             );
         } catch (StorageFailed $e) {
-            return $this->redirectToError($response, $realm->getName(), $e->getMessage());
+            return $this->redirectStorageFailure($response, $realm, $e);
         }
     }
 
@@ -191,7 +195,7 @@ class AuthorizationController
         } catch (AuthenticationFailed $e) {
             return $this->redirectToError($response, $realm->getName(), $e->getMessage());
         } catch (StorageFailed $e) {
-            return $this->redirectToError($response, $realm->getName(), $e->getMessage());
+            return $this->redirectStorageFailure($response, $realm, $e);
         }
     }
 
@@ -234,5 +238,16 @@ class AuthorizationController
         return $response
             ->withHeader('Location', $url)
             ->withStatus(302);
+    }
+
+    private function redirectStorageFailure(
+        ResponseInterface $response,
+        Realm $realm,
+        StorageFailed $e
+    ): ResponseInterface {
+        $this->logger->error('storage failure: ' . $e->getMessage(), [
+            'exception' => $e,
+        ]);
+        return $this->redirectToError($response, $realm->getName(), $e->getMessage());
     }
 }

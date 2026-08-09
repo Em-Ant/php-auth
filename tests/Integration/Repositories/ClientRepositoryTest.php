@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 namespace AuthServer\Tests\Integration\Repositories;
 
+use AuthServer\Exceptions\StorageFailed;
 use AuthServer\Repositories\ClientRepository;
 use AuthServer\Tests\Integration\RepositoryTestCase;
-use Psr\Log\LoggerInterface;
+use AuthServer\Tests\Support\FailingPdo;
 
 class ClientRepositoryTest extends RepositoryTestCase
 {
@@ -14,8 +15,7 @@ class ClientRepositoryTest extends RepositoryTestCase
 
     protected function setUp(): void
     {
-        $logger = $this->createMock(LoggerInterface::class);
-        $this->repo = new ClientRepository(self::$pdo, $logger);
+        $this->repo = new ClientRepository(self::$pdo);
     }
 
     public function testFindByIdReturnsClient(): void
@@ -42,5 +42,13 @@ class ClientRepositoryTest extends RepositoryTestCase
     public function testFindByNameReturnsNullForMissing(): void
     {
         self::assertNull($this->repo->findByName('ghost'));
+    }
+
+    public function testStorageFailureThrows(): void
+    {
+        $repo = new ClientRepository(new FailingPdo());
+
+        $this->expectException(StorageFailed::class);
+        $repo->findById('a540c566-dfbf-430a-9941-fb8531c022d4');
     }
 }

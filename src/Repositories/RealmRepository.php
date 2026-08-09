@@ -4,20 +4,17 @@ declare(strict_types=1);
 
 namespace AuthServer\Repositories;
 
-use Psr\Log\LoggerInterface;
+use AuthServer\Exceptions\StorageFailed;
 use AuthServer\Interfaces\RealmRepository as IRepo;
 use AuthServer\Models\Realm;
-use Error;
 
 class RealmRepository implements IRepo
 {
     private \PDO $db;
-    private LoggerInterface $logger;
 
-    public function __construct(\PDO $db, LoggerInterface $logger)
+    public function __construct(\PDO $db)
     {
         $this->db = $db;
-        $this->logger = $logger;
     }
 
     public function findById(string $id): ?Realm
@@ -50,8 +47,7 @@ class RealmRepository implements IRepo
                 $r['created_at']
             );
         } catch (\PDOException $e) {
-            $this->logger->error($e->getMessage());
-            return null;
+            throw new StorageFailed("failed to load realm by id $id", 0, $e);
         }
     }
 
@@ -85,8 +81,7 @@ class RealmRepository implements IRepo
                 $r['created_at']
             );
         } catch (\PDOException $e) {
-            $this->logger->error($e->getMessage());
-            return null;
+            throw new StorageFailed("failed to load realm by name $name", 0, $e);
         }
     }
 }

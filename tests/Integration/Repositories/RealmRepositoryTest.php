@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 namespace AuthServer\Tests\Integration\Repositories;
 
+use AuthServer\Exceptions\StorageFailed;
 use AuthServer\Repositories\RealmRepository;
 use AuthServer\Tests\Integration\RepositoryTestCase;
-use Psr\Log\LoggerInterface;
+use AuthServer\Tests\Support\FailingPdo;
 
 class RealmRepositoryTest extends RepositoryTestCase
 {
@@ -14,8 +15,7 @@ class RealmRepositoryTest extends RepositoryTestCase
 
     protected function setUp(): void
     {
-        $logger = $this->createMock(LoggerInterface::class);
-        $this->repo = new RealmRepository(self::$pdo, $logger);
+        $this->repo = new RealmRepository(self::$pdo);
     }
 
     public function testFindByIdReturnsRealm(): void
@@ -40,5 +40,13 @@ class RealmRepositoryTest extends RepositoryTestCase
     public function testFindByNameReturnsNullForMissing(): void
     {
         self::assertNull($this->repo->findByName('ghost'));
+    }
+
+    public function testStorageFailureThrows(): void
+    {
+        $repo = new RealmRepository(new FailingPdo());
+
+        $this->expectException(StorageFailed::class);
+        $repo->findByName('web');
     }
 }

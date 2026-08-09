@@ -4,19 +4,17 @@ declare(strict_types=1);
 
 namespace AuthServer\Repositories;
 
-use Psr\Log\LoggerInterface;
+use AuthServer\Exceptions\StorageFailed;
 use AuthServer\Interfaces\UserRepository as IUser;
 use AuthServer\Models\User;
 
 class UserRepository implements IUser
 {
     private \PDO $db;
-    private LoggerInterface $logger;
 
-    public function __construct(\PDO $db, LoggerInterface $logger)
+    public function __construct(\PDO $db)
     {
         $this->db = $db;
-        $this->logger = $logger;
     }
 
     public function findById(string $id): ?User
@@ -46,8 +44,7 @@ class UserRepository implements IUser
                 $r['valid'] === 'TRUE'
             );
         } catch (\PDOException $e) {
-            $this->logger->error($e->getMessage());
-            return null;
+            throw new StorageFailed("failed to load user by id $id", 0, $e);
         }
     }
 
@@ -79,8 +76,11 @@ class UserRepository implements IUser
                 $r['valid'] === 'TRUE'
             );
         } catch (\PDOException $e) {
-            $this->logger->error($e->getMessage());
-            return null;
+            throw new StorageFailed(
+                "failed to load user by email $email and realm $realm_id",
+                0,
+                $e
+            );
         }
     }
 }

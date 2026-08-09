@@ -7,6 +7,7 @@ Backlog of clean-code smells found during the codebase assessment (session ses_0
 - PKCE bug: missing `code_verifier` caused uncaught `TypeError` → 500 (`InputValidator::validateCodeChallenge`)
 - Dead admin routes (`/api/admin` stub) removed from `public/index.php` and `TestAppFactory.php`
 - `LoginStateMachine` persistence failures now throw `StorageFailed` instead of bare `RuntimeException`
+- [Repository error contract](issues/02-repository-error-contract.md): repositories rethrow `StorageFailed` (PDO errors no longer masked as "not found" → 400s); global handler maps them to 500
 - `SessionCookieHandler` PSR-7 compliance: reads from `$request->getCookieParams()`, writes `Set-Cookie` header on the response, no more global `setcookie()` / `$_COOKIE`
 - [Open redirects](issues/08-open-redirects.md): `prompt=none` error branch + logout now validate the redirect target against the client's registered URI (spec in `.scratch/open-redirects/PRD.md`)
 

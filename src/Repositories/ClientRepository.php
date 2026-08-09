@@ -4,19 +4,17 @@ declare(strict_types=1);
 
 namespace AuthServer\Repositories;
 
+use AuthServer\Exceptions\StorageFailed;
 use AuthServer\Interfaces\ClientRepository as IRepo;
-use Psr\Log\LoggerInterface;
 use AuthServer\Models\Client;
 
 class ClientRepository implements IRepo
 {
     private \PDO $db;
-    private LoggerInterface $logger;
 
-    public function __construct(\PDO $db, LoggerInterface $logger)
+    public function __construct(\PDO $db)
     {
         $this->db = $db;
-        $this->logger = $logger;
     }
 
     public function findById(string $id): ?Client
@@ -46,8 +44,7 @@ class ClientRepository implements IRepo
                 $r['scope']
             );
         } catch (\PDOException $e) {
-            $this->logger->error($e->getMessage());
-            return null;
+            throw new StorageFailed("failed to load client by id $id", 0, $e);
         }
     }
 
@@ -78,8 +75,7 @@ class ClientRepository implements IRepo
                 $r['scope']
             );
         } catch (\PDOException $e) {
-            $this->logger->error($e->getMessage());
-            return null;
+            throw new StorageFailed("failed to load client by name $name", 0, $e);
         }
     }
 }

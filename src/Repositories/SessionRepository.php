@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace AuthServer\Repositories;
 
-use Psr\Log\LoggerInterface;
+use AuthServer\Exceptions\StorageFailed;
 use AuthServer\Interfaces\SessionRepository as IRepo;
 use AuthServer\Models\Session;
 
@@ -13,12 +13,10 @@ use function AuthServer\get_guid;
 class SessionRepository implements IRepo
 {
     private \PDO $db;
-    private LoggerInterface $logger;
 
-    public function __construct(\PDO $db, LoggerInterface $logger)
+    public function __construct(\PDO $db)
     {
         $this->db = $db;
-        $this->logger = $logger;
     }
 
     public function findById(string $id): ?Session
@@ -39,8 +37,7 @@ class SessionRepository implements IRepo
 
             return self::buildFromData($r);
         } catch (\PDOException $e) {
-            $this->logger->error($e->getMessage());
-            return null;
+            throw new StorageFailed("failed to load session by id $id", 0, $e);
         }
     }
 
@@ -67,8 +64,7 @@ class SessionRepository implements IRepo
 
             return $this->findById($uid);
         } catch (\PDOException $e) {
-            $this->logger->error($e->getMessage());
-            return null;
+            throw new StorageFailed('failed to create session', 0, $e);
         }
     }
 
@@ -86,8 +82,7 @@ class SessionRepository implements IRepo
 
             return $q->execute();
         } catch (\PDOException $e) {
-            $this->logger->error($e->getMessage());
-            return false;
+            throw new StorageFailed("failed to refresh session $id", 0, $e);
         }
     }
 
@@ -104,8 +99,7 @@ class SessionRepository implements IRepo
 
             return $q->execute();
         } catch (\PDOException $e) {
-            $this->logger->error($e->getMessage());
-            return false;
+            throw new StorageFailed("failed to expire session $id", 0, $e);
         }
     }
 

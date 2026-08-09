@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 namespace AuthServer\Tests\Integration\Repositories;
 
+use AuthServer\Exceptions\StorageFailed;
 use AuthServer\Models\LoginStatus;
 use AuthServer\Repositories\LoginRepository;
 use AuthServer\Repositories\SessionRepository;
 use AuthServer\Tests\Integration\RepositoryTestCase;
-use Psr\Log\LoggerInterface;
+use AuthServer\Tests\Support\FailingPdo;
 
 class LoginRepositoryTest extends RepositoryTestCase
 {
@@ -17,9 +18,8 @@ class LoginRepositoryTest extends RepositoryTestCase
 
     protected function setUp(): void
     {
-        $logger = $this->createMock(LoggerInterface::class);
-        $this->repo = new LoginRepository(self::$pdo, $logger);
-        $this->sessionRepo = new SessionRepository(self::$pdo, $logger);
+        $this->repo = new LoginRepository(self::$pdo);
+        $this->sessionRepo = new SessionRepository(self::$pdo);
     }
 
     private function createSession(): string
@@ -180,5 +180,13 @@ class LoginRepositoryTest extends RepositoryTestCase
     public function testFindByRefreshTokenReturnsNullForMissing(): void
     {
         self::assertNull($this->repo->findByRefreshToken('bogus'));
+    }
+
+    public function testStorageFailureOnFindByIdThrows(): void
+    {
+        $repo = new LoginRepository(new FailingPdo());
+
+        $this->expectException(StorageFailed::class);
+        $repo->findById('existing-id');
     }
 }

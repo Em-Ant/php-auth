@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace AuthServer\Repositories;
 
-use Psr\Log\LoggerInterface;
+use AuthServer\Exceptions\StorageFailed;
 use AuthServer\Interfaces\LoginRepository as IRepo;
 use AuthServer\Models\Login;
 
@@ -13,12 +13,10 @@ use function AuthServer\get_guid;
 class LoginRepository implements IRepo
 {
     private \PDO $db;
-    private LoggerInterface $logger;
 
-    public function __construct(\PDO $db, LoggerInterface $logger)
+    public function __construct(\PDO $db)
     {
         $this->db = $db;
-        $this->logger = $logger;
     }
 
     public function findById(string $id): ?Login
@@ -39,8 +37,7 @@ class LoginRepository implements IRepo
 
             return self::buildFromData($r);
         } catch (\PDOException $e) {
-            $this->logger->error($e->getMessage());
-            return null;
+            throw new StorageFailed("failed to load login by id $id", 0, $e);
         }
     }
 
@@ -62,8 +59,7 @@ class LoginRepository implements IRepo
 
             return self::buildFromData($r);
         } catch (\PDOException $e) {
-            $this->logger->error($e->getMessage());
-            return null;
+            throw new StorageFailed("failed to load login by code", 0, $e);
         }
     }
 
@@ -85,8 +81,7 @@ class LoginRepository implements IRepo
 
             return self::buildFromData($r);
         } catch (\PDOException $e) {
-            $this->logger->error($e->getMessage());
-            return null;
+            throw new StorageFailed("failed to load login by refresh token", 0, $e);
         }
     }
 
@@ -127,8 +122,7 @@ class LoginRepository implements IRepo
 
             return $this->findById($uid);
         } catch (\PDOException $e) {
-            $this->logger->error($e->getMessage());
-            return null;
+            throw new StorageFailed('failed to create pending login', 0, $e);
         }
     }
 
@@ -172,8 +166,7 @@ class LoginRepository implements IRepo
 
             return $this->findById($uid);
         } catch (\PDOException $e) {
-            $this->logger->error($e->getMessage());
-            return null;
+            throw new StorageFailed('failed to create authenticated login', 0, $e);
         }
     }
 
@@ -197,8 +190,7 @@ class LoginRepository implements IRepo
 
             return $q->execute();
         } catch (\PDOException $e) {
-            $this->logger->error($e->getMessage());
-            return false;
+            throw new StorageFailed("failed to persist authenticated status for login $id", 0, $e);
         }
     }
 
@@ -218,8 +210,7 @@ class LoginRepository implements IRepo
 
             return $q->execute();
         } catch (\PDOException $e) {
-            $this->logger->error($e->getMessage());
-            return false;
+            throw new StorageFailed("failed to activate login $id", 0, $e);
         }
     }
 
@@ -239,8 +230,7 @@ class LoginRepository implements IRepo
 
             return $q->execute();
         } catch (\PDOException $e) {
-            $this->logger->error($e->getMessage());
-            return false;
+            throw new StorageFailed("failed to refresh login $id", 0, $e);
         }
     }
 
@@ -257,8 +247,7 @@ class LoginRepository implements IRepo
 
             return $q->execute();
         } catch (\PDOException $e) {
-            $this->logger->error($e->getMessage());
-            return false;
+            throw new StorageFailed("failed to expire login $id", 0, $e);
         }
     }
 

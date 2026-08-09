@@ -4,17 +4,15 @@ declare(strict_types=1);
 
 namespace AuthServer\Repositories;
 
-use Psr\Log\LoggerInterface;
+use AuthServer\Exceptions\StorageFailed;
 
 class TokenBlacklistRepository
 {
     private \PDO $db;
-    private LoggerInterface $logger;
 
-    public function __construct(\PDO $db, LoggerInterface $logger)
+    public function __construct(\PDO $db)
     {
         $this->db = $db;
-        $this->logger = $logger;
     }
 
     public function add(string $jti, int $exp): bool
@@ -27,8 +25,7 @@ class TokenBlacklistRepository
             $q->bindValue(':exp', $exp);
             return $q->execute();
         } catch (\PDOException $e) {
-            $this->logger->error($e->getMessage());
-            return false;
+            throw new StorageFailed('failed to add token to blacklist', 0, $e);
         }
     }
 
@@ -42,8 +39,7 @@ class TokenBlacklistRepository
             $q->execute();
             return (bool) $q->fetchColumn();
         } catch (\PDOException $e) {
-            $this->logger->error($e->getMessage());
-            return false;
+            throw new StorageFailed('failed to check token in blacklist', 0, $e);
         }
     }
 }

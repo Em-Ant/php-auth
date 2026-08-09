@@ -16,7 +16,6 @@ Single source of truth for what to work on next. **Local by design** (3 machines
 
 | ID | Type | Priority | Size | Status | Why-now | Doc |
 |----|------|----------|------|--------|---------|-----|
-| R-01 | refactor | P1 | M | ready | repo swallows PDO errors → outages look like 400s | `clean-code/issues/02-…` |
 | R-03 | refactor | P1 | L | ready | AuthOrchestrator: 9 deps, 10 jobs | `clean-code/issues/03-…` |
 | F-02 | feature | P1 | L | ready | offline_access core feature; scopes #02 done, unblocked | `token-lifecycle/issues/03-…` |
 | F-03 | feature | P1 | L | backlog | admin CRUD unblocks the admin-side items below | `ROADMAP → Admin API` |

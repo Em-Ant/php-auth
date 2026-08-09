@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace AuthServer\Controllers;
 
 use AuthServer\Exceptions\AuthenticationFailed;
-use AuthServer\Exceptions\StorageFailed;
 use AuthServer\Exceptions\ValidationFailed;
 use AuthServer\Models\Realm;
 use AuthServer\Response\JsonResponse;
@@ -63,13 +62,6 @@ class TokenController
                 self::INVALID_REQUEST,
                 $e->getMessage(),
                 400
-            );
-        } catch (StorageFailed $e) {
-            return JsonResponse::error(
-                $response,
-                self::INVALID_REQUEST,
-                $e->getMessage(),
-                500
             );
         }
     }

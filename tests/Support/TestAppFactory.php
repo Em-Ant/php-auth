@@ -11,6 +11,7 @@ use AuthServer\Controllers\LogoutController;
 use AuthServer\Controllers\OidcController;
 use AuthServer\Controllers\RevokeController;
 use AuthServer\Controllers\TokenController;
+use AuthServer\Exceptions\StorageFailed;
 use AuthServer\Interfaces\SessionCookieHandler;
 use AuthServer\Middleware\CorsMiddleware;
 use AuthServer\Middleware\RealmProvider;
@@ -81,6 +82,16 @@ class TestAppFactory
             function (ServerRequestInterface $request, \Throwable $exception) use ($logger) {
                 $response = new Response();
                 return JsonResponse::error($response, 'not found', $exception->getMessage(), 404);
+            }
+        );
+        $errorMiddleware->setErrorHandler(
+            StorageFailed::class,
+            function (ServerRequestInterface $request, \Throwable $exception) use ($logger) {
+                $logger->error('storage failure: ' . $exception->getMessage(), [
+                    'exception' => $exception,
+                ]);
+                $response = new Response();
+                return JsonResponse::error($response, 'server_error', $exception->getMessage(), 500);
             }
         );
 

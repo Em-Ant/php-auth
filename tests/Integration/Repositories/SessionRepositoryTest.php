@@ -4,10 +4,11 @@ declare(strict_types=1);
 
 namespace AuthServer\Tests\Integration\Repositories;
 
+use AuthServer\Exceptions\StorageFailed;
 use AuthServer\Models\SessionStatus;
 use AuthServer\Repositories\SessionRepository;
 use AuthServer\Tests\Integration\RepositoryTestCase;
-use Psr\Log\LoggerInterface;
+use AuthServer\Tests\Support\FailingPdo;
 
 class SessionRepositoryTest extends RepositoryTestCase
 {
@@ -15,8 +16,7 @@ class SessionRepositoryTest extends RepositoryTestCase
 
     protected function setUp(): void
     {
-        $logger = $this->createMock(LoggerInterface::class);
-        $this->repo = new SessionRepository(self::$pdo, $logger);
+        $this->repo = new SessionRepository(self::$pdo);
     }
 
     public function testCreateAndFindById(): void
@@ -70,5 +70,17 @@ class SessionRepositoryTest extends RepositoryTestCase
 
         $expired = $this->repo->findById($session->getId());
         self::assertSame(SessionStatus::Expired, $expired->getStatus());
+    }
+
+    public function testStorageFailureOnCreateThrows(): void
+    {
+        $repo = new SessionRepository(new FailingPdo());
+
+        $this->expectException(StorageFailed::class);
+        $repo->create(
+            '84be68b8-7936-4422-bb4d-b741d2292a9f',
+            '586d7bb3-d386-4b57-9e99-b2a460f20b47',
+            '0',
+        );
     }
 }

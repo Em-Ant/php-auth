@@ -38,6 +38,12 @@ Do NOT run `gh` or any other remote issue-tracker CLI — there is no GitHub/Git
 
 Single-context. See `.agent/docs/domain.md`.
 
+### Clean code & Sonar Cloud
+
+- **Always apply the `clean-code` skill** when writing, editing, reviewing, or refactoring code.
+- **Code must be compliant with the PHP "Sonar way" ruleset** used by SonarCloud. **Always apply the `sonar-php` skill** (self-review against rule keys + heuristic scan) for any PHP code you write or modify, before reporting the work done.
+- No analyzer runs in CI here; compliance is enforced by the agent applying the `sonar-php` self-review discipline and reporting rule-keyed findings.
+
 ## Architecture
 
 ### Entrypoint
@@ -54,7 +60,7 @@ Single-context. See `.agent/docs/domain.md`.
 | `Psr\Log\LoggerInterface` | Monolog (stdout + file) |
 | `KeyStore` | `FilesystemKeyStore` |
 | `SessionCookieHandler` | `HttpSessionCookieHandler` |
-| `ClientRepository` / `SessionRepository` / `LoginRepository` / `UserRepository` / `RealmRepository` | Repositories take `\PDO` + `LoggerInterface` |
+| `ClientRepository` / `SessionRepository` / `LoginRepository` / `UserRepository` / `RealmRepository` | Repositories take `\PDO` and rethrow `StorageFailed` on PDO errors (no logger dependency) |
 
 Config parameters (`issuer`, `base_path`, `password_hashing`, `rate_limiting`, etc.) are parsed from `config.ini` at definition time and injected via `\DI\get()`.
 

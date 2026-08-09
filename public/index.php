@@ -6,6 +6,7 @@ namespace AuthServer;
 
 use AuthServer\Config\Definitions;
 use AuthServer\Controllers;
+use AuthServer\Exceptions\StorageFailed;
 use AuthServer\Middleware\CorsMiddleware;
 use AuthServer\Middleware\RequestLogger;
 use AuthServer\Response\JsonResponse;
@@ -53,6 +54,29 @@ $errorMiddleware->setErrorHandler(
             'not found',
             $exception->getMessage(),
             404
+        );
+    }
+);
+
+// Infrastructure failures (DB down, ...) must surface as 500, never as 400s.
+$errorMiddleware->setErrorHandler(
+    StorageFailed::class,
+    function (
+        ServerRequestInterface $request,
+        \Throwable $exception,
+        bool $displayErrorDetails,
+        bool $logErrors,
+        bool $logErrorDetails
+    ) use ($logger) {
+        $logger->error('storage failure: ' . $exception->getMessage(), [
+            'exception' => $exception,
+        ]);
+        $response = new Response();
+        return JsonResponse::error(
+            $response,
+            'server_error',
+            $exception->getMessage(),
+            500
         );
     }
 );
