@@ -251,6 +251,19 @@ class LoginRepository implements IRepo
         }
     }
 
+    public function countByClientId(string $clientId): int
+    {
+        try {
+            $statement = $this->db->prepare(
+                "SELECT COUNT(*) FROM logins WHERE client_id = :client_id"
+            );
+            $statement->execute([':client_id' => $clientId]);
+            return (int) $statement->fetchColumn();
+        } catch (\PDOException $e) {
+            throw new StorageFailed('failed to count logins for client', 0, $e);
+        }
+    }
+
     private static function buildFromData(array $r): Login
     {
         return new Login(

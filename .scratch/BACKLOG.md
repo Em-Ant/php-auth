@@ -18,7 +18,7 @@ Single source of truth for what to work on next. **Local by design** (3 machines
 |----|------|----------|------|--------|---------|-----|
 | R-03 | refactor | P1 | L | ready | AuthOrchestrator: 9 deps, 10 jobs | `clean-code/issues/03-…` |
 | F-02 | feature | P1 | L | ready | offline_access core feature; scopes #02 done, unblocked | `token-lifecycle/issues/03-…` |
-| F-03 | feature | P1 | L | backlog | admin CRUD unblocks the admin-side items below | `ROADMAP → Admin API` |
+| F-03 | feature | P1 | L | ready | admin CRUD unblocks the admin-side items below | `admin-api/issues/01-admin-crud.md` |
 | F-04 | feature | P1 | M | backlog | client roles namespace (`resource_access.<client>`) | `scopes/` |
 | F-05 | feature | P1 | L | backlog | scope↔role gating at issuance | `scopes/issues/03-…` |
 | F-06 | feature | P1 | M | backlog | admin-initiated offline revocation | `token-lifecycle/issues/04-…` |

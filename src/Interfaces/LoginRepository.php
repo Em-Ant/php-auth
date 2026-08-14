@@ -52,4 +52,6 @@ interface LoginRepository
     public function setExpired(
         string $id
     ): bool;
+
+    public function countByClientId(string $clientId): int;
 }

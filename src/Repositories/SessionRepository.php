@@ -103,6 +103,19 @@ class SessionRepository implements IRepo
         }
     }
 
+    public function countByUserId(string $userId): int
+    {
+        try {
+            $statement = $this->db->prepare(
+                "SELECT COUNT(*) FROM sessions WHERE user_id = :user_id"
+            );
+            $statement->execute([':user_id' => $userId]);
+            return (int) $statement->fetchColumn();
+        } catch (\PDOException $e) {
+            throw new StorageFailed('failed to count sessions for user', 0, $e);
+        }
+    }
+
     private static function buildFromData(array $r): Session
     {
         return new Session(

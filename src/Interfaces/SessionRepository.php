@@ -21,4 +21,6 @@ interface SessionRepository
     public function setExpired(
         string $id
     ): bool;
+
+    public function countByUserId(string $userId): int;
 }

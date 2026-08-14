@@ -11,6 +11,7 @@ use AuthServer\Controllers\LogoutController;
 use AuthServer\Controllers\OidcController;
 use AuthServer\Controllers\RevokeController;
 use AuthServer\Controllers\TokenController;
+use AuthServer\Exceptions\ConflictException;
 use AuthServer\Exceptions\StorageFailed;
 use AuthServer\Interfaces\SessionCookieHandler;
 use AuthServer\Middleware\CorsMiddleware;
@@ -30,7 +31,11 @@ use Psr\Http\Server\RequestHandlerInterface;
 use Slim\Exception\HttpNotFoundException;
 use Slim\Psr7\Response;
 use AuthServer\Config\Definitions;
+use AuthServer\Controllers\Admin\ClientsController;
+use AuthServer\Controllers\Admin\KeysController;
 use AuthServer\Controllers\Admin\MigrationsController;
+use AuthServer\Controllers\Admin\RealmsController;
+use AuthServer\Controllers\Admin\UsersController;
 
 class TestAppFactory
 {
@@ -85,6 +90,13 @@ class TestAppFactory
             }
         );
         $errorMiddleware->setErrorHandler(
+            ConflictException::class,
+            function (ServerRequestInterface $request, \Throwable $exception) use ($logger) {
+                $response = new Response();
+                return JsonResponse::error($response, 'conflict', $exception->getMessage(), 409);
+            }
+        );
+        $errorMiddleware->setErrorHandler(
             StorageFailed::class,
             function (ServerRequestInterface $request, \Throwable $exception) use ($logger) {
                 $logger->error('storage failure: ' . $exception->getMessage(), [
@@ -100,7 +112,7 @@ class TestAppFactory
             $ct = $request->getHeaderLine('Content-Type');
             $rawBody = (string) $request->getBody();
 
-            if ($request->getMethod() === 'POST' && $rawBody !== '') {
+            if (in_array($request->getMethod(), ['POST', 'PUT'], true) && $rawBody !== '') {
                 if (str_contains($ct, 'application/json')) {
                     $data = json_decode($rawBody, true);
                     if (json_last_error() === JSON_ERROR_NONE) {
@@ -192,6 +204,39 @@ class TestAppFactory
             $g->post('/go', [$migrationController, 'go']);
             $g->get('/status', [$migrationController, 'status']);
             $g->get('/dry-run', [$migrationController, 'dryRun']);
+        })->add($adminMw);
+
+        // Admin API — realms, clients, users, key assignment
+        $realmsController = $container->get(RealmsController::class);
+        $clientsController = $container->get(ClientsController::class);
+        $usersController = $container->get(UsersController::class);
+        $keysController = $container->get(KeysController::class);
+
+        $app->group('/admin', function (\Slim\Routing\RouteCollectorProxy $g) use (
+            $realmsController,
+            $clientsController,
+            $usersController,
+            $keysController
+        ) {
+            $g->post('/keys', [$keysController, 'generate']);
+
+            $g->get('/realms', [$realmsController, 'list']);
+            $g->post('/realms', [$realmsController, 'create']);
+            $g->get('/realms/{id}', [$realmsController, 'read']);
+            $g->put('/realms/{id}', [$realmsController, 'update']);
+            $g->delete('/realms/{id}', [$realmsController, 'delete']);
+
+            $g->get('/clients', [$clientsController, 'list']);
+            $g->post('/clients', [$clientsController, 'create']);
+            $g->get('/clients/{id}', [$clientsController, 'read']);
+            $g->put('/clients/{id}', [$clientsController, 'update']);
+            $g->delete('/clients/{id}', [$clientsController, 'delete']);
+
+            $g->get('/users', [$usersController, 'list']);
+            $g->post('/users', [$usersController, 'create']);
+            $g->get('/users/{id}', [$usersController, 'read']);
+            $g->put('/users/{id}', [$usersController, 'update']);
+            $g->delete('/users/{id}', [$usersController, 'delete']);
         })->add($adminMw);
 
         // Adminer

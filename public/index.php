@@ -6,6 +6,7 @@ namespace AuthServer;
 
 use AuthServer\Config\Definitions;
 use AuthServer\Controllers;
+use AuthServer\Exceptions\ConflictException;
 use AuthServer\Exceptions\StorageFailed;
 use AuthServer\Middleware\CorsMiddleware;
 use AuthServer\Middleware\RequestLogger;
@@ -58,6 +59,15 @@ $errorMiddleware->setErrorHandler(
     }
 );
 
+// Admin API conflicts (duplicate names, guarded deletes) surface as 409.
+$errorMiddleware->setErrorHandler(
+    ConflictException::class,
+    function (ServerRequestInterface $request, \Throwable $exception) {
+        $response = new Response();
+        return JsonResponse::error($response, 'conflict', $exception->getMessage(), 409);
+    }
+);
+
 // Infrastructure failures (DB down, ...) must surface as 500, never as 400s.
 $errorMiddleware->setErrorHandler(
     StorageFailed::class,
@@ -84,7 +94,7 @@ $errorMiddleware->setErrorHandler(
 // Body parsing (JSON content type)
 $app->add(function (ServerRequestInterface $request, RequestHandlerInterface $handler) {
     if (
-        $request->getMethod() === 'POST'
+        in_array($request->getMethod(), ['POST', 'PUT'], true)
         && $request->getHeaderLine('Content-Type') === 'application/json'
     ) {
         $rawBody = (string) $request->getBody();
@@ -214,6 +224,39 @@ $app->group('/admin/migrations', function (\Slim\Routing\RouteCollectorProxy $gr
     $group->post('/go', [$migrationController, 'go']);
     $group->get('/status', [$migrationController, 'status']);
     $group->get('/dry-run', [$migrationController, 'dryRun']);
+})->add($adminMiddleware);
+
+// Admin API — realms, clients, users, key assignment
+$realmsController = $containerObj->get(Controllers\Admin\RealmsController::class);
+$clientsController = $containerObj->get(Controllers\Admin\ClientsController::class);
+$usersController = $containerObj->get(Controllers\Admin\UsersController::class);
+$keysController = $containerObj->get(Controllers\Admin\KeysController::class);
+
+$app->group('/admin', function (\Slim\Routing\RouteCollectorProxy $group) use (
+    $realmsController,
+    $clientsController,
+    $usersController,
+    $keysController
+) {
+    $group->post('/keys', [$keysController, 'generate']);
+
+    $group->get('/realms', [$realmsController, 'list']);
+    $group->post('/realms', [$realmsController, 'create']);
+    $group->get('/realms/{id}', [$realmsController, 'read']);
+    $group->put('/realms/{id}', [$realmsController, 'update']);
+    $group->delete('/realms/{id}', [$realmsController, 'delete']);
+
+    $group->get('/clients', [$clientsController, 'list']);
+    $group->post('/clients', [$clientsController, 'create']);
+    $group->get('/clients/{id}', [$clientsController, 'read']);
+    $group->put('/clients/{id}', [$clientsController, 'update']);
+    $group->delete('/clients/{id}', [$clientsController, 'delete']);
+
+    $group->get('/users', [$usersController, 'list']);
+    $group->post('/users', [$usersController, 'create']);
+    $group->get('/users/{id}', [$usersController, 'read']);
+    $group->put('/users/{id}', [$usersController, 'update']);
+    $group->delete('/users/{id}', [$usersController, 'delete']);
 })->add($adminMiddleware);
 
 // Adminer — DB browser UI (included directly, handles its own routing)
