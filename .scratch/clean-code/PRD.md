@@ -20,3 +20,5 @@ Backlog of clean-code smells found during the codebase assessment (session ses_0
 5. [Basic-auth parsing duplicated](issues/05-basic-auth-parsing-duplication.md)
 6. [Naming and typing consistency](issues/06-naming-and-typing-consistency.md)
 7. [Static InputValidator + dead DI entry](issues/07-static-input-validator.md)
+8. [Model jsonSerialize leaks sensitive fields](issues/09-json-serialize-leaks.md)
+9. [TokenService::createKeys handles no boundary failures](issues/10-keystore-unchecked-io.md)
