@@ -33,8 +33,10 @@ use Slim\Psr7\Response;
 use AuthServer\Config\Definitions;
 use AuthServer\Controllers\Admin\ClientsController;
 use AuthServer\Controllers\Admin\KeysController;
+use AuthServer\Controllers\Admin\LoginsController;
 use AuthServer\Controllers\Admin\MigrationsController;
 use AuthServer\Controllers\Admin\RealmsController;
+use AuthServer\Controllers\Admin\SessionsController;
 use AuthServer\Controllers\Admin\UsersController;
 
 class TestAppFactory
@@ -211,12 +213,16 @@ class TestAppFactory
         $clientsController = $container->get(ClientsController::class);
         $usersController = $container->get(UsersController::class);
         $keysController = $container->get(KeysController::class);
+        $sessionsController = $container->get(SessionsController::class);
+        $loginsController = $container->get(LoginsController::class);
 
         $app->group('/admin', function (\Slim\Routing\RouteCollectorProxy $g) use (
             $realmsController,
             $clientsController,
             $usersController,
-            $keysController
+            $keysController,
+            $sessionsController,
+            $loginsController
         ) {
             $g->post('/keys', [$keysController, 'generate']);
 
@@ -237,6 +243,13 @@ class TestAppFactory
             $g->get('/users/{id}', [$usersController, 'read']);
             $g->put('/users/{id}', [$usersController, 'update']);
             $g->delete('/users/{id}', [$usersController, 'delete']);
+
+            $g->get('/sessions', [$sessionsController, 'list']);
+            $g->delete('/sessions/{id}', [$sessionsController, 'delete']);
+            $g->post('/sessions/invalidate', [$sessionsController, 'invalidate']);
+
+            $g->get('/logins', [$loginsController, 'list']);
+            $g->delete('/logins/{id}', [$loginsController, 'delete']);
         })->add($adminMw);
 
         // Adminer

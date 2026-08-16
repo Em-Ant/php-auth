@@ -22,5 +22,11 @@ interface SessionRepository
         string $id
     ): bool;
 
+    public function delete(string $id): bool;
+
+    public function findAll(?string $realmId = null, ?string $userId = null): array;
+
     public function countByUserId(string $userId): int;
+
+    public function countActiveByUserId(string $userId): int;
 }

@@ -19,4 +19,6 @@ interface UserRepository
     public function delete(string $id): bool;
 
     public function countByRealmId(string $realmId): int;
+
+    public function countActiveByRealmId(string $realmId): int;
 }

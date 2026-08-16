@@ -136,8 +136,8 @@ class ClientsController
         $id = $request->getAttribute('id');
         $this->findClientOrFail($request, $id);
 
-        if ($this->logins->countByClientId($id) > 0) {
-            throw new ConflictException("client '$id' still has logins");
+        if ($this->logins->countActiveByClientId($id) > 0) {
+            throw new ConflictException("client '$id' still has active logins");
         }
 
         $this->clients->delete($id);

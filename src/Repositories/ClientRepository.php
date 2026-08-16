@@ -102,6 +102,24 @@ class ClientRepository implements IRepo
         }
     }
 
+    public function countActiveByRealmId(string $realmId): int
+    {
+        try {
+            $statement = $this->db->prepare(
+                "SELECT COUNT(*) FROM clients c
+                 WHERE c.realm_id = :realm_id
+                 AND EXISTS (
+                     SELECT 1 FROM logins l
+                     WHERE l.client_id = c.id AND l.status NOT IN ('EXPIRED')
+                 )"
+            );
+            $statement->execute([':realm_id' => $realmId]);
+            return (int) $statement->fetchColumn();
+        } catch (\PDOException $e) {
+            throw new StorageFailed('failed to count active clients for realm', 0, $e);
+        }
+    }
+
     public function findById(string $id): ?Client
     {
         try {

@@ -231,12 +231,16 @@ $realmsController = $containerObj->get(Controllers\Admin\RealmsController::class
 $clientsController = $containerObj->get(Controllers\Admin\ClientsController::class);
 $usersController = $containerObj->get(Controllers\Admin\UsersController::class);
 $keysController = $containerObj->get(Controllers\Admin\KeysController::class);
+$sessionsController = $containerObj->get(Controllers\Admin\SessionsController::class);
+$loginsController = $containerObj->get(Controllers\Admin\LoginsController::class);
 
 $app->group('/admin', function (\Slim\Routing\RouteCollectorProxy $group) use (
     $realmsController,
     $clientsController,
     $usersController,
-    $keysController
+    $keysController,
+    $sessionsController,
+    $loginsController
 ) {
     $group->post('/keys', [$keysController, 'generate']);
 
@@ -257,6 +261,13 @@ $app->group('/admin', function (\Slim\Routing\RouteCollectorProxy $group) use (
     $group->get('/users/{id}', [$usersController, 'read']);
     $group->put('/users/{id}', [$usersController, 'update']);
     $group->delete('/users/{id}', [$usersController, 'delete']);
+
+    $group->get('/sessions', [$sessionsController, 'list']);
+    $group->delete('/sessions/{id}', [$sessionsController, 'delete']);
+    $group->post('/sessions/invalidate', [$sessionsController, 'invalidate']);
+
+    $group->get('/logins', [$loginsController, 'list']);
+    $group->delete('/logins/{id}', [$loginsController, 'delete']);
 })->add($adminMiddleware);
 
 // Adminer — DB browser UI (included directly, handles its own routing)

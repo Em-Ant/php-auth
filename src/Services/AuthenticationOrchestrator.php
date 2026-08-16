@@ -179,6 +179,8 @@ class AuthenticationOrchestrator
         $user = $this->userRepository->findByEmailAndRealmId($email, $realm_id);
         if ($user === null) {
             $error = 'email not found';
+        } elseif (!$user->getValid()) {
+            $error = 'user is disabled';
         } else {
             $valid_pwd = $this->secretsService->validatePassword(
                 $password,

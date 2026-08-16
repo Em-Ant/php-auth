@@ -42,7 +42,12 @@ All endpoints live under `/admin`, JSON in/out, protected by
 | POST | `/admin/users` | Create user |
 | GET | `/admin/users/{id}` | Read user |
 | PUT | `/admin/users/{id}` | Update user (partial) |
-| DELETE | `/admin/users/{id}` | Delete user (409 if sessions exist) |
+| DELETE | `/admin/users/{id}` | Delete user (409 if active sessions exist) |
+| GET | `/admin/sessions` | List sessions (`?realm_id=`, `?user_id=` filter) |
+| DELETE | `/admin/sessions/{id}` | Delete session (cascades login deletion) |
+| POST | `/admin/sessions/invalidate` | Invalidate sessions by `user_id` or `client_id` (marks ACTIVE → EXPIRED) |
+| GET | `/admin/logins` | List logins (`?realm_id=`, `?client_id=` filter) |
+| DELETE | `/admin/logins/{id}` | Delete a single login |
 
 ### Key assignment
 
@@ -60,9 +65,10 @@ assignment explicit:
   are write-only. Responses return `has_secret` instead of the hash.
 - Passwords and client secrets are hashed with `SecretsService` (argon2id,
   config-driven) before storage — same path as the OIDC flows.
-- Deletes are guarded: a realm with clients/users, a client with logins, or a
-  user with sessions returns **409 Conflict** instead of orphaning FK
-  references (and instead of a raw 500 from the FK constraint).
+- Deletes are guarded: a realm with clients/users, a client with **active**
+  logins, or a user with **active** sessions returns **409 Conflict** instead
+  of orphaning FK references. Expired/completed logins and sessions no longer
+  block deletion.
 - Duplicates (realm name, client name+uri, user email within a realm) return
   **409 Conflict** via pre-checks, not a 500 from the UNIQUE constraint.
 
@@ -71,6 +77,22 @@ assignment explicit:
 `ValidationFailed` → 400. Required fields and positive-int timer constraints
 are checked in the controllers. PUT is partial-update: only fields present in
 the body are changed.
+
+### User deactivation
+
+Users can be disabled by setting `valid = 'FALSE'` via `PUT /admin/users/{id}`.
+Disabled users cannot authenticate — the OIDC login flow returns
+`"user is disabled"` before credential verification. The `valid` field is
+exposed in read responses as a string (`'TRUE'`/`'FALSE'`).
+
+### Session & login management
+
+Sessions track browser sessions (one per user); logins track individual
+client authentications within a session. Invalidating a session marks all its
+logins as EXPIRED. Deleting a session cascades to delete its logins.
+
+Delete guards now only count **active** resources: a client with only expired
+logins can be deleted, as can a user with only expired sessions.
 
 ## Decisions
 
@@ -98,3 +120,4 @@ the body are changed.
 ## Issues
 
 - [#01](issues/01-admin-crud.md) — Admin CRUD: realms, clients, users, key assignment
+- [#02](issues/02-session-login-management.md) — Session/login management, user deactivation, active-only delete guards

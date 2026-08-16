@@ -133,8 +133,8 @@ class UsersController
         $id = $request->getAttribute('id');
         $this->findUserOrFail($request, $id);
 
-        if ($this->sessions->countByUserId($id) > 0) {
-            throw new ConflictException("user '$id' still has sessions");
+        if ($this->sessions->countActiveByUserId($id) > 0) {
+            throw new ConflictException("user '$id' still has active sessions");
         }
 
         $this->users->delete($id);

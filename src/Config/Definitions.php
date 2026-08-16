@@ -6,8 +6,10 @@ namespace AuthServer\Config;
 
 use AuthServer\Controllers\Admin\ClientsController;
 use AuthServer\Controllers\Admin\KeysController;
+use AuthServer\Controllers\Admin\LoginsController;
 use AuthServer\Controllers\Admin\MigrationsController;
 use AuthServer\Controllers\Admin\RealmsController;
+use AuthServer\Controllers\Admin\SessionsController;
 use AuthServer\Controllers\Admin\UsersController;
 use AuthServer\Controllers\AuthorizationController;
 use AuthServer\Controllers\ErrorController;
@@ -177,6 +179,8 @@ final class Definitions
             RealmsController::class => \DI\autowire(),
             ClientsController::class => \DI\autowire(),
             UsersController::class => \DI\autowire(),
+            SessionsController::class => \DI\autowire(),
+            LoginsController::class => \DI\autowire(),
             KeysController::class => \DI\autowire()
                 ->constructorParameter('keysRoot', \DI\get('keys_root')),
         ];

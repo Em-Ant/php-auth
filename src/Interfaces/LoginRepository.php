@@ -53,5 +53,13 @@ interface LoginRepository
         string $id
     ): bool;
 
+    public function delete(string $id): bool;
+
+    public function deleteBySessionId(string $sessionId): int;
+
+    public function findAll(?string $realmId = null, ?string $clientId = null): array;
+
     public function countByClientId(string $clientId): int;
+
+    public function countActiveByClientId(string $clientId): int;
 }
