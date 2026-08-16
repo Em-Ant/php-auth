@@ -102,24 +102,6 @@ class UserRepository implements IUser
         }
     }
 
-    public function countActiveByRealmId(string $realmId): int
-    {
-        try {
-            $statement = $this->db->prepare(
-                "SELECT COUNT(*) FROM users u
-                 WHERE u.realm_id = :realm_id
-                 AND EXISTS (
-                     SELECT 1 FROM sessions s
-                     WHERE s.user_id = u.id AND s.status = 'ACTIVE'
-                 )"
-            );
-            $statement->execute([':realm_id' => $realmId]);
-            return (int) $statement->fetchColumn();
-        } catch (\PDOException $e) {
-            throw new StorageFailed('failed to count active users for realm', 0, $e);
-        }
-    }
-
     public function findById(string $id): ?User
     {
         try {

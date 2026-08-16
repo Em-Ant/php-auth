@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace AuthServer\Interfaces;
 
 use AuthServer\Models\User;
@@ -7,6 +9,7 @@ use AuthServer\Models\User;
 interface UserRepository
 {
     public function findById(string $id): ?User;
+
     public function findByEmailAndRealmId(string $email, string $realm_id): ?User;
 
     /** @return User[] */
@@ -19,6 +22,4 @@ interface UserRepository
     public function delete(string $id): bool;
 
     public function countByRealmId(string $realmId): int;
-
-    public function countActiveByRealmId(string $realmId): int;
 }

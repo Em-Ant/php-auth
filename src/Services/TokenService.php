@@ -10,7 +10,6 @@ use AuthServer\Models\Login;
 use AuthServer\Models\Realm;
 use AuthServer\Models\Session;
 use AuthServer\Models\User;
-use AuthServer\Services\Base64Utils;
 
 use function AuthServer\get_guid;
 

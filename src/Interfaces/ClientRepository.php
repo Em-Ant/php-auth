@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace AuthServer\Interfaces;
 
 use AuthServer\Models\Client;
@@ -7,6 +9,7 @@ use AuthServer\Models\Client;
 interface ClientRepository
 {
     public function findById(string $id): ?Client;
+
     public function findByName(string $id): ?Client;
 
     /** @return Client[] */
@@ -19,6 +22,4 @@ interface ClientRepository
     public function delete(string $id): bool;
 
     public function countByRealmId(string $realmId): int;
-
-    public function countActiveByRealmId(string $realmId): int;
 }
