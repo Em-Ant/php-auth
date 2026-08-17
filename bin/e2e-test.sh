@@ -591,11 +591,28 @@ echo ""
 echo "=== Step 25: Admin — delete (cleanup) ==="
 
 # The OIDC flow left login + session rows that guard deletion.
-# No admin API exists for these, so clean up via sqlite3 (local dev only).
-sqlite3 db/data.db "DELETE FROM logins WHERE client_id = '$ADMIN_CREATED_CLIENT_ID';" 2>/dev/null \
-    && ok "Cleaned up logins for client" || ok "No logins to clean"
-sqlite3 db/data.db "DELETE FROM sessions WHERE user_id = '$ADMIN_CREATED_USER_ID';" 2>/dev/null \
-    && ok "Cleaned up sessions for user" || ok "No sessions to clean"
+# Clean up via the admin API: /admin/sessions/invalidate deletes the sessions
+# and their logins for the given user and client.
+ADMIN_INVALIDATE=$(curl -sS -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"client_id":"'"$ADMIN_CREATED_CLIENT_ID"'","user_id":"'"$ADMIN_CREATED_USER_ID"'"}' \
+    "$BASE/admin/sessions/invalidate")
+
+echo "$ADMIN_INVALIDATE" | grep -q '"invalidated"' \
+    && ok "Admin API invalidated OIDC sessions/logins" \
+    || { fail "Admin API session invalidation failed: $ADMIN_INVALIDATE"; }
+
+# Verification (local dev only): confirm no leftover logins/sessions block deletion.
+# Falls back to sqlite3 only if the admin API left residue behind.
+LEFT_LOGINS=$(sqlite3 db/data.db "SELECT COUNT(*) FROM logins WHERE client_id = '$ADMIN_CREATED_CLIENT_ID';" 2>/dev/null || echo 0)
+LEFT_SESSIONS=$(sqlite3 db/data.db "SELECT COUNT(*) FROM sessions WHERE user_id = '$ADMIN_CREATED_USER_ID';" 2>/dev/null || echo 0)
+
+if [[ "$LEFT_LOGINS" -eq 0 && "$LEFT_SESSIONS" -eq 0 ]]; then
+    ok "No leftover logins/sessions (verified via sqlite)"
+else
+    fail "Leftover guard rows: $LEFT_LOGINS logins, $LEFT_SESSIONS sessions — sqlite fallback cleanup"
+    sqlite3 db/data.db "DELETE FROM logins WHERE client_id = '$ADMIN_CREATED_CLIENT_ID';" 2>/dev/null || true
+    sqlite3 db/data.db "DELETE FROM sessions WHERE user_id = '$ADMIN_CREATED_USER_ID';" 2>/dev/null || true
+fi
 
 # Delete user (no sessions → 204)
 DEL_USER=$(curl -sS -o /dev/null -w "%{http_code}" -X DELETE -H "$ADMIN_HDR" "$BASE/admin/users/$ADMIN_CREATED_USER_ID")
