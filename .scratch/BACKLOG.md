@@ -16,6 +16,20 @@ Single source of truth for what to work on next. **Local by design** (3 machines
 
 | ID | Type | Priority | Size | Status | Why-now | Doc |
 |----|------|----------|------|--------|---------|-----|
+| F-21 | fix | P0 | M | ready | bind auth code to client + redirect_uri (S-01) | `oidc-compliance/PRD.md` |
+| F-22 | fix | P0 | S | ready | bind refresh token to client (S-02) | `oidc-compliance/PRD.md` |
+| F-23 | fix | P0 | M | ready | realm isolation on code/refresh redemption (S-03) | `oidc-compliance/PRD.md` |
+| F-24 | fix | P0 | S | ready | HttpOnly SSO cookie + split check-session cookie (S-04) | `oidc-compliance/PRD.md` |
+| F-25 | fix | P0 | S | ready | validate client/origin in login-status iframe init (S-05) | `oidc-compliance/PRD.md` |
+| F-26 | fix | P0 | S | ready | stop expiring logins on failed refresh (S-06) | `oidc-compliance/PRD.md` |
+| F-27 | fix | P1 | M | backlog | RFC 6749 §5.2 error codes/statuses (D-01) | `oidc-compliance/PRD.md` |
+| F-28 | fix | P1 | S | backlog | `Cache-Control: no-store` + `Pragma` on token responses (D-02) | `oidc-compliance/PRD.md` |
+| F-29 | fix | P1 | S | backlog | reject `response_type != code` (D-03) | `oidc-compliance/PRD.md` |
+| F-30 | fix | P1 | S | backlog | revocation 401 on failed client auth (D-07) | `oidc-compliance/PRD.md` |
+| F-31 | fix | P1 | M | backlog | nonce/state/response_mode optional for code flow (D-04) | `oidc-compliance/PRD.md` |
+| F-32 | fix | P1 | S | backlog | `prompt=login` forces re-auth; don't silently ignore consent (D-05) | `oidc-compliance/PRD.md` |
+| F-33 | fix | P1 | M | backlog | exact `redirect_uri` matching (D-06) | `oidc-compliance/PRD.md` |
+| F-34 | fix | P1 | S | backlog | truthful discovery: `scopes_supported` + stop over-advertising (D-08/D-09) | `oidc-compliance/PRD.md` |
 | R-03 | refactor | P1 | L | ready | AuthOrchestrator: 9 deps, 10 jobs | `clean-code/issues/03-…` |
 | F-02 | feature | P1 | L | ready | offline_access core feature; scopes #02 done, unblocked | `token-lifecycle/issues/03-…` |
 | F-03 | feature | P1 | L | ready | admin CRUD unblocks the admin-side items below | `admin-api/issues/01-admin-crud.md` |
