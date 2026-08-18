@@ -278,6 +278,28 @@ class AuthenticationOrchestrator
         return $client->getUri();
     }
 
+    /**
+     * Gates the check-session iframe init: the requesting client must exist in
+     * the realm and the reported origin must match the client's registered URI.
+     */
+    public function validateCheckSessionOrigin(
+        Realm $realm,
+        string $client_id,
+        string $origin
+    ): void {
+        $client = $this->clientRepository->findByName($client_id);
+        if ($client === null) {
+            $this->logger->error("client $client_id not found for check-session init");
+            throw new ValidationFailed('invalid client id');
+        }
+        if ($client->getRealmId() !== $realm->getId()) {
+            $this->logger->error("client $client_id not in realm {$realm->getName()}");
+            throw new ValidationFailed('invalid client for realm');
+        }
+
+        InputValidator::validateClientOrigin($client, $origin);
+    }
+
     public function parseValidToken(string $token, Realm $realm): array
     {
         $claims = $this->tokenValidator->validate($token, $realm, 'Bearer');

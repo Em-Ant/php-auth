@@ -272,6 +272,21 @@ echo "$PN_LOCATION" | grep -q 'state=e2e-pn' \
     && ok "prompt=none echoes state" \
     || { fail "prompt=none missing state"; echo "  Location: $PN_LOCATION"; }
 
+# ── Step 12b: Login-status iframe init validation ──────────
+echo ""
+echo "=== Step 12b: login-status iframe init validation (S-05) ==="
+IFRAME_OK=$(curl -sS -o /dev/null -w "%{http_code}" \
+    "$BASE/realms/test/protocol/openid-connect/login-status-iframe.html/init?client_id=kc_app&origin=https://www.keycloak.org")
+[[ "$IFRAME_OK" = "200" ]] && ok "init with valid client+origin returns 200" || fail "init expected 200, got $IFRAME_OK"
+
+IFRAME_BAD_CLIENT=$(curl -sS -o /dev/null -w "%{http_code}" \
+    "$BASE/realms/test/protocol/openid-connect/login-status-iframe.html/init?client_id=evil&origin=https://www.keycloak.org")
+[[ "$IFRAME_BAD_CLIENT" = "400" ]] && ok "init with unknown client rejected" || fail "init with unknown client expected 400, got $IFRAME_BAD_CLIENT"
+
+IFRAME_BAD_ORIGIN=$(curl -sS -o /dev/null -w "%{http_code}" \
+    "$BASE/realms/test/protocol/openid-connect/login-status-iframe.html/init?client_id=kc_app&origin=https://evil.com")
+[[ "$IFRAME_BAD_ORIGIN" = "400" ]] && ok "init with foreign origin rejected" || fail "init with foreign origin expected 400, got $IFRAME_BAD_ORIGIN"
+
 # ── Step 13: Logout redirect validation ──────────────────────
 echo ""
 echo "=== Step 13: Logout redirect validation ==="

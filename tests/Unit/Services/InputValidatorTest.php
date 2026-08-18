@@ -165,6 +165,43 @@ class InputValidatorTest extends TestCase
         ]);
     }
 
+    // ── validateClientOrigin ──────────────────────────────────
+
+    public function testValidateClientOriginMatchesOriginOfRegisteredUri(): void
+    {
+        $client = new Client('c-1', 'app', 'r-1', null, 'https://example.com/app', false, '2025-01-01 00:00:00');
+        InputValidator::validateClientOrigin($client, 'https://example.com');
+        $this->expectNotToPerformAssertions();
+    }
+
+    public function testValidateClientOriginWithPort(): void
+    {
+        $client = new Client('c-1', 'app', 'r-1', null, 'http://localhost:5173', false, '2025-01-01 00:00:00');
+        InputValidator::validateClientOrigin($client, 'http://localhost:5173');
+        $this->expectNotToPerformAssertions();
+    }
+
+    public function testValidateClientOriginWrongHostThrows(): void
+    {
+        $client = new Client('c-1', 'app', 'r-1', null, 'https://example.com', false, '2025-01-01 00:00:00');
+        $this->expectException(ValidationFailed::class);
+        InputValidator::validateClientOrigin($client, 'https://evil.com');
+    }
+
+    public function testValidateClientOriginWrongSchemeThrows(): void
+    {
+        $client = new Client('c-1', 'app', 'r-1', null, 'https://example.com', false, '2025-01-01 00:00:00');
+        $this->expectException(ValidationFailed::class);
+        InputValidator::validateClientOrigin($client, 'http://example.com');
+    }
+
+    public function testValidateClientOriginSubPathNotAllowed(): void
+    {
+        $client = new Client('c-1', 'app', 'r-1', null, 'https://example.com', false, '2025-01-01 00:00:00');
+        $this->expectException(ValidationFailed::class);
+        InputValidator::validateClientOrigin($client, 'https://example.com/app');
+    }
+
     // ── validateCodeChallenge ──────────────────────────────────
 
     public function testValidateCodeChallengeMismatchThrows(): void

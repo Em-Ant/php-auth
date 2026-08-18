@@ -187,9 +187,7 @@ $app->group(
 
         $group->get(
             '/login-status-iframe.html/init',
-            function (ServerRequestInterface $request, ResponseInterface $response) {
-                return $response->withStatus(200);
-            }
+            [$authController, 'loginStatusInit']
         );
 
         // 3rd-party cookie check pages

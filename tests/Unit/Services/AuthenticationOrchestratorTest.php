@@ -446,4 +446,39 @@ class AuthenticationOrchestratorTest extends TestCase
         $this->expectException(ValidationFailed::class);
         $this->svc->getClientUri('ghost');
     }
+
+    // ── validateCheckSessionOrigin ────────────────────────────
+
+    public function testValidateCheckSessionOriginPasses(): void
+    {
+        $this->clientRepo->method('findByName')->with('my-app')->willReturn($this->client);
+        $this->svc->validateCheckSessionOrigin($this->realm, 'my-app', 'https://example.com');
+        self::assertTrue(true);
+    }
+
+    public function testValidateCheckSessionOriginUnknownClientThrows(): void
+    {
+        $this->clientRepo->method('findByName')->with('ghost')->willReturn(null);
+        $this->expectException(ValidationFailed::class);
+        $this->svc->validateCheckSessionOrigin($this->realm, 'ghost', 'https://example.com');
+    }
+
+    public function testValidateCheckSessionOriginWrongRealmThrows(): void
+    {
+        $otherRealm = new Realm(
+            'other-id', 'web', 'k-id',
+            1800, 300, 300, 300, 86400, 1800,
+            'openid profile', '2025-01-01 00:00:00',
+        );
+        $this->clientRepo->method('findByName')->with('my-app')->willReturn($this->client);
+        $this->expectException(ValidationFailed::class);
+        $this->svc->validateCheckSessionOrigin($otherRealm, 'my-app', 'https://example.com');
+    }
+
+    public function testValidateCheckSessionOriginForeignOriginThrows(): void
+    {
+        $this->clientRepo->method('findByName')->with('my-app')->willReturn($this->client);
+        $this->expectException(ValidationFailed::class);
+        $this->svc->validateCheckSessionOrigin($this->realm, 'my-app', 'https://evil.com');
+    }
 }
