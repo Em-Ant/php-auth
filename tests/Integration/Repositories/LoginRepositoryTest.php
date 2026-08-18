@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AuthServer\Tests\Integration\Repositories;
 
 use AuthServer\Exceptions\StorageFailed;
+use AuthServer\Models\Login;
 use AuthServer\Models\LoginStatus;
 use AuthServer\Repositories\LoginRepository;
 use AuthServer\Repositories\SessionRepository;
@@ -13,6 +14,9 @@ use AuthServer\Tests\Support\FailingPdo;
 
 class LoginRepositoryTest extends RepositoryTestCase
 {
+    private const TEST_REALM_ID = 'c03aa58c-2888-4f40-821c-4aadf5c58f6f';
+    private const OTHER_REALM_ID = '84be68b8-7936-4422-bb4d-b741d2292a9f';
+
     private LoginRepository $repo;
     private SessionRepository $sessionRepo;
 
@@ -31,6 +35,36 @@ class LoginRepositoryTest extends RepositoryTestCase
         );
         self::assertNotNull($session);
         return $session->getId();
+    }
+
+    private function createAuthenticatedLogin(string $code): Login
+    {
+        $login = $this->createPendingLogin();
+        $this->repo->setAuthenticated($login->getId(), $this->createSession(), $code);
+        $updated = $this->repo->findById($login->getId());
+        self::assertNotNull($updated);
+        return $updated;
+    }
+
+    private function createPendingLogin(): Login
+    {
+        $login = $this->repo->createPending(
+            client_id: 'a540c566-dfbf-430a-9941-fb8531c022d4',
+            state: 's', nonce: 'n', scope: 'openid',
+            redirect_uri: 'http://localhost:5173/cb',
+            response_mode: 'query',
+            code_challenge: null, csrf_token: 'csrf',
+        );
+        self::assertNotNull($login);
+        return $login;
+    }
+
+    private function createActiveLogin(string $code, string $refreshToken): Login
+    {
+        $login = $this->createPendingLogin();
+        $this->repo->setAuthenticated($login->getId(), $this->createSession(), $code);
+        $this->repo->setActive($login->getId(), $refreshToken);
+        return $login;
     }
 
     public function testCreatePending(): void
@@ -58,41 +92,30 @@ class LoginRepositoryTest extends RepositoryTestCase
 
     public function testCreateAuthenticatedAndFindByCode(): void
     {
-        $sessionId = $this->createSession();
-
-        $login = $this->repo->createAuthenticated(
-            client_id: 'a540c566-dfbf-430a-9941-fb8531c022d4',
-            session_id: $sessionId,
-            state: 'state-2',
-            nonce: 'nonce-2',
-            scope: 'openid',
-            redirect_uri: 'http://localhost:5173/cb',
-            response_mode: 'query',
-            code: 'code-abc-123',
-            code_challenge: null,
-        );
-        self::assertNotNull($login);
+        $login = $this->createAuthenticatedLogin('code-abc-123');
         self::assertSame(LoginStatus::Authenticated, $login->getStatus());
 
-        $found = $this->repo->findByCode('code-abc-123');
+        $found = $this->repo->findByCode('code-abc-123', self::TEST_REALM_ID);
         self::assertNotNull($found);
         self::assertSame($login->getId(), $found->getId());
     }
 
     public function testFindByCodeReturnsNullForMissing(): void
     {
-        self::assertNull($this->repo->findByCode('bogus'));
+        self::assertNull($this->repo->findByCode('bogus', self::TEST_REALM_ID));
+    }
+
+    public function testFindByCodeScopedToRealm(): void
+    {
+        $login = $this->createAuthenticatedLogin('code-realm-scoped');
+
+        self::assertSame($login->getId(), $this->repo->findByCode('code-realm-scoped', self::TEST_REALM_ID)?->getId());
+        self::assertNull($this->repo->findByCode('code-realm-scoped', self::OTHER_REALM_ID));
     }
 
     public function testSetAuthenticated(): void
     {
-        $login = $this->repo->createPending(
-            client_id: 'a540c566-dfbf-430a-9941-fb8531c022d4',
-            state: 's', nonce: 'n', scope: 'openid',
-            redirect_uri: 'http://localhost:5173/cb',
-            response_mode: 'query',
-            code_challenge: null, csrf_token: 'csrf',
-        );
+        $login = $this->createPendingLogin();
 
         $ok = $this->repo->setAuthenticated($login->getId(), $this->createSession(), 'code-xyz');
         self::assertTrue($ok);
@@ -104,15 +127,7 @@ class LoginRepositoryTest extends RepositoryTestCase
 
     public function testSetActive(): void
     {
-        $sessionId = $this->createSession();
-
-        $login = $this->repo->createAuthenticated(
-            client_id: 'a540c566-dfbf-430a-9941-fb8531c022d4',
-            session_id: $sessionId, state: 's', nonce: 'n',
-            scope: 'openid', redirect_uri: 'http://localhost:5173/cb',
-            response_mode: 'query', code: 'code-act', code_challenge: null,
-        );
-        self::assertNotNull($login);
+        $login = $this->createAuthenticatedLogin('code-act');
 
         $ok = $this->repo->setActive($login->getId(), 'refresh-token-1');
         self::assertTrue($ok);
@@ -124,15 +139,7 @@ class LoginRepositoryTest extends RepositoryTestCase
 
     public function testRefresh(): void
     {
-        $login = $this->repo->createPending(
-            client_id: 'a540c566-dfbf-430a-9941-fb8531c022d4',
-            state: 's', nonce: 'n', scope: 'openid',
-            redirect_uri: 'http://localhost:5173/cb',
-            response_mode: 'query',
-            code_challenge: null, csrf_token: 'csrf',
-        );
-        $this->repo->setAuthenticated($login->getId(), $this->createSession(), 'code-ref');
-        $this->repo->setActive($login->getId(), 'old-refresh-token');
+        $login = $this->createActiveLogin('code-ref', 'old-refresh-token');
 
         $ok = $this->repo->refresh($login->getId(), 'new-refresh-token');
         self::assertTrue($ok);
@@ -145,13 +152,7 @@ class LoginRepositoryTest extends RepositoryTestCase
 
     public function testSetExpired(): void
     {
-        $login = $this->repo->createPending(
-            client_id: 'a540c566-dfbf-430a-9941-fb8531c022d4',
-            state: 's', nonce: 'n', scope: 'openid',
-            redirect_uri: 'http://localhost:5173/cb',
-            response_mode: 'query',
-            code_challenge: null, csrf_token: 'csrf',
-        );
+        $login = $this->createPendingLogin();
 
         $ok = $this->repo->setExpired($login->getId());
         self::assertTrue($ok);
@@ -162,24 +163,24 @@ class LoginRepositoryTest extends RepositoryTestCase
 
     public function testFindByRefreshToken(): void
     {
-        $login = $this->repo->createPending(
-            client_id: 'a540c566-dfbf-430a-9941-fb8531c022d4',
-            state: 's', nonce: 'n', scope: 'openid',
-            redirect_uri: 'http://localhost:5173/cb',
-            response_mode: 'query',
-            code_challenge: null, csrf_token: 'csrf',
-        );
-        $this->repo->setAuthenticated($login->getId(), $this->createSession(), 'code-rt');
-        $this->repo->setActive($login->getId(), 'rt-findme');
+        $login = $this->createActiveLogin('code-rt', 'rt-findme');
 
-        $found = $this->repo->findByRefreshToken('rt-findme');
+        $found = $this->repo->findByRefreshToken('rt-findme', self::TEST_REALM_ID);
         self::assertNotNull($found);
         self::assertSame($login->getId(), $found->getId());
     }
 
     public function testFindByRefreshTokenReturnsNullForMissing(): void
     {
-        self::assertNull($this->repo->findByRefreshToken('bogus'));
+        self::assertNull($this->repo->findByRefreshToken('bogus', self::TEST_REALM_ID));
+    }
+
+    public function testFindByRefreshTokenScopedToRealm(): void
+    {
+        $login = $this->createActiveLogin('code-rt-realm', 'rt-realm-scoped');
+
+        self::assertSame($login->getId(), $this->repo->findByRefreshToken('rt-realm-scoped', self::TEST_REALM_ID)?->getId());
+        self::assertNull($this->repo->findByRefreshToken('rt-realm-scoped', self::OTHER_REALM_ID));
     }
 
     public function testStorageFailureOnFindByIdThrows(): void

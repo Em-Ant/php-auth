@@ -9,8 +9,8 @@ use AuthServer\Models\Login;
 interface LoginRepository
 {
     public function findById(string $id): ?Login;
-    public function findByCode(string $code): ?Login;
-    public function findByRefreshToken(string $token): ?Login;
+    public function findByCode(string $code, string $realmId): ?Login;
+    public function findByRefreshToken(string $token, string $realmId): ?Login;
 
     public function createPending(
         string $client_id,

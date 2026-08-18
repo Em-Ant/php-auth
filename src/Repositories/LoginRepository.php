@@ -41,35 +41,30 @@ class LoginRepository implements IRepo
         }
     }
 
-    public function findByCode(string $code): ?Login
+    public function findByCode(string $code, string $realmId): ?Login
     {
-        try {
-            $statement = $this->db->prepare(
-                "SELECT * FROM logins WHERE code = :code"
-            );
-            $statement->bindValue(':code', $code);
-
-            $statement->execute();
-
-            $r = $statement->fetch();
-
-            if (!$r) {
-                return null;
-            }
-
-            return self::buildFromData($r);
-        } catch (\PDOException $e) {
-            throw new StorageFailed("failed to load login by code", 0, $e);
-        }
+        return $this->findBy('code', $code, $realmId);
     }
 
-    public function findByRefreshToken(string $token): ?Login
+    public function findByRefreshToken(string $token, string $realmId): ?Login
+    {
+        return $this->findBy('refresh_token', $token, $realmId);
+    }
+
+    /**
+     * $column is an internal literal ('code' | 'refresh_token') supplied by
+     * findByCode/findByRefreshToken only — never request input.
+     */
+    private function findBy(string $column, string $value, string $realmId): ?Login
     {
         try {
             $statement = $this->db->prepare(
-                "SELECT * FROM logins WHERE refresh_token = :token"
+                "SELECT l.* FROM logins l
+                 JOIN clients c ON l.client_id = c.id
+                 WHERE l.$column = :value AND c.realm_id = :realm_id"
             );
-            $statement->bindValue(':token', $token);
+            $statement->bindValue(':value', $value);
+            $statement->bindValue(':realm_id', $realmId);
 
             $statement->execute();
 
@@ -81,7 +76,7 @@ class LoginRepository implements IRepo
 
             return self::buildFromData($r);
         } catch (\PDOException $e) {
-            throw new StorageFailed("failed to load login by refresh token", 0, $e);
+            throw new StorageFailed("failed to load login by $column", 0, $e);
         }
     }
 

@@ -49,7 +49,7 @@ class TokenIntrospectionService
         $typ = $claims['typ'] ?? '';
 
         if ($typ === 'Refresh') {
-            return $this->introspectRefreshToken($token, $claims);
+            return $this->introspectRefreshToken($token, $claims, $realm);
         }
 
         return $this->introspectAccessToken($claims);
@@ -64,9 +64,9 @@ class TokenIntrospectionService
         }
     }
 
-    private function introspectRefreshToken(string $token, array $decoded): array
+    private function introspectRefreshToken(string $token, array $decoded, Realm $realm): array
     {
-        $login = $this->loginRepository->findByRefreshToken($token);
+        $login = $this->loginRepository->findByRefreshToken($token, $realm->getId());
         if ($login === null || $login->getStatus() !== LoginStatus::Active) {
             return ['active' => false];
         }
