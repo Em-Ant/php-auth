@@ -66,6 +66,10 @@ class Client implements \JsonSerializable
     {
         return $this->scope === null ? null : explode(' ', $this->scope);
     }
+    public function getScopeString(): ?string
+    {
+        return $this->scope;
+    }
     public function getCreatedAt(): \DateTime
     {
         return $this->created_at;

@@ -100,10 +100,10 @@ class LoginRepository implements IRepo
 
             $q = $this->db->prepare(
                 "INSERT INTO logins (
-          'id', 'client_id', 'state', 'nonce', 'scope', 
+          'id', 'client_id', 'state', 'nonce', 'scope',
           'redirect_uri', 'response_mode', 'code_challenge', 'csrf_token', 'status'
         ) VALUES (
-          :id, :client_id, :state, :nonce, :scope, 
+          :id, :client_id, :state, :nonce, :scope,
           :redirect_uri, :response_mode, :code_challenge, :csrf_token, 'PENDING'
         )"
             );
@@ -142,10 +142,10 @@ class LoginRepository implements IRepo
 
             $q = $this->db->prepare(
                 "INSERT INTO logins (
-          'id', 'client_id', 'session_id', 'state', 'nonce', 'scope', 
+          'id', 'client_id', 'session_id', 'state', 'nonce', 'scope',
           'redirect_uri', 'response_mode', 'code', 'code_challenge', 'status', authenticated_at
         ) VALUES (
-          :id, :client_id, :session_id, :state, :nonce, :scope, 
+          :id, :client_id, :session_id, :state, :nonce, :scope,
           :redirect_uri, :response_mode, :code, :code_challenge, 'AUTHENTICATED', :timestamp
         )"
             );
@@ -177,10 +177,10 @@ class LoginRepository implements IRepo
     ): bool {
         try {
             $q = $this->db->prepare(
-                "UPDATE logins 
-      SET session_id=:session_id, code=:code, 
-        authenticated_at=:timestamp, 
-        status='AUTHENTICATED' 
+                "UPDATE logins
+      SET session_id=:session_id, code=:code,
+        authenticated_at=:timestamp,
+        status='AUTHENTICATED'
       WHERE id = :id"
             );
             $q->bindValue(':code', $code);
@@ -200,7 +200,7 @@ class LoginRepository implements IRepo
     ): bool {
         try {
             $q = $this->db->prepare(
-                "UPDATE logins 
+                "UPDATE logins
       SET refresh_token=:refresh_token, status='ACTIVE', updated_at=:timestamp
       WHERE id = :id"
             );
@@ -220,8 +220,8 @@ class LoginRepository implements IRepo
     ): bool {
         try {
             $q = $this->db->prepare(
-                "UPDATE logins 
-      SET updated_at=:updated_at, refresh_token=:token  
+                "UPDATE logins
+      SET updated_at=:updated_at, refresh_token=:token
       WHERE id=:id"
             );
             $q->bindValue(':token', $token);
@@ -239,8 +239,8 @@ class LoginRepository implements IRepo
     ): bool {
         try {
             $q = $this->db->prepare(
-                "UPDATE logins 
-      SET status='EXPIRED' 
+                "UPDATE logins
+      SET status='EXPIRED'
       WHERE id = :id"
             );
             $q->bindValue(':id', $id);
@@ -248,6 +248,90 @@ class LoginRepository implements IRepo
             return $q->execute();
         } catch (\PDOException $e) {
             throw new StorageFailed("failed to expire login $id", 0, $e);
+        }
+    }
+
+    public function delete(string $id): bool
+    {
+        try {
+            $q = $this->db->prepare(
+                "DELETE FROM logins WHERE id = :id"
+            );
+            return $q->execute([':id' => $id]);
+        } catch (\PDOException $e) {
+            throw new StorageFailed("failed to delete login $id", 0, $e);
+        }
+    }
+
+    public function deleteBySessionId(string $sessionId): int
+    {
+        try {
+            $q = $this->db->prepare(
+                "DELETE FROM logins WHERE session_id = :session_id"
+            );
+            $q->execute([':session_id' => $sessionId]);
+            return $q->rowCount();
+        } catch (\PDOException $e) {
+            throw new StorageFailed("failed to delete logins for session $sessionId", 0, $e);
+        }
+    }
+
+    public function findAll(?string $realmId = null, ?string $clientId = null): array
+    {
+        try {
+            $conditions = [];
+            $params = [];
+
+            if ($realmId !== null) {
+                $conditions[] = 'c.realm_id = :realm_id';
+                $params[':realm_id'] = $realmId;
+            }
+            if ($clientId !== null) {
+                $conditions[] = 'l.client_id = :client_id';
+                $params[':client_id'] = $clientId;
+            }
+
+            $where = $conditions !== [] ? 'WHERE ' . implode(' AND ', $conditions) : '';
+            $statement = $this->db->prepare(
+                "SELECT l.* FROM logins l
+                 LEFT JOIN clients c ON l.client_id = c.id
+                 $where
+                 ORDER BY l.created_at DESC"
+            );
+            $statement->execute($params);
+
+            return array_map(
+                fn(array $r) => self::buildFromData($r),
+                $statement->fetchAll()
+            );
+        } catch (\PDOException $e) {
+            throw new StorageFailed('failed to list logins', 0, $e);
+        }
+    }
+
+    public function countByClientId(string $clientId): int
+    {
+        try {
+            $statement = $this->db->prepare(
+                "SELECT COUNT(*) FROM logins WHERE client_id = :client_id"
+            );
+            $statement->execute([':client_id' => $clientId]);
+            return (int) $statement->fetchColumn();
+        } catch (\PDOException $e) {
+            throw new StorageFailed('failed to count logins for client', 0, $e);
+        }
+    }
+
+    public function countActiveByClientId(string $clientId): int
+    {
+        try {
+            $statement = $this->db->prepare(
+                "SELECT COUNT(*) FROM logins WHERE client_id = :client_id AND status NOT IN ('EXPIRED')"
+            );
+            $statement->execute([':client_id' => $clientId]);
+            return (int) $statement->fetchColumn();
+        } catch (\PDOException $e) {
+            throw new StorageFailed('failed to count active logins for client', 0, $e);
         }
     }
 

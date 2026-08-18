@@ -10,7 +10,6 @@ use AuthServer\Models\Login;
 use AuthServer\Models\Realm;
 use AuthServer\Models\Session;
 use AuthServer\Models\User;
-use AuthServer\Services\Base64Utils;
 
 use function AuthServer\get_guid;
 
@@ -103,8 +102,9 @@ class TokenService
     public static function createKeys(
         ?string $kid = null,
         ?array $dn = [],
-        ?int $cert_duration = 365
-    ): void {
+        ?int $cert_duration = 365,
+        string $keysRoot = 'keys'
+    ): string {
         $config = array(
             "private_key_bits" => 2048,
             "private_key_type" => OPENSSL_KEYTYPE_RSA,
@@ -156,13 +156,15 @@ class TokenService
             ]
         ];
 
-        $dir = "keys/$kid";
+        $dir = "$keysRoot/$kid";
         mkdir($dir);
 
         file_put_contents("$dir/public_key.pem", $public_key_pem);
         file_put_contents("$dir/private_key.pem", $private_key_pem);
         file_put_contents("$dir/cert.pem", $x509);
         file_put_contents("$dir/keys.json", json_encode($keys, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+
+        return $kid;
     }
 
     public function createClientCredentialsToken(

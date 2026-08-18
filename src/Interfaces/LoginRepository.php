@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace AuthServer\Interfaces;
 
 use AuthServer\Models\Login;
@@ -52,4 +54,14 @@ interface LoginRepository
     public function setExpired(
         string $id
     ): bool;
+
+    public function delete(string $id): bool;
+
+    public function deleteBySessionId(string $sessionId): int;
+
+    public function findAll(?string $realmId = null, ?string $clientId = null): array;
+
+    public function countByClientId(string $clientId): int;
+
+    public function countActiveByClientId(string $clientId): int;
 }

@@ -1,0 +1,177 @@
+<?php
+
+declare(strict_types=1);
+
+namespace AuthServer\Controllers\Admin;
+
+use AuthServer\Exceptions\ConflictException;
+use AuthServer\Exceptions\ValidationFailed;
+use AuthServer\Interfaces\RealmRepository;
+use AuthServer\Interfaces\SessionRepository;
+use AuthServer\Interfaces\UserRepository;
+use AuthServer\Models\User;
+use AuthServer\Response\JsonResponse;
+use AuthServer\Services\SecretsService;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+use Slim\Exception\HttpNotFoundException;
+
+use function AuthServer\get_guid;
+
+class UsersController
+{
+    use ValidatesAdminInput;
+
+    private const DEFAULT_ROLES = 'basic';
+
+    public function __construct(
+        private readonly UserRepository $users,
+        private readonly RealmRepository $realms,
+        private readonly SessionRepository $sessions,
+        private readonly SecretsService $secretsService,
+    ) {
+    }
+
+    public function list(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        $query = $request->getQueryParams();
+        $realmId = isset($query['realm_id']) && $query['realm_id'] !== ''
+            ? $query['realm_id']
+            : null;
+
+        return JsonResponse::create($response, [
+            'users' => array_map(
+                fn(User $user) => self::toArray($user),
+                $this->users->findAll($realmId)
+            ),
+        ]);
+    }
+
+    public function create(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        try {
+            $body = (array) ($request->getParsedBody() ?? []);
+
+            $realmId = $this->requiredString($body, 'realm_id');
+            $email = $this->requiredString($body, 'email');
+            $password = $this->requiredString($body, 'password');
+
+            if ($this->realms->findById($realmId) === null) {
+                throw new ValidationFailed("unknown realm '$realmId'");
+            }
+
+            if ($this->users->findByEmailAndRealmId($email, $realmId) !== null) {
+                throw new ConflictException("user '$email' already exists in this realm");
+            }
+
+            $user = new User(
+                get_guid(),
+                $realmId,
+                $this->optionalString($body, 'name', null) ?? '',
+                $email,
+                $this->secretsService->hashPassword($password),
+                $this->optionalString($body, 'realm_roles', null) ?? self::DEFAULT_ROLES,
+                gmdate('Y-m-d H:i:s'),
+                $this->optionalBool($body, 'valid', true)
+            );
+
+            $this->users->create($user);
+
+            return JsonResponse::create($response, self::toArray($user), 201);
+        } catch (ValidationFailed $e) {
+            return JsonResponse::error($response, 'invalid_request', $e->getMessage(), 400);
+        }
+    }
+
+    public function read(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        $user = $this->findUserOrFail($request, $request->getAttribute('id'));
+
+        return JsonResponse::create($response, self::toArray($user));
+    }
+
+    public function update(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        try {
+            $existing = $this->findUserOrFail($request, $request->getAttribute('id'));
+
+            $body = (array) ($request->getParsedBody() ?? []);
+
+            $realmId = $this->optionalString($body, 'realm_id', null) ?? $existing->getRealmId();
+            if ($this->realms->findById($realmId) === null) {
+                throw new ValidationFailed("unknown realm '$realmId'");
+            }
+
+            $email = $this->optionalString($body, 'email', null) ?? $existing->getEmail();
+            $duplicate = $this->users->findByEmailAndRealmId($email, $realmId);
+            if ($duplicate !== null && $duplicate->getId() !== $existing->getId()) {
+                throw new ConflictException("user '$email' already exists in this realm");
+            }
+
+            $user = new User(
+                $existing->getId(),
+                $realmId,
+                $this->optionalString($body, 'name', null) ?? $existing->getName(),
+                $email,
+                $this->updatedPassword($body, $existing),
+                $this->optionalString($body, 'realm_roles', null)
+                    ?? implode(' ', $existing->getRealmRoles()),
+                $existing->getCreatedAt()->format('Y-m-d H:i:s'),
+                $this->optionalBool($body, 'valid', $existing->getValid())
+            );
+
+            $this->users->update($user);
+
+            return JsonResponse::create($response, self::toArray($user));
+        } catch (ValidationFailed $e) {
+            return JsonResponse::error($response, 'invalid_request', $e->getMessage(), 400);
+        }
+    }
+
+    public function delete(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        $id = $request->getAttribute('id');
+        $this->findUserOrFail($request, $id);
+
+        if ($this->sessions->countActiveByUserId($id) > 0) {
+            throw new ConflictException("user '$id' still has active sessions");
+        }
+
+        $this->users->delete($id);
+
+        return $response->withStatus(204);
+    }
+
+    private function findUserOrFail(ServerRequestInterface $request, string $id): User
+    {
+        $user = $this->users->findById($id);
+        if ($user === null) {
+            throw new HttpNotFoundException($request, "user '$id' not found");
+        }
+        return $user;
+    }
+
+    private function updatedPassword(array $body, User $existing): string
+    {
+        if (!array_key_exists('password', $body) || $body['password'] === null) {
+            return $existing->getPassword();
+        }
+        if (!is_string($body['password']) || trim($body['password']) === '') {
+            throw new ValidationFailed("'password' must be a non-empty string");
+        }
+        return $this->secretsService->hashPassword($body['password']);
+    }
+
+    private static function toArray(User $user): array
+    {
+        return [
+            'id' => $user->getId(),
+            'realm_id' => $user->getRealmId(),
+            'name' => $user->getName(),
+            'email' => $user->getEmail(),
+            'realm_roles' => implode(' ', $user->getRealmRoles()),
+            'valid' => $user->getValid(),
+            'created_at' => $user->getCreatedAt()->format('Y-m-d H:i:s'),
+        ];
+    }
+}

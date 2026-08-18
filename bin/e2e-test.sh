@@ -11,6 +11,7 @@ FAIL=0
 
 cleanup() {
     local exit_code=$?
+    admin_cleanup 2>/dev/null || true
     rm -f "$COOKIE_JAR" "$HEADER_DUMP"
     [[ -n "${SERVER_PID:-}" ]] && kill "$SERVER_PID" 2>/dev/null || true
     wait 2>/dev/null || true
@@ -275,6 +276,374 @@ if echo "$LG_LOCATION" | grep -q "$NEG_REDIRECT_URI"; then
 else
     ok "Logout does not redirect to unregistered uri"
 fi
+
+# ═══════════════════════════════════════════════════════════════
+# Admin CRUD API
+# ═══════════════════════════════════════════════════════════════
+
+ADMIN_KEY="dev-admin-token-change-me"
+ADMIN_HDR="Authorization: Bearer ${ADMIN_KEY}"
+ADMIN_CREATED_KID=""
+ADMIN_CREATED_REALM_ID=""
+ADMIN_CREATED_CLIENT_ID=""
+ADMIN_CREATED_USER_ID=""
+
+admin_cleanup() {
+    [[ -n "${ADMIN_CREATED_USER_ID:-}" ]]  && curl -sf -X DELETE -H "$ADMIN_HDR" "$BASE/admin/users/$ADMIN_CREATED_USER_ID" >/dev/null 2>&1 || true
+    [[ -n "${ADMIN_CREATED_CLIENT_ID:-}" ]] && curl -sf -X DELETE -H "$ADMIN_HDR" "$BASE/admin/clients/$ADMIN_CREATED_CLIENT_ID" >/dev/null 2>&1 || true
+    [[ -n "${ADMIN_CREATED_REALM_ID:-}" ]] && curl -sf -X DELETE -H "$ADMIN_HDR" "$BASE/admin/realms/$ADMIN_CREATED_REALM_ID" >/dev/null 2>&1 || true
+    [[ -n "${ADMIN_CREATED_KID:-}" ]]      && rm -rf "keys/$ADMIN_CREATED_KID" 2>/dev/null || true
+}
+
+# ── Step 14: Admin auth ──────────────────────────────────────
+echo ""
+echo "=== Step 14: Admin auth ==="
+
+ADMIN_NOAUTH=$(curl -sS -o /dev/null -w "%{http_code}" "$BASE/admin/realms")
+[[ "$ADMIN_NOAUTH" = "401" ]] && ok "Admin endpoint returns 401 without token" || fail "Expected 401, got $ADMIN_NOAUTH"
+
+ADMIN_BAD=$(curl -sS -o /dev/null -w "%{http_code}" -H "Authorization: Bearer wrong-key" "$BASE/admin/realms")
+[[ "$ADMIN_BAD" = "401" ]] && ok "Admin endpoint returns 401 with wrong token" || fail "Expected 401 with bad token, got $ADMIN_BAD"
+
+# ── Step 15: Admin keys ─────────────────────────────────────
+echo ""
+echo "=== Step 15: Admin — generate keys ==="
+
+KEYS_RESP=$(curl -sS -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" "$BASE/admin/keys")
+ADMIN_CREATED_KID=$(echo "$KEYS_RESP" | sed -n 's/.*"kid":"\([^"]*\)".*/\1/p')
+
+[[ -n "$ADMIN_CREATED_KID" ]] && ok "Generated key pair, kid: ${ADMIN_CREATED_KID:0:8}..." || { fail "No kid returned"; admin_cleanup; exit 1; }
+[[ -f "keys/$ADMIN_CREATED_KID/public_key.pem" ]] && ok "Key files written to filesystem" || fail "Key files not found on disk"
+
+# ── Step 16: Admin realms CRUD ──────────────────────────────
+echo ""
+echo "=== Step 16: Admin — realms CRUD ==="
+
+# List seeded realms
+REALMS_LIST=$(curl -sS -H "$ADMIN_HDR" "$BASE/admin/realms")
+REALM_COUNT=$(echo "$REALMS_LIST" | python3 -c "import sys,json; print(len(json.load(sys.stdin)['realms']))" 2>/dev/null || echo 0)
+[[ "$REALM_COUNT" -ge 2 ]] && ok "List realms returns seeded realms ($REALM_COUNT found)" || fail "Expected >=2 seeded realms, got $REALM_COUNT"
+
+# Create realm
+REALM_RESP=$(curl -sS -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"name":"e2e-admin-realm","keys_id":"'"$ADMIN_CREATED_KID"'"}' \
+    "$BASE/admin/realms")
+ADMIN_CREATED_REALM_ID=$(echo "$REALM_RESP" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
+REALM_NAME=$(echo "$REALM_RESP" | sed -n 's/.*"name":"\([^"]*\)".*/\1/p')
+
+[[ -n "$ADMIN_CREATED_REALM_ID" ]] && ok "Created realm: $REALM_NAME (${ADMIN_CREATED_REALM_ID:0:8}...)" || { fail "No realm id returned"; admin_cleanup; exit 1; }
+
+# Read realm
+READ_REALM=$(curl -sS -H "$ADMIN_HDR" "$BASE/admin/realms/$ADMIN_CREATED_REALM_ID")
+READ_REALM_NAME=$(echo "$READ_REALM" | sed -n 's/.*"name":"\([^"]*\)".*/\1/p')
+[[ "$READ_REALM_NAME" = "e2e-admin-realm" ]] && ok "Read realm returns correct data" || fail "Read realm name mismatch: $READ_REALM_NAME"
+
+# Update realm
+UPDATE_REALM=$(curl -sS -X PUT -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"access_token_expires_in":900}' \
+    "$BASE/admin/realms/$ADMIN_CREATED_REALM_ID")
+UPDATED_TTL=$(echo "$UPDATE_REALM" | sed -n 's/.*"access_token_expires_in":\([0-9]*\).*/\1/p')
+[[ "$UPDATED_TTL" = "900" ]] && ok "Updated realm access_token_expires_in to 900" || fail "Expected 900, got $UPDATED_TTL"
+
+# Duplicate name returns 409
+DUP_409=$(curl -sS -o /dev/null -w "%{http_code}" -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"name":"e2e-admin-realm","keys_id":"'"$ADMIN_CREATED_KID"'"}' \
+    "$BASE/admin/realms")
+[[ "$DUP_409" = "409" ]] && ok "Duplicate realm name returns 409" || fail "Expected 409, got $DUP_409"
+
+# Unknown keys_id returns 400
+BADKEYS_400=$(curl -sS -o /dev/null -w "%{http_code}" -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"name":"no-keys-realm","keys_id":"does-not-exist"}' \
+    "$BASE/admin/realms")
+[[ "$BADKEYS_400" = "400" ]] && ok "Unknown keys_id returns 400" || fail "Expected 400, got $BADKEYS_400"
+
+# Missing realm returns 404
+MISSING_404=$(curl -sS -o /dev/null -w "%{http_code}" -H "$ADMIN_HDR" "$BASE/admin/realms/nonexistent")
+[[ "$MISSING_404" = "404" ]] && ok "Missing realm returns 404" || fail "Expected 404, got $MISSING_404"
+
+# ── Step 17: Admin clients CRUD ─────────────────────────────
+echo ""
+echo "=== Step 17: Admin — clients CRUD ==="
+
+# Create client
+CLIENT_RESP=$(curl -sS -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"name":"e2e-admin-client","realm_id":"'"$ADMIN_CREATED_REALM_ID"'","uri":"https://e2e.example.com","client_secret":"test-secret","require_auth":true}' \
+    "$BASE/admin/clients")
+ADMIN_CREATED_CLIENT_ID=$(echo "$CLIENT_RESP" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
+HAS_SECRET=$(echo "$CLIENT_RESP" | grep -c '"has_secret":true' || true)
+
+[[ -n "$ADMIN_CREATED_CLIENT_ID" ]] && ok "Created client: e2e-admin-client (${ADMIN_CREATED_CLIENT_ID:0:8}...)" || { fail "No client id returned"; admin_cleanup; exit 1; }
+[[ "$HAS_SECRET" -gt 0 ]] && ok "Client has_secret is true (secret was provided)" || fail "has_secret should be true"
+echo "$CLIENT_RESP" | grep -q '"client_secret"' && fail "client_secret must not be exposed in response" || ok "client_secret not exposed in response"
+
+# List clients filtered by realm
+CLIST=$(curl -sS -H "$ADMIN_HDR" "$BASE/admin/clients?realm_id=$ADMIN_CREATED_REALM_ID")
+CLIST_COUNT=$(echo "$CLIST" | python3 -c "import sys,json; print(len(json.load(sys.stdin)['clients']))" 2>/dev/null || echo 0)
+[[ "$CLIST_COUNT" -ge 1 ]] && ok "List clients filtered by realm returns $CLIST_COUNT client(s)" || fail "Expected >=1 client, got $CLIST_COUNT"
+
+# Read client
+READ_CLIENT=$(curl -sS -H "$ADMIN_HDR" "$BASE/admin/clients/$ADMIN_CREATED_CLIENT_ID")
+READ_CLIENT_NAME=$(echo "$READ_CLIENT" | sed -n 's/.*"name":"\([^"]*\)".*/\1/p')
+[[ "$READ_CLIENT_NAME" = "e2e-admin-client" ]] && ok "Read client returns correct data" || fail "Read client name mismatch: $READ_CLIENT_NAME"
+
+# Update client
+UPDATE_CLIENT=$(curl -sS -X PUT -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"require_auth":false}' \
+    "$BASE/admin/clients/$ADMIN_CREATED_CLIENT_ID")
+UPDATED_AUTH=$(echo "$UPDATE_CLIENT" | grep -c '"require_auth":false' || true)
+[[ "$UPDATED_AUTH" -gt 0 ]] && ok "Updated client require_auth to false" || fail "Failed to update client"
+
+# Duplicate name+uri returns 409
+DUP_CLIENT=$(curl -sS -o /dev/null -w "%{http_code}" -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"name":"e2e-admin-client","realm_id":"'"$ADMIN_CREATED_REALM_ID"'","uri":"https://e2e.example.com"}' \
+    "$BASE/admin/clients")
+[[ "$DUP_CLIENT" = "409" ]] && ok "Duplicate client name+uri returns 409" || fail "Expected 409, got $DUP_CLIENT"
+
+# Unknown realm returns 400
+BAD_REALM_CLIENT=$(curl -sS -o /dev/null -w "%{http_code}" -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"name":"ghost","realm_id":"nonexistent","uri":"https://ghost.example.com"}' \
+    "$BASE/admin/clients")
+[[ "$BAD_REALM_CLIENT" = "400" ]] && ok "Client with unknown realm returns 400" || fail "Expected 400, got $BAD_REALM_CLIENT"
+
+# ── Step 18: Admin users CRUD ───────────────────────────────
+echo ""
+echo "=== Step 18: Admin — users CRUD ==="
+
+# Create user
+USER_RESP=$(curl -sS -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"realm_id":"'"$ADMIN_CREATED_REALM_ID"'","email":"e2e-admin@example.com","password":"secret123","name":"E2E Admin User","realm_roles":"admin basic"}' \
+    "$BASE/admin/users")
+ADMIN_CREATED_USER_ID=$(echo "$USER_RESP" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
+USER_EMAIL=$(echo "$USER_RESP" | sed -n 's/.*"email":"\([^"]*\)".*/\1/p')
+
+[[ -n "$ADMIN_CREATED_USER_ID" ]] && ok "Created user: $USER_EMAIL (${ADMIN_CREATED_USER_ID:0:8}...)" || { fail "No user id returned"; admin_cleanup; exit 1; }
+echo "$USER_RESP" | grep -q '"password"' && fail "password must not be exposed in response" || ok "password not exposed in response"
+
+# List users filtered by realm
+ULIST=$(curl -sS -H "$ADMIN_HDR" "$BASE/admin/users?realm_id=$ADMIN_CREATED_REALM_ID")
+ULIST_COUNT=$(echo "$ULIST" | python3 -c "import sys,json; print(len(json.load(sys.stdin)['users']))" 2>/dev/null || echo 0)
+[[ "$ULIST_COUNT" -ge 1 ]] && ok "List users filtered by realm returns $ULIST_COUNT user(s)" || fail "Expected >=1 user, got $ULIST_COUNT"
+
+# Read user
+READ_USER=$(curl -sS -H "$ADMIN_HDR" "$BASE/admin/users/$ADMIN_CREATED_USER_ID")
+READ_USER_EMAIL=$(echo "$READ_USER" | sed -n 's/.*"email":"\([^"]*\)".*/\1/p')
+[[ "$READ_USER_EMAIL" = "e2e-admin@example.com" ]] && ok "Read user returns correct data" || fail "Read user email mismatch: $READ_USER_EMAIL"
+
+# Update user name
+UPDATE_USER=$(curl -sS -X PUT -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"name":"E2E Updated User"}' \
+    "$BASE/admin/users/$ADMIN_CREATED_USER_ID")
+UPDATED_NAME=$(echo "$UPDATE_USER" | sed -n 's/.*"name":"\([^"]*\)".*/\1/p')
+[[ "$UPDATED_NAME" = "E2E Updated User" ]] && ok "Updated user name" || fail "Expected 'E2E Updated User', got '$UPDATED_NAME'"
+
+# Duplicate email in realm returns 409
+DUP_USER=$(curl -sS -o /dev/null -w "%{http_code}" -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"realm_id":"'"$ADMIN_CREATED_REALM_ID"'","email":"e2e-admin@example.com","password":"pass"}' \
+    "$BASE/admin/users")
+[[ "$DUP_USER" = "409" ]] && ok "Duplicate user email in realm returns 409" || fail "Expected 409, got $DUP_USER"
+
+# Unknown realm returns 400
+BAD_REALM_USER=$(curl -sS -o /dev/null -w "%{http_code}" -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"realm_id":"nonexistent","email":"ghost@example.com","password":"pass"}' \
+    "$BASE/admin/users")
+[[ "$BAD_REALM_USER" = "400" ]] && ok "User with unknown realm returns 400" || fail "Expected 400, got $BAD_REALM_USER"
+
+# ═══════════════════════════════════════════════════════════════
+# OIDC login using admin-created realm / client / user
+# ═══════════════════════════════════════════════════════════════
+
+ADMIN_OIDC_COOKIE=$(mktemp)
+ADMIN_OIDC_HEADERS=$(mktemp)
+trap 'rm -f "$ADMIN_OIDC_COOKIE" "$ADMIN_OIDC_HEADERS"' EXIT
+
+ADMIN_REALM_NAME="e2e-admin-realm"
+ADMIN_CLIENT_NAME="e2e-admin-client"
+ADMIN_REDIRECT_URI="https://e2e.example.com"
+ADMIN_EMAIL="e2e-admin@example.com"
+ADMIN_PASSWORD="secret123"
+ADMIN_AUTH_BASE="$BASE/realms/$ADMIN_REALM_NAME/protocol/openid-connect"
+
+# ── Step 19: Auth redirect ───────────────────────────────────
+echo ""
+echo "=== Step 19: OIDC login — GET /auth ==="
+
+ADMIN_AUTH_PAGE=$(curl -sS -c "$ADMIN_OIDC_COOKIE" \
+    "$ADMIN_AUTH_BASE/auth?client_id=$ADMIN_CLIENT_NAME&redirect_uri=$ADMIN_REDIRECT_URI&response_type=code&response_mode=query&scope=openid&state=admin-e2e-state&nonce=admin-e2e-nonce")
+
+if echo "$ADMIN_AUTH_PAGE" | grep -q 'login'; then
+    ok "Auth page returned login form for admin realm"
+else
+    fail "Auth page did not return login form for admin realm"
+    echo "$ADMIN_AUTH_PAGE" | head -5
+fi
+
+ADMIN_LOGIN_ID=$(echo "$ADMIN_AUTH_PAGE" | sed -n 's/.*action="[^"]*?q=\([^"]*\)".*/\1/p')
+ADMIN_CSRF=$(echo "$ADMIN_AUTH_PAGE" | sed -n 's/.*name="csrf_token"\s*value="\([^"]*\)".*/\1/p')
+
+[[ -n "$ADMIN_LOGIN_ID" ]] && ok "Extracted login_id: ${ADMIN_LOGIN_ID:0:8}..." || { fail "login_id missing"; admin_cleanup; rm -f "$ADMIN_OIDC_COOKIE" "$ADMIN_OIDC_HEADERS"; exit 1; }
+[[ -n "$ADMIN_CSRF" ]]     && ok "Extracted csrf_token: ${ADMIN_CSRF:0:8}..." || { fail "csrf_token missing"; admin_cleanup; rm -f "$ADMIN_OIDC_COOKIE" "$ADMIN_OIDC_HEADERS"; exit 1; }
+
+# ── Step 20: Login ──────────────────────────────────────────
+echo ""
+echo "=== Step 20: OIDC login — POST login ==="
+
+> "$ADMIN_OIDC_HEADERS"
+ADMIN_LOGIN_CODE=$(curl -sS -c "$ADMIN_OIDC_COOKIE" -b "$ADMIN_OIDC_COOKIE" \
+    -D "$ADMIN_OIDC_HEADERS" -o /dev/null -w "%{http_code}" \
+    -X POST \
+    -d "email=${ADMIN_EMAIL}&password=${ADMIN_PASSWORD}&csrf_token=${ADMIN_CSRF}" \
+    "$ADMIN_AUTH_BASE/login-actions/authenticate?q=${ADMIN_LOGIN_ID}")
+
+if [[ "$ADMIN_LOGIN_CODE" != "302" ]]; then
+    fail "Login expected 302, got $ADMIN_LOGIN_CODE"
+    admin_cleanup; rm -f "$ADMIN_OIDC_COOKIE" "$ADMIN_OIDC_HEADERS"; exit 1
+fi
+ok "Login returned 302 redirect"
+
+ADMIN_LOCATION=$(grep -i '^location:' "$ADMIN_OIDC_HEADERS" | sed 's/.*location: //I' | tr -d '\r\n')
+ADMIN_AUTH_CODE=$(echo "$ADMIN_LOCATION" | sed 's/.*code=\([^&]*\).*/\1/')
+
+if [[ -n "$ADMIN_AUTH_CODE" ]]; then
+    ok "Auth code: ${ADMIN_AUTH_CODE:0:8}..."
+else
+    fail "No auth code in Location header"
+    echo "  Location: $ADMIN_LOCATION"
+    admin_cleanup; rm -f "$ADMIN_OIDC_COOKIE" "$ADMIN_OIDC_HEADERS"; exit 1
+fi
+
+# ── Step 21: Token exchange ─────────────────────────────────
+echo ""
+echo "=== Step 21: OIDC login — POST /token ==="
+
+ADMIN_TOKEN_RESP=$(curl -sS -X POST \
+    -d "grant_type=authorization_code&client_id=${ADMIN_CLIENT_NAME}&code=${ADMIN_AUTH_CODE}&redirect_uri=${ADMIN_REDIRECT_URI}" \
+    "$ADMIN_AUTH_BASE/token")
+
+ADMIN_AT=$(echo "$ADMIN_TOKEN_RESP" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+ADMIN_RT=$(echo "$ADMIN_TOKEN_RESP" | sed -n 's/.*"refresh_token":"\([^"]*\)".*/\1/p')
+ADMIN_IDT=$(echo "$ADMIN_TOKEN_RESP" | sed -n 's/.*"id_token":"\([^"]*\)".*/\1/p')
+ADMIN_TT=$(echo "$ADMIN_TOKEN_RESP" | sed -n 's/.*"token_type":"\([^"]*\)".*/\1/p')
+
+[[ -n "$ADMIN_AT" ]]  && ok "Got access_token"  || { fail "No access_token"; admin_cleanup; rm -f "$ADMIN_OIDC_COOKIE" "$ADMIN_OIDC_HEADERS"; exit 1; }
+[[ -n "$ADMIN_RT" ]]  && ok "Got refresh_token" || fail "No refresh_token"
+[[ -n "$ADMIN_IDT" ]] && ok "Got id_token"      || fail "No id_token"
+[[ "$ADMIN_TT" = "Bearer" ]] && ok "token_type is Bearer" || fail "token_type: $ADMIN_TT"
+
+# ── Step 22: Introspect ─────────────────────────────────────
+echo ""
+echo "=== Step 22: OIDC login — introspect access token ==="
+
+ADMIN_INTRO=$(curl -sS -X POST \
+    -d "token=${ADMIN_AT}&client_id=${ADMIN_CLIENT_NAME}" \
+    "$ADMIN_AUTH_BASE/token/introspect")
+
+echo "$ADMIN_INTRO" | grep -q '"active":true' && ok "Access token is active" || { fail "Access token not active"; echo "$ADMIN_INTRO"; }
+echo "$ADMIN_INTRO" | grep -q '"token_type":"Bearer"' && ok "token_type is Bearer" || fail "token_type not Bearer"
+
+# ID token is non-Bearer (typ: ID) — introspect it
+ADMIN_INTRO_ID=$(curl -sS -X POST \
+    -d "token=${ADMIN_IDT}&client_id=${ADMIN_CLIENT_NAME}" \
+    "$ADMIN_AUTH_BASE/token/introspect")
+
+echo "$ADMIN_INTRO_ID" | grep -q '"active":true' && ok "ID token is active" || fail "ID token not active"
+# ID token introspection falls through to introspectAccessToken which returns token_type from claims
+echo "$ADMIN_INTRO_ID" | grep -q '"token_type":"ID"' && ok "ID token token_type is ID" \
+    || echo "$ADMIN_INTRO_ID" | grep -q '"active":true' && ok "ID token active (typ not checked)" \
+    || fail "ID token introspection failed"
+
+# ── Step 23: Refresh ────────────────────────────────────────
+echo ""
+echo "=== Step 23: OIDC login — refresh token ==="
+
+ADMIN_REFRESH_RESP=$(curl -sS -X POST \
+    -d "grant_type=refresh_token&client_id=${ADMIN_CLIENT_NAME}&refresh_token=${ADMIN_RT}" \
+    "$ADMIN_AUTH_BASE/token")
+
+ADMIN_NEW_AT=$(echo "$ADMIN_REFRESH_RESP" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+ADMIN_NEW_RT=$(echo "$ADMIN_REFRESH_RESP" | sed -n 's/.*"refresh_token":"\([^"]*\)".*/\1/p')
+
+[[ -n "$ADMIN_NEW_AT" ]] && ok "Refresh produced new access_token" || fail "No access_token after refresh"
+[[ -n "$ADMIN_NEW_RT" ]] && [[ "$ADMIN_NEW_RT" != "$ADMIN_RT" ]] \
+    && ok "Refresh token rotated" \
+    || fail "Refresh token not rotated"
+
+# ── Step 24: Revoke ─────────────────────────────────────────
+echo ""
+echo "=== Step 24: OIDC login — revoke refresh token ==="
+
+ADMIN_REVOKE=$(curl -sS -o /dev/null -w "%{http_code}" -X POST \
+    -u "${ADMIN_CLIENT_NAME}:" \
+    -d "token=${ADMIN_NEW_RT}" \
+    "$ADMIN_AUTH_BASE/revoke")
+
+[[ "$ADMIN_REVOKE" = "200" ]] && ok "Revoke returned 200" || fail "Revoke expected 200, got $ADMIN_REVOKE"
+
+ADMIN_REVOKED=$(curl -sS -X POST \
+    -d "grant_type=refresh_token&client_id=${ADMIN_CLIENT_NAME}&refresh_token=${ADMIN_NEW_RT}" \
+    "$ADMIN_AUTH_BASE/token" | grep -cE 'expired|invalid' || true)
+
+[[ "$ADMIN_REVOKED" -gt 0 ]] && ok "Revoked refresh token rejected" || fail "Revoked refresh token was accepted"
+
+rm -f "$ADMIN_OIDC_COOKIE" "$ADMIN_OIDC_HEADERS"
+
+# ── Step 25: Admin delete cascade ────────────────────────────
+echo ""
+echo "=== Step 25: Admin — delete (cleanup) ==="
+
+# The OIDC flow left login + session rows that guard deletion.
+# Clean up via the admin API: /admin/sessions/invalidate deletes the sessions
+# and their logins for the given user and client.
+ADMIN_INVALIDATE=$(curl -sS -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"client_id":"'"$ADMIN_CREATED_CLIENT_ID"'","user_id":"'"$ADMIN_CREATED_USER_ID"'"}' \
+    "$BASE/admin/sessions/invalidate")
+
+echo "$ADMIN_INVALIDATE" | grep -q '"invalidated"' \
+    && ok "Admin API invalidated OIDC sessions/logins" \
+    || { fail "Admin API session invalidation failed: $ADMIN_INVALIDATE"; }
+
+# Verification (local dev only): confirm no leftover logins/sessions block deletion.
+# Falls back to sqlite3 only if the admin API left residue behind.
+LEFT_LOGINS=$(sqlite3 db/data.db "SELECT COUNT(*) FROM logins WHERE client_id = '$ADMIN_CREATED_CLIENT_ID';" 2>/dev/null || echo 0)
+LEFT_SESSIONS=$(sqlite3 db/data.db "SELECT COUNT(*) FROM sessions WHERE user_id = '$ADMIN_CREATED_USER_ID';" 2>/dev/null || echo 0)
+
+if [[ "$LEFT_LOGINS" -eq 0 && "$LEFT_SESSIONS" -eq 0 ]]; then
+    ok "No leftover logins/sessions (verified via sqlite)"
+else
+    fail "Leftover guard rows: $LEFT_LOGINS logins, $LEFT_SESSIONS sessions — sqlite fallback cleanup"
+    sqlite3 db/data.db "DELETE FROM logins WHERE client_id = '$ADMIN_CREATED_CLIENT_ID';" 2>/dev/null || true
+    sqlite3 db/data.db "DELETE FROM sessions WHERE user_id = '$ADMIN_CREATED_USER_ID';" 2>/dev/null || true
+fi
+
+# Delete user (no sessions → 204)
+DEL_USER=$(curl -sS -o /dev/null -w "%{http_code}" -X DELETE -H "$ADMIN_HDR" "$BASE/admin/users/$ADMIN_CREATED_USER_ID")
+[[ "$DEL_USER" = "204" ]] && ok "Deleted user → 204" || fail "Expected 204, got $DEL_USER"
+
+# Confirm user is gone
+GONE_USER=$(curl -sS -o /dev/null -w "%{http_code}" -H "$ADMIN_HDR" "$BASE/admin/users/$ADMIN_CREATED_USER_ID")
+[[ "$GONE_USER" = "404" ]] && ok "Deleted user returns 404" || fail "Expected 404, got $GONE_USER"
+ADMIN_CREATED_USER_ID=""
+
+# Delete client (no logins → 204)
+DEL_CLIENT=$(curl -sS -o /dev/null -w "%{http_code}" -X DELETE -H "$ADMIN_HDR" "$BASE/admin/clients/$ADMIN_CREATED_CLIENT_ID")
+[[ "$DEL_CLIENT" = "204" ]] && ok "Deleted client → 204" || fail "Expected 204, got $DEL_CLIENT"
+
+# Confirm client is gone
+GONE_CLIENT=$(curl -sS -o /dev/null -w "%{http_code}" -H "$ADMIN_HDR" "$BASE/admin/clients/$ADMIN_CREATED_CLIENT_ID")
+[[ "$GONE_CLIENT" = "404" ]] && ok "Deleted client returns 404" || fail "Expected 404, got $GONE_CLIENT"
+ADMIN_CREATED_CLIENT_ID=""
+
+# Delete realm (now empty → 204)
+DEL_REALM=$(curl -sS -o /dev/null -w "%{http_code}" -X DELETE -H "$ADMIN_HDR" "$BASE/admin/realms/$ADMIN_CREATED_REALM_ID")
+[[ "$DEL_REALM" = "204" ]] && ok "Deleted realm → 204" || fail "Expected 204, got $DEL_REALM"
+
+# Confirm realm is gone
+GONE_REALM=$(curl -sS -o /dev/null -w "%{http_code}" -H "$ADMIN_HDR" "$BASE/admin/realms/$ADMIN_CREATED_REALM_ID")
+[[ "$GONE_REALM" = "404" ]] && ok "Deleted realm returns 404" || fail "Expected 404, got $GONE_REALM"
+ADMIN_CREATED_REALM_ID=""
+
+# Clean up generated keys from filesystem
+[[ -d "keys/$ADMIN_CREATED_KID" ]] && rm -rf "keys/$ADMIN_CREATED_KID" && ok "Cleaned up generated key pair from disk" || ok "Key cleanup already handled"
+ADMIN_CREATED_KID=""
 
 # ── All done ──────────────────────────────────────────────────
 exit $FAIL

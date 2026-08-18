@@ -4,7 +4,13 @@ declare(strict_types=1);
 
 namespace AuthServer\Config;
 
+use AuthServer\Controllers\Admin\ClientsController;
+use AuthServer\Controllers\Admin\KeysController;
+use AuthServer\Controllers\Admin\LoginsController;
 use AuthServer\Controllers\Admin\MigrationsController;
+use AuthServer\Controllers\Admin\RealmsController;
+use AuthServer\Controllers\Admin\SessionsController;
+use AuthServer\Controllers\Admin\UsersController;
 use AuthServer\Controllers\AuthorizationController;
 use AuthServer\Controllers\ErrorController;
 use AuthServer\Controllers\IntrospectController;
@@ -170,6 +176,13 @@ final class Definitions
             IntrospectController::class => \DI\autowire(),
             RevokeController::class => \DI\autowire(),
             MigrationsController::class => \DI\autowire(),
+            RealmsController::class => \DI\autowire(),
+            ClientsController::class => \DI\autowire(),
+            UsersController::class => \DI\autowire(),
+            SessionsController::class => \DI\autowire(),
+            LoginsController::class => \DI\autowire(),
+            KeysController::class => \DI\autowire()
+                ->constructorParameter('keysRoot', \DI\get('keys_root')),
         ];
     }
 }

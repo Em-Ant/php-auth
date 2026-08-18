@@ -28,9 +28,11 @@ vendor/
 
 # skill transient files
 .tmp/
+.jspace/
 
 # coverage
 coverage
 
 # Adminer local config
 db_admin/config.php
+
