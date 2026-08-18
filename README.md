@@ -1,7 +1,7 @@
 # php-auth
 
 An OpenID Connect-like PHP authorization server implementing the authorization code
-grant flow with PKCE, token refresh, revocation, and introspection.
+grant flow with PKCE, token refresh, revocation, introspection, and offline access.
 
 Designed to be compatible with a subset of Keycloak **≥20** functionality — the
 [Keycloak JavaScript adapter](https://www.keycloak.org/securing-apps/javascript-adapter)
@@ -145,6 +145,51 @@ grant_type=refresh_token&client_id=<client_id>&refresh_token=<token>
 
 Returns a new token bundle with rotated refresh token.
 
+### Offline access
+
+Offline access lets a client obtain refresh tokens that stay valid after the
+user's SSO session ends. Ask for it by including `offline_access` in the
+`scope` of the authorization request:
+
+```
+GET /realms/{realm}/protocol/openid-connect/auth?client_id=...&redirect_uri=...&response_type=code&scope=openid offline_access&state=...&nonce=...
+```
+
+At the token endpoint the server responds with a bundle whose refresh token
+carries `typ: Offline` and a `refresh_expires_in` (default 2592000 s = 30 days):
+
+```json
+{
+  "access_token": "...",
+  "refresh_token": "...",
+  "id_token": "...",
+  "expires_in": 300,
+  "refresh_expires_in": 2592000,
+  "token_type": "Bearer",
+  "scope": "openid offline_access"
+}
+```
+
+Offline refresh tokens:
+
+- **Survive logout** — they are not touched by `/logout` or expired SSO
+  sessions. A user can sign out of the browser and the client can still
+  refresh tokens in the background (Keycloak-compatible behaviour).
+- **Rotate on every refresh**, like regular refresh tokens, and have a sliding
+  lifetime: each refresh resets `updated_at`, so the token stays valid while it
+  is being used.
+- **Are bound to the issuing client** — refreshing with a different
+  `client_id` is rejected, and the granted scope can never be widened.
+- **Can be revoked** via RFC 7009 (`POST /revoke` with `token_type_hint=refresh_token`),
+  or introspected via `POST /token/introspect`.
+- **Per-realm lifetime** — `offline_refresh_token_expires_in` on the realm
+  controls the sliding TTL (default 2592000 s; configurable via the admin API).
+
+An offline grant is a persistent server-side record (`offline_sessions`) that
+is independent of the SSO session — that is what lets it outlive logout. For
+admin-initiated revocation without the token, see
+[Admin API — Sessions](#admin-api--sessions).
+
 ---
 
 ## Tokens
@@ -157,7 +202,7 @@ All tokens are RS256-signed JWTs with the following claims:
 | `iss` | Issuer URL (`<issuer>/realms/<realm>`) |
 | `aud` | Client name (for access/ID) or issuer (for refresh) |
 | `sub` | User ID |
-| `typ` | Token type: `Bearer`, `Refresh`, or `ID` |
+| `typ` | Token type: `Bearer`, `Refresh`, `Offline`, or `ID` |
 | `sid` | Session ID |
 | `exp` / `iat` | Expiration and issued-at timestamps |
 | `scope` | Granted scopes |
@@ -189,7 +234,180 @@ authenticate_limit = 10
 authenticate_window = 60
 token_limit = 30
 token_window = 60
+
+[admin]
+api_key = dev-admin-token-change-me
 ```
+
+---
+
+## Admin API
+
+The admin API manages realms, clients, users, signing keys, sessions, logins,
+and migrations over HTTP. It is **not** part of the OIDC surface — every
+endpoint below lives under `/admin` and requires the admin API key.
+
+### Authentication
+
+Set `admin.api_key` in `config.ini` (default `dev-admin-token-change-me`).
+Send it either as a Bearer token or via the `X-Admin-Key` header:
+
+```
+Authorization: Bearer <admin_api_key>
+# or
+X-Admin-Key: <admin_api_key>
+```
+
+Invalid or missing keys get `401` with `{"error": "unauthorized", "message": "invalid or missing admin token"}`.
+Request and response bodies are JSON (`Content-Type: application/json`).
+Validation errors return `400`, duplicate/guarded operations return `409`,
+missing resources return `404`, success without a body returns `204`.
+
+### Signing keys
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/admin/keys` | `POST` | Generate a new RSA key pair |
+
+```
+POST /admin/keys
+→ 201 {"kid": "<kid>"}
+```
+
+Keys are written to `keys/<kid>/`. New realms reference a `keys_id` (the KID);
+realms without an explicit key share the first available key set.
+
+### Realms
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/admin/realms` | `GET` | List realms |
+| `/admin/realms` | `POST` | Create a realm |
+| `/admin/realms/{id}` | `GET` | Read a realm |
+| `/admin/realms/{id}` | `PUT` | Update a realm |
+| `/admin/realms/{id}` | `DELETE` | Delete a realm (only when it has no clients or users) |
+
+Create body:
+
+```json
+{
+  "name": "myrealm",
+  "keys_id": "<kid>",
+  "refresh_token_expires_in": 1800,
+  "access_token_expires_in": 300,
+  "pending_login_expires_in": 1800,
+  "authenticated_login_expires_in": 1800,
+  "session_expires_in": 86400,
+  "idle_session_expires_in": 1800,
+  "scope": "openid profile email",
+  "offline_refresh_token_expires_in": 2592000
+}
+```
+
+All numeric TTL fields and `scope` are optional (sensible defaults apply).
+`PUT` accepts the same fields as a partial update. Realm responses include the
+full set of TTLs plus `offline_refresh_token_expires_in` (sliding lifetime of
+offline refresh tokens, default 2592000 s).
+
+### Clients
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/admin/clients` | `GET` | List clients (`?realm_id=`) |
+| `/admin/clients` | `POST` | Create a client |
+| `/admin/clients/{id}` | `GET` | Read a client |
+| `/admin/clients/{id}` | `PUT` | Update a client |
+| `/admin/clients/{id}` | `DELETE` | Delete a client (409 while it has active logins or offline sessions) |
+
+Create body:
+
+```json
+{
+  "name": "myapp",
+  "realm_id": "<realm-id>",
+  "uri": "https://app.example.com/callback",
+  "require_auth": false,
+  "scope": "openid profile email",
+  "client_secret": "optional-secret"
+}
+```
+
+`client_secret` is stored hashed; responses only report `has_secret: true/false`.
+`require_auth` toggles whether the token endpoint demands client authentication.
+
+### Users
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/admin/users` | `GET` | List users (`?realm_id=`) |
+| `/admin/users` | `POST` | Create a user |
+| `/admin/users/{id}` | `GET` | Read a user |
+| `/admin/users/{id}` | `PUT` | Update a user |
+| `/admin/users/{id}` | `DELETE` | Delete a user (409 while it has active sessions or offline sessions) |
+
+Create body:
+
+```json
+{
+  "realm_id": "<realm-id>",
+  "email": "user@example.com",
+  "password": "secret",
+  "name": "Optional name",
+  "realm_roles": "basic",
+  "valid": true
+}
+```
+
+Passwords are hashed (argon2id) and never returned. `PUT` accepts the same
+fields as a partial update; omit `password` to keep the existing one.
+
+### Sessions
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/admin/sessions` | `GET` | List sessions (`?realm_id=`, `?user_id=`) |
+| `/admin/sessions/{id}` | `DELETE` | Delete a session and its logins |
+| `/admin/sessions/invalidate` | `POST` | Invalidate all sessions and offline grants for a user and/or client |
+
+Invalidate body — at least one of `user_id` / `client_id` is required:
+
+```json
+{
+  "user_id": "<user-id>",
+  "client_id": "<client-id>"
+}
+```
+
+```
+→ 200 {"invalidated": 3}
+```
+
+Deleting a session or invalidating a user/client also **expires their offline
+refresh grants** (`offline_sessions`) — this is the admin-side revocation path
+for offline access, since offline tokens deliberately survive SSO logout and
+are otherwise only revocable with the token itself (RFC 7009).
+
+### Logins
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/admin/logins` | `GET` | List logins (`?realm_id=`, `?client_id=`) |
+| `/admin/logins/{id}` | `DELETE` | Delete a login (expires its refresh token) |
+
+### Migrations
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/admin/migrations/migrate` | `POST` | Apply pending migrations |
+| `/admin/migrations/rollback` | `POST` | Roll back (`?steps=N`, default 1) |
+| `/admin/migrations/go` | `POST` | Migrate to a specific `?version=` |
+| `/admin/migrations/status` | `GET` | List applied/pending migrations |
+| `/admin/migrations/dry-run` | `GET` | List pending migrations without applying |
+
+### Database browser
+
+The bundled [Adminer](https://www.adminer.org/) UI is served at `/admin/db`
+(any path under it). It is protected by the same admin API key.
 
 ---
 

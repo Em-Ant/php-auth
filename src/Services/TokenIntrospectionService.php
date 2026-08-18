@@ -7,24 +7,29 @@ namespace AuthServer\Services;
 use AuthServer\Exceptions\AuthenticationFailed;
 use AuthServer\Exceptions\ValidationFailed;
 use AuthServer\Interfaces\LoginRepository as ILoginRepo;
+use AuthServer\Interfaces\OfflineSessionRepository as IOfflineSessionRepo;
 use AuthServer\Models\LoginStatus;
+use AuthServer\Models\OfflineSessionStatus;
 use AuthServer\Models\Realm;
 use Psr\Log\LoggerInterface;
 
 class TokenIntrospectionService
 {
     private ILoginRepo $loginRepository;
+    private IOfflineSessionRepo $offlineSessionRepository;
     private ClientAuthenticator $clientAuthenticator;
     private TokenValidator $tokenValidator;
     private LoggerInterface $logger;
 
     public function __construct(
         ILoginRepo $loginRepo,
+        IOfflineSessionRepo $offlineSessionRepo,
         ClientAuthenticator $clientAuthenticator,
         TokenValidator $tokenValidator,
         LoggerInterface $logger
     ) {
         $this->loginRepository = $loginRepo;
+        $this->offlineSessionRepository = $offlineSessionRepo;
         $this->clientAuthenticator = $clientAuthenticator;
         $this->tokenValidator = $tokenValidator;
         $this->logger = $logger;
@@ -46,13 +51,11 @@ class TokenIntrospectionService
             return ['active' => false];
         }
 
-        $typ = $claims['typ'] ?? '';
-
-        if ($typ === 'Refresh') {
-            return $this->introspectRefreshToken($token, $claims, $realm);
-        }
-
-        return $this->introspectAccessToken($claims);
+        return match ($claims['typ'] ?? '') {
+            'Refresh' => $this->introspectRefreshToken($token, $claims, $realm),
+            'Offline' => $this->introspectOfflineToken($token, $claims, $realm),
+            default => $this->introspectAccessToken($claims),
+        };
     }
 
     private function validateIntrospectClient(string $clientId, array $params): void
@@ -71,6 +74,35 @@ class TokenIntrospectionService
             return ['active' => false];
         }
 
+        return $this->introspectActiveRefreshToken(
+            $decoded,
+            $login->getClientId(),
+            $login->getScope()
+        );
+    }
+
+    private function introspectOfflineToken(string $token, array $decoded, Realm $realm): array
+    {
+        $offline = $this->offlineSessionRepository->findByRefreshToken(
+            $token,
+            $realm->getId()
+        );
+        if ($offline === null || $offline->getStatus() !== OfflineSessionStatus::Active) {
+            return ['active' => false];
+        }
+
+        return $this->introspectActiveRefreshToken(
+            $decoded,
+            $offline->getClientId(),
+            $offline->getScope()
+        );
+    }
+
+    private function introspectActiveRefreshToken(
+        array $decoded,
+        string $clientId,
+        string $scope
+    ): array {
         return [
             'active' => true,
             'sub' => $decoded['sub'] ?? '',
@@ -80,8 +112,8 @@ class TokenIntrospectionService
             'iat' => $decoded['iat'] ?? 0,
             'jti' => $decoded['jti'] ?? '',
             'token_type' => 'refresh_token',
-            'client_id' => $login->getClientId(),
-            'scope' => $login->getScope(),
+            'client_id' => $clientId,
+            'scope' => $scope,
             'sid' => $decoded['sid'] ?? '',
         ];
     }

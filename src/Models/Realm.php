@@ -15,6 +15,7 @@ class Realm implements \JsonSerializable
     private int $authenticated_login_expires_in;
     private int $session_expires_in;
     private int $idle_session_expires_in;
+    private int $offline_refresh_token_expires_in;
     private array $scope;
     private \DateTime $created_at;
 
@@ -30,7 +31,8 @@ class Realm implements \JsonSerializable
         int $session_expires_in,
         int $idle_session_expires_in,
         string $scope,
-        string $created_at
+        string $created_at,
+        int $offline_refresh_token_expires_in = 2592000
     ) {
         $this->id = $id;
         $this->name = $name;
@@ -41,6 +43,7 @@ class Realm implements \JsonSerializable
         $this->authenticated_login_expires_in = $authenticated_login_expires_in;
         $this->session_expires_in = $session_expires_in;
         $this->idle_session_expires_in = $idle_session_expires_in;
+        $this->offline_refresh_token_expires_in = $offline_refresh_token_expires_in;
         $this->scope = explode(' ', $scope);
         $utc = new \DateTimeZone('UTC');
         $this->created_at =
@@ -82,6 +85,10 @@ class Realm implements \JsonSerializable
     public function getIdleSessionExpiresIn(): int
     {
         return $this->idle_session_expires_in;
+    }
+    public function getOfflineRefreshTokenExpiresIn(): int
+    {
+        return $this->offline_refresh_token_expires_in;
     }
     public function getScope(): array
     {

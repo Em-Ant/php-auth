@@ -6,6 +6,7 @@ namespace AuthServer\Controllers\Admin;
 
 use AuthServer\Exceptions\ConflictException;
 use AuthServer\Exceptions\ValidationFailed;
+use AuthServer\Interfaces\OfflineSessionRepository;
 use AuthServer\Interfaces\RealmRepository;
 use AuthServer\Interfaces\SessionRepository;
 use AuthServer\Interfaces\UserRepository;
@@ -28,6 +29,7 @@ class UsersController
         private readonly UserRepository $users,
         private readonly RealmRepository $realms,
         private readonly SessionRepository $sessions,
+        private readonly OfflineSessionRepository $offlineSessions,
         private readonly SecretsService $secretsService,
     ) {
     }
@@ -137,6 +139,13 @@ class UsersController
             throw new ConflictException("user '$id' still has active sessions");
         }
 
+        if ($this->offlineSessions->countActiveByUserId($id) > 0) {
+            throw new ConflictException("user '$id' still has active offline sessions");
+        }
+
+        // Remove the (already expired) offline grants so the FK does not block
+        // the delete and no orphan rows survive the user.
+        $this->offlineSessions->deleteByUserId($id);
         $this->users->delete($id);
 
         return $response->withStatus(204);

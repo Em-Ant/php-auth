@@ -29,7 +29,7 @@ place, but the offline token model is only partially explicit:
 | Access validation honors blacklist | `ValidateAccessToken` middleware | Done |
 | `offline_access` accepted per realm | validated against `realms.scope` (auth-code + client_credentials); `scope_supported` derived from it (`OidcController::sendConfig`) | Works by config, not explicit |
 | `offline_access` per-client allow-list | `clients.scope` | Missing — scopes PRD phase 2 (#02) |
-| Offline revocation (admin, no token present) | — | Missing — owned by Admin API workstream |
+| Offline revocation (admin, no token present) | `POST /admin/sessions/invalidate` expires user/client `offline_sessions`; delete guards (409) on active offline grants | Partial — revoke-by-user done with F-02; single-session surface + token bulk-invalidation in #04 |
 | Blacklist + expired-session cleanup | — | TODO — admin-triggered maintenance task (Admin API) |
 
 ## The model

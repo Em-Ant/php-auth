@@ -1,6 +1,46 @@
 # 03 — Offline access: long-living refresh token (Keycloak-compatible)
 
-status: **TODO** — the core feature for `offline_access`
+status: **DONE** — the core feature for `offline_access` (implemented 2026-08-18)
+
+Implemented as designed below, with these choices:
+
+- **OfflineSessionService** owns the offline lifecycle (create at code exchange,
+  refresh with rotation + sliding TTL) so `TokenGrantService` stays thin; the
+  `logins` row is left untouched (no refresh token, expires by its own timers).
+- **Refresh dispatch** on the refresh token's `typ` claim (`Offline` →
+  `offline_sessions`; otherwise the existing login flow) in
+  `TokenGrantService::getTokensByRefreshToken`.
+- **`offline_refresh_token_expires_in`** defaults to 30 days via migration and is
+  editable through the admin realm CRUD (`optionalInt` in `RealmsController`).
+- **TokenService** builds access/id/refresh claims from a shared grant context
+  (`createTokenBundleFromContext`), so online and offline bundles share one set
+  of claim creators; the offline refresh token carries `typ: Offline`.
+- Revoke + introspect route `typ: Offline` to the DB lookup alongside
+  `typ: Refresh`; `end_session` never touches `offline_sessions`.
+
+Coverage: `OfflineAccessTest` (10 integration) + `OfflineSessionRepositoryTest` (8), plus an
+E2E smoke step (`bin/e2e-test.sh` Step 24b) covering issue → rotate → introspect →
+survive logout → revoke against the dev server, run on a throwaway admin realm that is
+deleted afterwards (no dev-DB mutation).
+
+## Admin API integration (solved with F-02, not deferred)
+
+Deleting a user/client that still held offline grants would silently orphan
+`offline_sessions` rows — a functional gap in the admin API. Closed the same way
+sessions/logins are handled:
+
+- `DELETE /admin/users/{id}` and `DELETE /admin/clients/{id}` return **409** while
+  the user/client has **active** offline sessions (guard, mirror of the
+  sessions/logins guards).
+- `POST /admin/sessions/invalidate` **expires** the user's/client's offline
+  sessions (`status = EXPIRED`) alongside deleting sessions + logins — the
+  admin-initiated offline revocation path (RFC 7009 analog, no token needed).
+- User/client delete physically removes the leftover (already-expired) offline
+  rows, so no orphans survive and FK enforcement does not block the delete.
+- Expired rows that are never deleted are the cleanup task's domain (#05).
+
+Repo surface added: `countActiveByUserId/ClientId`, `setExpiredByUserId/ClientId`,
+`deleteByUserId/ClientId` (+ integration tests in `AdminCrudTest`).
 
 ## Target behaviour (Keycloak parity, but bounded)
 

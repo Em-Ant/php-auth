@@ -1,6 +1,19 @@
 # 04 — Offline revocation (admin-initiated)
 
-status: **TODO** — deferred to the Admin API workstream
+status: **PARTIAL** — the revoke-by-user core landed with F-02; the rest stays deferred
+
+## What landed with F-02 (2026-08-18)
+
+`POST /admin/sessions/invalidate` now expires a user's/client's
+`offline_sessions` (status = `EXPIRED`) in addition to deleting sessions and
+logins, and user/client deletion guards on active offline grants (409) and
+physically removes the expired rows. So "revoke user X → X's offline tokens
+fail" already works through the admin API — see
+[#03](03-offline-token-support.md#admin-api-integration-solved-with-f-02-not-deferred).
+
+Still open (this issue): single-offline-session admin surface (list/revoke one
+session), access-token bulk invalidation (jti registry or `nbf` enforcement),
+and the offline-sessions purge in the cleanup task (#05).
 
 ## Situation
 

@@ -28,6 +28,7 @@ class TokenGrantService
     private TokenService $tokenService;
     private TokenValidator $tokenValidator;
     private ScopeResolver $scopeResolver;
+    private OfflineSessionService $offlineSessionService;
     private LoggerInterface $logger;
 
     public function __construct(
@@ -40,6 +41,7 @@ class TokenGrantService
         TokenService $tokenService,
         TokenValidator $tokenValidator,
         ScopeResolver $scopeResolver,
+        OfflineSessionService $offlineSessionService,
         LoggerInterface $logger
     ) {
         $this->sessionOrchestrator = $sessionOrchestrator;
@@ -51,6 +53,7 @@ class TokenGrantService
         $this->tokenService = $tokenService;
         $this->tokenValidator = $tokenValidator;
         $this->scopeResolver = $scopeResolver;
+        $this->offlineSessionService = $offlineSessionService;
         $this->logger = $logger;
     }
 
@@ -163,6 +166,16 @@ class TokenGrantService
             throw new StorageFailed('invalid session');
         }
 
+        if ($this->scopeHasOfflineAccess($login->getScope())) {
+            return $this->offlineSessionService->createOfflineGrant(
+                $realm,
+                $login,
+                $session,
+                $client,
+                $user
+            );
+        }
+
         $token_bundle = $this->tokenService->createTokenBundle(
             $realm,
             $session,
@@ -188,6 +201,15 @@ class TokenGrantService
         Client $client
     ): array {
         $this->logger->info("generating tokens from refresh token");
+
+        $claims = $this->tokenValidator->decodeClaimsOnly($refresh_token);
+        if (($claims['typ'] ?? '') === 'Offline') {
+            return $this->offlineSessionService->refreshOfflineGrant(
+                $refresh_token,
+                $realm,
+                $client
+            );
+        }
 
         $login = $this->loginRepository->findByRefreshToken($refresh_token, $realm->getId());
         if ($login === null) {
@@ -259,6 +281,11 @@ class TokenGrantService
         $this->sessionOrchestrator->refresh($session_id);
 
         return $token_bundle;
+    }
+
+    private function scopeHasOfflineAccess(string $scope): bool
+    {
+        return in_array('offline_access', explode(' ', $scope), true);
     }
 
     private function getClientCredentialsTokens(

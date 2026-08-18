@@ -8,6 +8,7 @@ use AuthServer\Exceptions\ConflictException;
 use AuthServer\Exceptions\ValidationFailed;
 use AuthServer\Interfaces\ClientRepository;
 use AuthServer\Interfaces\LoginRepository;
+use AuthServer\Interfaces\OfflineSessionRepository;
 use AuthServer\Interfaces\RealmRepository;
 use AuthServer\Models\Client;
 use AuthServer\Response\JsonResponse;
@@ -26,6 +27,7 @@ class ClientsController
         private readonly ClientRepository $clients,
         private readonly RealmRepository $realms,
         private readonly LoginRepository $logins,
+        private readonly OfflineSessionRepository $offlineSessions,
         private readonly SecretsService $secretsService,
     ) {
     }
@@ -140,6 +142,13 @@ class ClientsController
             throw new ConflictException("client '$id' still has active logins");
         }
 
+        if ($this->offlineSessions->countActiveByClientId($id) > 0) {
+            throw new ConflictException("client '$id' still has active offline sessions");
+        }
+
+        // Remove the (already expired) offline grants so the FK does not block
+        // the delete and no orphan rows survive the client.
+        $this->offlineSessions->deleteByClientId($id);
         $this->clients->delete($id);
 
         return $response->withStatus(204);
