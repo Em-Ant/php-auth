@@ -35,6 +35,12 @@ fail() { FAIL=$((FAIL+1)); echo "  ✗ $1"; }
 # ── Start dev server ──────────────────────────────────────────
 echo "=== Starting dev server ==="
 
+# Reset persisted rate-limit counters so a previous run's requests inside the
+# current window can't exhaust the /token quota and cause flaky 429s. The
+# PHPUnit rate-limit tests use an in-memory SQLite (RateLimitingTest), so
+# clearing the dev DB's rate_limits table cannot affect them.
+sqlite3 db/data.db "DELETE FROM rate_limits;" 2>/dev/null || true
+
 php -S "${HOST}:${PORT}" -t public router.php >"$SERVER_LOG" 2>&1 &
 SERVER_PID=$!
 
