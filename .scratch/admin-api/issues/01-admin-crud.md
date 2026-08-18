@@ -1,6 +1,6 @@
 # 01 — Admin CRUD: realms, clients, users, key assignment
 
-status: **ready** — the F-03 backlog item
+status: **DONE** 08/18/2026 (commit `dbb8826` — `feat: admin crud api (#3)`) — was the F-03 backlog item
 
 ## Target behaviour
 

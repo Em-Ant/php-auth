@@ -18,10 +18,11 @@
 
 ## Admin API
 
-- [ ] CRUD endpoints: realms, clients, users, key assignment
+- [x] CRUD endpoints: realms, clients, users, key assignment
+- [x] Session/login management: list/delete sessions & logins, invalidate-by-user/client, user deactivation (`valid=FALSE`) — the SSO part of offline revocation
 - [ ] Audit log table + query endpoint
 - [ ] Password policy per realm (min length, complexity)
-- [ ] Offline revocation: admin-initiated revoke of a user's sessions/logins + offline tokens (`offline_sessions`) — owned here, see [token-lifecycle #04](token-lifecycle/issues/04-offline-revocation.md)
+- [ ] Offline revocation: revoke a user's `offline_sessions` (SSO session/login revoke already shipped) — requires offline token support (Token Lifecycle #03) — see [token-lifecycle #04](token-lifecycle/issues/04-offline-revocation.md)
 - [ ] Maintenance task: blacklist purge + expired-session cleanup (admin-triggered; manual / deploy-time / CI-scheduled) — see [token-lifecycle #05](token-lifecycle/issues/05-cleanup-job.md)
 
 ## Scopes & Roles

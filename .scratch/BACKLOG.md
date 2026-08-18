@@ -26,16 +26,17 @@ Single source of truth for what to work on next. **Local by design** (3 machines
 | F-32 | fix | P1 | S | backlog | `prompt=login` forces re-auth; don't silently ignore consent (D-05) | `oidc-compliance/PRD.md` |
 | F-33 | fix | P1 | M | backlog | exact `redirect_uri` matching (D-06) | `oidc-compliance/PRD.md` |
 | F-34 | fix | P1 | S | backlog | truthful discovery: `scopes_supported` + stop over-advertising (D-08/D-09) | `oidc-compliance/PRD.md` |
+| F-35 | fix | P1 | S | backlog | model `jsonSerialize` uses `get_object_vars` → leaks password hash on direct serialization (whitelist maps) | `clean-code/issues/09-…` |
 | R-03 | refactor | P1 | L | ready | AuthOrchestrator: 9 deps, 10 jobs | `clean-code/issues/03-…` |
 | F-02 | feature | P1 | L | ready | offline_access core feature; scopes #02 done, unblocked | `token-lifecycle/issues/03-…` |
-| F-03 | feature | P1 | L | ready | admin CRUD unblocks the admin-side items below | `admin-api/issues/01-admin-crud.md` |
 | F-04 | feature | P1 | M | backlog | client roles namespace (`resource_access.<client>`) | `scopes/` |
 | F-05 | feature | P1 | L | backlog | scope↔role gating at issuance | `scopes/issues/03-…` |
 | F-06 | feature | P1 | M | backlog | admin-initiated offline revocation | `token-lifecycle/issues/04-…` |
 | R-04 | refactor | P2 | S | ready | Basic-auth block ×3 in controllers | `clean-code/issues/05-…` |
-| R-05 | refactor | P2 | S | ready | static `InputValidator` + dead DI entry | `clean-code/issues/07-…` |
+| R-05 | refactor | P2 | S | ready | drop dead `InputValidator` DI entry (static conversion done) | `clean-code/issues/07-…` |
 | R-06 | refactor | P2 | M | ready | untyped getters, mixed naming | `clean-code/issues/06-…` |
 | F-07 | feature | P2 | M | backlog | audit log table + query | `ROADMAP → Admin API` |
+| F-36 | fix | P2 | S | backlog | `TokenService::createKeys` unchecked openssl/mkdir/file I/O (fail fast at `POST /admin/keys`) | `clean-code/issues/10-…` |
 | F-08 | feature | P2 | S | backlog | ROPC grant | `ROADMAP → Login Methods` |
 | F-09 | feature | P2 | M | backlog | email magic link | `ROADMAP → Login Methods` |
 | F-10 | feature | P2 | M | delayed | consent screen (`offline_access`) | `ROADMAP → Token Lifecycle` |
