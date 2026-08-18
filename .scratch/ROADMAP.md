@@ -51,7 +51,7 @@ See [token-lifecycle/PRD.md](token-lifecycle/PRD.md) for the detailed situation.
 - [x] Token Introspection (`POST /token/introspect`, RFC 7662)
 - [x] Token Revocation (`POST /realms/{realm}/protocol/openid-connect/revoke`, RFC 7009)
 - [x] Token blacklist table
-- [ ] Offline access: long-living refresh token when `offline_access` granted (realm-config offline TTL; dedicated per-client `offline_sessions`; survives SSO logout) — **prod requires scopes #02 first** — [#03](token-lifecycle/issues/03-offline-token-support.md)
+- [x] Offline access: long-living refresh token when `offline_access` granted (realm-config offline TTL; dedicated per-client `offline_sessions`; survives SSO logout) — **prod requires scopes #02 first** — [#03](token-lifecycle/issues/03-offline-token-support.md)
 - [ ] User consent screen for privileged scopes (`offline_access`, `prompt=consent`) — **planned, can be delayed**; client gating (scopes #02) is the control until then
 - [ ] Offline revocation — admin-initiated revoke-by-user/session, deferred to Admin API — [#04](token-lifecycle/issues/04-offline-revocation.md)
 - [ ] Cleanup task: purge blacklist + expired sessions — admin-triggered (manual / deploy-time / CI-scheduled), owned by Admin API — [#05](token-lifecycle/issues/05-cleanup-job.md)
