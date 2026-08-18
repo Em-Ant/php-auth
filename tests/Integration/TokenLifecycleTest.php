@@ -136,6 +136,19 @@ class TokenLifecycleTest extends TestCase
         self::assertSame(200, $response->getStatusCode());
     }
 
+    public function testCrossClientRefreshRejected(): void
+    {
+        $tokens = $this->doFullLogin();
+
+        // kc_app tries to refresh a token issued to local
+        $response = $this->refresh($tokens['refresh_token'], 'kc_app');
+        self::assertSame(400, $response->getStatusCode());
+
+        // The failed attempt must not expire or rotate the token: local can still refresh
+        $response = $this->refresh($tokens['refresh_token']);
+        self::assertSame(200, $response->getStatusCode());
+    }
+
     public function testNewTokenAfterRevocationWorks(): void
     {
         $tokens = $this->doFullLogin();
