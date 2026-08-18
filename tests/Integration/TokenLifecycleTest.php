@@ -40,9 +40,9 @@ class TokenLifecycleTest extends TestCase
         return $this->handle($request);
     }
 
-    private function refresh(string $refreshToken, string $clientId = 'local'): ResponseInterface
+    private function refresh(string $refreshToken, string $clientId = 'local', string $realm = 'test'): ResponseInterface
     {
-        $request = $this->createRequest('POST', '/realms/test/protocol/openid-connect/token', [], [
+        $request = $this->createRequest('POST', "/realms/$realm/protocol/openid-connect/token", [], [
             'grant_type' => 'refresh_token',
             'client_id' => $clientId,
             'refresh_token' => $refreshToken,
@@ -56,6 +56,19 @@ class TokenLifecycleTest extends TestCase
             'Authorization' => 'Bearer ' . $token,
         ]);
         return $this->handle($request);
+    }
+
+    private function assertRefreshRejected(string $refreshToken, string $clientId = 'local', string $realm = 'test'): void
+    {
+        $response = $this->refresh($refreshToken, $clientId, $realm);
+        self::assertSame(400, $response->getStatusCode());
+    }
+
+    private function assertRefreshSucceeds(string $refreshToken): array
+    {
+        $response = $this->refresh($refreshToken);
+        self::assertSame(200, $response->getStatusCode());
+        return json_decode((string) $response->getBody(), true);
     }
 
     // ── Revocation endpoint tests ────────────────────────────
@@ -141,12 +154,23 @@ class TokenLifecycleTest extends TestCase
         $tokens = $this->doFullLogin();
 
         // kc_app tries to refresh a token issued to local
-        $response = $this->refresh($tokens['refresh_token'], 'kc_app');
-        self::assertSame(400, $response->getStatusCode());
+        $this->assertRefreshRejected($tokens['refresh_token'], 'kc_app');
 
         // The failed attempt must not expire or rotate the token: local can still refresh
-        $response = $this->refresh($tokens['refresh_token']);
-        self::assertSame(200, $response->getStatusCode());
+        $this->assertRefreshSucceeds($tokens['refresh_token']);
+    }
+
+    public function testFailedRefreshAttemptDoesNotExpireLogin(): void
+    {
+        $tokens = $this->doFullLogin();
+
+        // Refresh at the wrong realm: the token is signed with the 'test' key,
+        // so validation against 'web' fails.
+        $this->assertRefreshRejected($tokens['refresh_token'], 'local', 'web');
+
+        // The failed attempt must not have expired the login: the token still
+        // works at its own realm.
+        $this->assertRefreshSucceeds($tokens['refresh_token']);
     }
 
     public function testNewTokenAfterRevocationWorks(): void
@@ -156,9 +180,7 @@ class TokenLifecycleTest extends TestCase
         $this->revoke($tokens['access_token'], 'local', 'access_token');
 
         // Get new tokens via refresh
-        $response = $this->refresh($tokens['refresh_token']);
-        self::assertSame(200, $response->getStatusCode());
-        $newTokens = json_decode((string) $response->getBody(), true);
+        $newTokens = $this->assertRefreshSucceeds($tokens['refresh_token']);
 
         // New access token should work at userinfo
         $response = $this->userinfo($newTokens['access_token']);

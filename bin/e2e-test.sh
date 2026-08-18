@@ -185,6 +185,28 @@ CROSS_CLIENT=$(curl -sS -o /dev/null -w "%{http_code}" -X POST \
 
 [[ "$CROSS_CLIENT" = "400" ]] && ok "Cross-client refresh rejected (S-02)" || fail "Cross-client refresh expected 400, got $CROSS_CLIENT"
 
+# A wrong-realm refresh attempt must fail (S-06) and must not expire the
+# login: the token stays usable at its own realm.
+WRONG_REALM=$(curl -sS -o /dev/null -w "%{http_code}" -X POST \
+    -d "grant_type=refresh_token&client_id=kc_app&refresh_token=${NEW_REFRESH}" \
+    "$BASE/realms/web/protocol/openid-connect/token")
+
+[[ "$WRONG_REALM" = "400" ]] && ok "Wrong-realm refresh rejected (S-06)" || fail "Wrong-realm refresh expected 400, got $WRONG_REALM"
+
+S06_REFRESH=$(curl -sS -X POST \
+    -d "grant_type=refresh_token&client_id=kc_app&refresh_token=${NEW_REFRESH}" \
+    "$BASE/realms/test/protocol/openid-connect/token")
+
+S06_NEW_AT=$(echo "$S06_REFRESH" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+S06_NEW_RT=$(echo "$S06_REFRESH" | sed -n 's/.*"refresh_token":"\([^"]*\)".*/\1/p')
+
+[[ -n "$S06_NEW_AT" ]] && [[ -n "$S06_NEW_RT" ]] \
+    && ok "Token still usable after failed attempt (S-06)" \
+    || fail "Token unusable after failed attempt"
+
+NEW_REFRESH="$S06_NEW_RT"
+NEW_ACCESS="$S06_NEW_AT"
+
 # ── Step 8: Revoke refresh token ──────────────────────────────
 echo ""
 echo "=== Step 8: Revoke refresh token ==="
