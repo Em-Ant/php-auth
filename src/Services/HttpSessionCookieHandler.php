@@ -11,6 +11,9 @@ use Psr\Http\Message\ServerRequestInterface;
 
 class HttpSessionCookieHandler implements SessionCookieHandler
 {
+    public const SESSION_COOKIE_NAME = 'AUTH_SESSION';
+    public const CHECK_SESSION_COOKIE_NAME = 'AUTH_SESSION_CHECK';
+
     public function __construct(
         private readonly string $mountPath,
         private readonly string $serverName,
@@ -20,7 +23,7 @@ class HttpSessionCookieHandler implements SessionCookieHandler
     public function read(ServerRequestInterface $request, string $realmName): ?string
     {
         $cookies = $request->getCookieParams();
-        $cookie = $cookies['AUTH_SESSION'] ?? null;
+        $cookie = $cookies[self::SESSION_COOKIE_NAME] ?? null;
 
         if ($cookie === null) {
             return null;
@@ -36,29 +39,54 @@ class HttpSessionCookieHandler implements SessionCookieHandler
 
     public function write(Realm $realm, string $sessionId, ResponseInterface $response): ResponseInterface
     {
-        $value = $realm->getName() . '\\' . $sessionId;
-        $cookie = $this->buildSetCookie($realm, $value, time() + $realm->getSessionExpiresIn());
+        $value = $this->cookieValue($realm, $sessionId);
+        $expires = time() + $realm->getSessionExpiresIn();
 
-        return $response->withAddedHeader('Set-Cookie', $cookie);
+        $response = $response->withAddedHeader(
+            'Set-Cookie',
+            $this->buildSetCookie($realm, self::SESSION_COOKIE_NAME, $value, $expires, true)
+        );
+
+        return $response->withAddedHeader(
+            'Set-Cookie',
+            $this->buildSetCookie($realm, self::CHECK_SESSION_COOKIE_NAME, $value, $expires, false)
+        );
     }
 
     public function delete(Realm $realm, ResponseInterface $response): ResponseInterface
     {
-        $cookie = $this->buildSetCookie($realm, '', 1);
+        $response = $response->withAddedHeader(
+            'Set-Cookie',
+            $this->buildSetCookie($realm, self::SESSION_COOKIE_NAME, '', 1, true)
+        );
 
-        return $response->withAddedHeader('Set-Cookie', $cookie);
+        return $response->withAddedHeader(
+            'Set-Cookie',
+            $this->buildSetCookie($realm, self::CHECK_SESSION_COOKIE_NAME, '', 1, false)
+        );
     }
 
-    private function buildSetCookie(Realm $realm, string $value, int $expires): string
+    private function cookieValue(Realm $realm, string $sessionId): string
     {
+        return $realm->getName() . '\\' . $sessionId;
+    }
+
+    private function buildSetCookie(
+        Realm $realm,
+        string $name,
+        string $value,
+        int $expires,
+        bool $httpOnly
+    ): string {
         $path = ($this->mountPath ?: '') . '/realms/' . $realm->getName();
 
-        return 'AUTH_SESSION=' . rawurlencode($value)
+        return $name . '=' . rawurlencode($value)
             . '; Path=' . $path
             . '; Domain=' . $this->serverName
             . '; Expires=' . gmdate('D, d M Y H:i:s T', $expires)
             . '; Max-Age=' . max(0, $expires - time())
             . '; Secure'
-            . '; SameSite=None';
+            . '; SameSite=None'
+            . ($httpOnly ? '; HttpOnly' : '');
     }
 }

@@ -76,6 +76,21 @@ if [[ "$HTTP_CODE" != "302" ]]; then
 fi
 ok "Login returned 302 redirect"
 
+# The SSO session cookie must be HttpOnly; a separate non-HttpOnly
+# check-session cookie carries the same value for the iframe (S-04).
+AUTH_SESSION_HDR=$(grep -i '^set-cookie:' "$HEADER_DUMP" | grep -i '^set-cookie: *AUTH_SESSION=' | head -1 || true)
+CHECK_SESSION_HDR=$(grep -i '^set-cookie:' "$HEADER_DUMP" | grep -i 'AUTH_SESSION_CHECK=' | head -1 || true)
+
+echo "$AUTH_SESSION_HDR" | grep -qi 'httponly' \
+    && ok "AUTH_SESSION cookie is HttpOnly (S-04)" \
+    || fail "AUTH_SESSION cookie missing HttpOnly"
+[[ -n "$CHECK_SESSION_HDR" ]] && ok "Check-session cookie set (S-04)" || fail "AUTH_SESSION_CHECK cookie not set"
+if echo "$CHECK_SESSION_HDR" | grep -qi 'httponly'; then
+    fail "AUTH_SESSION_CHECK must not be HttpOnly"
+else
+    ok "Check-session cookie is JS-readable (no HttpOnly)"
+fi
+
 LOCATION=$(grep -i '^location:' "$HEADER_DUMP" | sed 's/.*location: //I' | tr -d '\r\n')
 AUTH_CODE=$(echo "$LOCATION" | sed 's/.*code=\([^&]*\).*/\1/')
 
