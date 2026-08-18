@@ -1,6 +1,6 @@
 # 04 — Offline revocation (admin-initiated)
 
-status: **PARTIAL** — the revoke-by-user core landed with F-02; the rest stays deferred
+status: **PARTIAL** — revoke-by-user landed with F-02; the remainder is **unblocked** (admin CRUD exists) and queued as ready (BACKLOG F-06)
 
 ## What landed with F-02 (2026-08-18)
 
@@ -12,8 +12,8 @@ fail" already works through the admin API — see
 [#03](03-offline-token-support.md#admin-api-integration-solved-with-f-02-not-deferred).
 
 Still open (this issue): single-offline-session admin surface (list/revoke one
-session), access-token bulk invalidation (jti registry or `nbf` enforcement),
-and the offline-sessions purge in the cleanup task (#05).
+session) and access-token bulk invalidation (jti registry or `nbf` enforcement,
+optional). The offline-sessions purge lives in the cleanup task (#05).
 
 ## Situation
 
@@ -31,9 +31,10 @@ Once #03 lands, offline tokens (`offline_sessions`) survive SSO logout by
 design, so the only ways to kill them are RFC 7009 (client holds the token) or
 this admin surface.
 
-This is why the roadmap item "Offline revocation" was not done: it presupposes
-the Admin API CRUD track (users, sessions, offline sessions, realms/clients)
-that does not exist yet.
+This is why the roadmap item "Offline revocation" was not done earlier: it
+presupposed the Admin API CRUD track (users, sessions, offline sessions,
+realms/clients). That prerequisite is now met (`feat: admin crud api` +
+offline-access commit), so the remaining surface is no longer blocked.
 
 ## Scope (when Admin API lands)
 
@@ -53,8 +54,9 @@ that does not exist yet.
 ## Ownership
 
 Admin API workstream (roadmap "Admin API"), **not** the OIDC protocol
-endpoints. Re-open/implement after admin CRUD for users, sessions and
-`offline_sessions` exists.
+endpoints. Precondition met: admin CRUD for users, sessions and
+`offline_sessions` shipped (`feat: admin crud api`). The remainder is queued
+as ready in BACKLOG (F-06).
 
 ## Acceptance (sketch)
 
