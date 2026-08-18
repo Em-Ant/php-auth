@@ -17,11 +17,7 @@ Single source of truth for what to work on next. **Local by design** (3 machines
 | ID | Type | Priority | Size | Status | Why-now | Doc |
 |----|------|----------|------|--------|---------|-----|
 | F-21 | fix | P0 | M | ready | bind auth code to client + redirect_uri (S-01) | `oidc-compliance/PRD.md` |
-| F-22 | fix | P0 | S | ready | bind refresh token to client (S-02) | `oidc-compliance/PRD.md` |
 | F-23 | fix | P0 | M | ready | realm isolation on code/refresh redemption (S-03) | `oidc-compliance/PRD.md` |
-| F-24 | fix | P0 | S | ready | HttpOnly SSO cookie + split check-session cookie (S-04) | `oidc-compliance/PRD.md` |
-| F-25 | fix | P0 | S | ready | validate client/origin in login-status iframe init (S-05) | `oidc-compliance/PRD.md` |
-| F-26 | fix | P0 | S | ready | stop expiring logins on failed refresh (S-06) | `oidc-compliance/PRD.md` |
 | F-27 | fix | P1 | M | backlog | RFC 6749 §5.2 error codes/statuses (D-01) | `oidc-compliance/PRD.md` |
 | F-28 | fix | P1 | S | backlog | `Cache-Control: no-store` + `Pragma` on token responses (D-02) | `oidc-compliance/PRD.md` |
 | F-29 | fix | P1 | S | backlog | reject `response_type != code` (D-03) | `oidc-compliance/PRD.md` |
