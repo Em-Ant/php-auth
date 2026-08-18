@@ -102,7 +102,9 @@
     }
 
     function getSessionCookie() {
-      return getCookieByName("AUTH_SESSION");
+      // AUTH_SESSION is HttpOnly and not readable from JS; the server also
+      // sets a dedicated non-HttpOnly check-session cookie for this iframe.
+      return getCookieByName("AUTH_SESSION_CHECK");
     }
 
     function parseSessionCookie(raw) {

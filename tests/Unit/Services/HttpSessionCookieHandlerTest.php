@@ -77,11 +77,22 @@ class HttpSessionCookieHandlerTest extends TestCase
         $response = (new ResponseFactory())->createResponse();
         $result = $this->handler->write($this->realm, 'session-123', $response);
 
-        $cookie = $result->getHeaderLine('Set-Cookie');
-        self::assertStringContainsString('AUTH_SESSION=web%5Csession-123', $cookie);
-        self::assertStringContainsString('Path=/realms/web', $cookie);
-        self::assertStringContainsString('Secure', $cookie);
-        self::assertStringContainsString('SameSite=None', $cookie);
+        $cookies = $result->getHeader('Set-Cookie');
+        self::assertCount(2, $cookies);
+
+        $sessionCookie = $cookies[0];
+        self::assertStringStartsWith('AUTH_SESSION=web%5Csession-123', $sessionCookie);
+        self::assertStringContainsString('Path=/realms/web', $sessionCookie);
+        self::assertStringContainsString('Secure', $sessionCookie);
+        self::assertStringContainsString('SameSite=None', $sessionCookie);
+        self::assertStringContainsString('HttpOnly', $sessionCookie);
+
+        $checkCookie = $cookies[1];
+        self::assertStringStartsWith('AUTH_SESSION_CHECK=web%5Csession-123', $checkCookie);
+        self::assertStringContainsString('Path=/realms/web', $checkCookie);
+        self::assertStringContainsString('Secure', $checkCookie);
+        self::assertStringContainsString('SameSite=None', $checkCookie);
+        self::assertStringNotContainsString('HttpOnly', $checkCookie);
     }
 
     public function testWriteHonoursMountPath(): void
@@ -89,8 +100,9 @@ class HttpSessionCookieHandlerTest extends TestCase
         $handler = new HttpSessionCookieHandler('/auth', 'localhost');
         $response = (new ResponseFactory())->createResponse();
 
-        $cookie = $handler->write($this->realm, 'session-123', $response)->getHeaderLine('Set-Cookie');
-        self::assertStringContainsString('Path=/auth/realms/web', $cookie);
+        $cookies = $handler->write($this->realm, 'session-123', $response)->getHeader('Set-Cookie');
+        self::assertStringContainsString('Path=/auth/realms/web', $cookies[0]);
+        self::assertStringContainsString('Path=/auth/realms/web', $cookies[1]);
     }
 
     public function testDeleteAddsExpiredSetCookieHeader(): void
@@ -98,9 +110,17 @@ class HttpSessionCookieHandlerTest extends TestCase
         $response = (new ResponseFactory())->createResponse();
         $result = $this->handler->delete($this->realm, $response);
 
-        $cookie = $result->getHeaderLine('Set-Cookie');
-        self::assertStringStartsWith('AUTH_SESSION=', $cookie);
-        self::assertStringContainsString('Expires=Thu, 01 Jan 1970', $cookie);
-        self::assertStringContainsString('SameSite=None', $cookie);
+        $cookies = $result->getHeader('Set-Cookie');
+        self::assertCount(2, $cookies);
+
+        self::assertStringStartsWith('AUTH_SESSION=', $cookies[0]);
+        self::assertStringContainsString('Expires=Thu, 01 Jan 1970', $cookies[0]);
+        self::assertStringContainsString('SameSite=None', $cookies[0]);
+        self::assertStringContainsString('HttpOnly', $cookies[0]);
+
+        self::assertStringStartsWith('AUTH_SESSION_CHECK=', $cookies[1]);
+        self::assertStringContainsString('Expires=Thu, 01 Jan 1970', $cookies[1]);
+        self::assertStringContainsString('SameSite=None', $cookies[1]);
+        self::assertStringNotContainsString('HttpOnly', $cookies[1]);
     }
 }
