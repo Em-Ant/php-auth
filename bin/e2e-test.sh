@@ -4,19 +4,27 @@ set -euo pipefail
 HOST=localhost
 PORT=8000
 BASE="http://${HOST}:${PORT}"
-COOKIE_JAR=$(mktemp)
-HEADER_DUMP=$(mktemp)
+
+# E2E artifacts (dev server output, cookie jar, response header dumps) are
+# written to a gitignored project folder so a failed run can be inspected
+# afterwards. Override the location with E2E_LOG_DIR if needed.
+E2E_LOG_DIR="${E2E_LOG_DIR:-.tmp/e2e}"
+mkdir -p "$E2E_LOG_DIR"
+COOKIE_JAR="$E2E_LOG_DIR/cookies.txt"
+HEADER_DUMP="$E2E_LOG_DIR/headers.txt"
+SERVER_LOG="$E2E_LOG_DIR/server.log"
+
 PASS=0
 FAIL=0
 
 cleanup() {
     local exit_code=$?
     admin_cleanup 2>/dev/null || true
-    rm -f "$COOKIE_JAR" "$HEADER_DUMP"
     [[ -n "${SERVER_PID:-}" ]] && kill "$SERVER_PID" 2>/dev/null || true
     wait 2>/dev/null || true
     echo ""
     echo "=== Results: $PASS passed, $FAIL failed ==="
+    echo "=== E2E artifacts left in: $E2E_LOG_DIR ==="
     exit "$exit_code"
 }
 trap cleanup EXIT INT TERM
@@ -27,7 +35,7 @@ fail() { FAIL=$((FAIL+1)); echo "  ✗ $1"; }
 # ── Start dev server ──────────────────────────────────────────
 echo "=== Starting dev server ==="
 
-php -S "${HOST}:${PORT}" -t public router.php >/dev/null 2>&1 &
+php -S "${HOST}:${PORT}" -t public router.php >"$SERVER_LOG" 2>&1 &
 SERVER_PID=$!
 
 for i in $(seq 1 20); do
