@@ -199,6 +199,27 @@ class AuthorizationController
         }
     }
 
+    public function loginStatusInit(
+        ServerRequestInterface $request,
+        ResponseInterface $response
+    ): ResponseInterface {
+        $query = $request->getQueryParams();
+        /** @var Realm */
+        $realm = $request->getAttribute(Realm::class);
+
+        try {
+            $this->auth_service->validateCheckSessionOrigin(
+                $realm,
+                $query['client_id'] ?? '',
+                $query['origin'] ?? ''
+            );
+        } catch (ValidationFailed) {
+            return $response->withStatus(400);
+        }
+
+        return $response->withStatus(200);
+    }
+
     private function handlePromptNone(
         ResponseInterface $response,
         Realm $realm,

@@ -110,8 +110,44 @@ class MiscEndpointsTest extends TestCase
     {
         $res = $this->handle($this->createRequest(
             'GET',
-            '/realms/test/protocol/openid-connect/login-status-iframe.html/init'
+            '/realms/test/protocol/openid-connect/login-status-iframe.html/init?client_id=local&origin=http://localhost:5173'
         ));
         $this->assertEquals(200, $res->getStatusCode());
+    }
+
+    public function testLoginStatusIframeInitRejectsUnknownClient(): void
+    {
+        $res = $this->handle($this->createRequest(
+            'GET',
+            '/realms/test/protocol/openid-connect/login-status-iframe.html/init?client_id=evil&origin=http://localhost:5173'
+        ));
+        $this->assertEquals(400, $res->getStatusCode());
+    }
+
+    public function testLoginStatusIframeInitRejectsForeignOrigin(): void
+    {
+        $res = $this->handle($this->createRequest(
+            'GET',
+            '/realms/test/protocol/openid-connect/login-status-iframe.html/init?client_id=local&origin=https://evil.com'
+        ));
+        $this->assertEquals(400, $res->getStatusCode());
+    }
+
+    public function testLoginStatusIframeInitRejectsClientFromOtherRealm(): void
+    {
+        $res = $this->handle($this->createRequest(
+            'GET',
+            '/realms/test/protocol/openid-connect/login-status-iframe.html/init?client_id=playground&origin=https://em-ant.gitlab.io'
+        ));
+        $this->assertEquals(400, $res->getStatusCode());
+    }
+
+    public function testLoginStatusIframeInitRejectsMissingParams(): void
+    {
+        $res = $this->handle($this->createRequest(
+            'GET',
+            '/realms/test/protocol/openid-connect/login-status-iframe.html/init'
+        ));
+        $this->assertEquals(400, $res->getStatusCode());
     }
 }

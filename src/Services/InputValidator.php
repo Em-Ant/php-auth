@@ -23,6 +23,31 @@ class InputValidator
         }
     }
 
+    /**
+     * The origin reported by the check-session iframe is scheme://host[:port];
+     * it must match the origin of the client's registered URI exactly.
+     */
+    public static function validateClientOrigin(Client $client, string $origin): void
+    {
+        $clientOrigin = self::extractOrigin($client->getUri());
+
+        if ($clientOrigin === null || $clientOrigin !== $origin) {
+            throw new ValidationFailed('invalid origin');
+        }
+    }
+
+    private static function extractOrigin(string $uri): ?string
+    {
+        $parts = parse_url($uri);
+        if ($parts === false || !isset($parts['scheme'], $parts['host'])) {
+            return null;
+        }
+
+        $port = isset($parts['port']) ? ':' . $parts['port'] : '';
+
+        return $parts['scheme'] . '://' . $parts['host'] . $port;
+    }
+
     public static function validateQueryParams(array $query): void
     {
         $required_fields = [

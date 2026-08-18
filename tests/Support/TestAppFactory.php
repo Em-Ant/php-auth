@@ -160,9 +160,7 @@ class TestAppFactory
                     return $response->withHeader('Content-Type', 'text/html; charset=utf-8');
                 });
 
-                $group->get('/login-status-iframe.html/init', function (ServerRequestInterface $request, ResponseInterface $response) {
-                    return $response->withStatus(200);
-                });
+                $group->get('/login-status-iframe.html/init', [$authController, 'loginStatusInit']);
 
                 $group->get('/3p-cookies/{step}', function (ServerRequestInterface $request, ResponseInterface $response) {
                     $step = $request->getAttribute('step');
