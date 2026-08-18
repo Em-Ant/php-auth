@@ -110,6 +110,31 @@ else
     exit 1
 fi
 
+# ── Step 2b: Auth code binding (F-21) ─────────────────────────
+echo ""
+echo "=== Step 2b: Auth code binding (F-21) ==="
+
+# A code minted for kc_app must not be redeemable by a different client (S-01).
+CROSS_CLIENT_CODE=$(curl -sS -X POST \
+    -d "grant_type=authorization_code&client_id=local&code=${AUTH_CODE}&redirect_uri=http://localhost:5173" \
+    "$BASE/realms/test/protocol/openid-connect/token")
+
+echo "$CROSS_CLIENT_CODE" | grep -q 'invalid_grant' \
+    && ok "Cross-client code redemption rejected (F-21)" \
+    || fail "Cross-client code redemption was accepted"
+
+# A code minted for one redirect_uri must not be redeemable with a different one (F-21).
+WRONG_REDIRECT_CODE=$(curl -sS -X POST \
+    -d "grant_type=authorization_code&client_id=kc_app&code=${AUTH_CODE}&redirect_uri=https://www.keycloak.org/app/cb" \
+    "$BASE/realms/test/protocol/openid-connect/token")
+
+echo "$WRONG_REDIRECT_CODE" | grep -q 'invalid_grant' \
+    && ok "Wrong-redirect code redemption rejected (F-21)" \
+    || fail "Wrong-redirect code redemption was accepted"
+
+# The failed attempts must not consume the code: the real redemption in the
+# next step still succeeds.
+
 # ── Step 3: POST /token ───────────────────────────────────────
 echo ""
 echo "=== Step 3: POST /token ==="
