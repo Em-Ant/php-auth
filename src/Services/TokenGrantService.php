@@ -180,6 +180,12 @@ class TokenGrantService
             $this->logger->error("invalid refresh token");
             throw new ValidationFailed('invalid refresh token');
         }
+        if ($login->getClientId() !== $client->getId()) {
+            $this->logger->error(
+                "refresh token not bound to client {$client->getId()}"
+            );
+            throw new ValidationFailed('invalid refresh token');
+        }
         if ($login->getStatus() !== LoginStatus::Active) {
             $this->logger->error("login is in invalid status");
             throw new ValidationFailed('login is expired');

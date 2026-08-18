@@ -162,6 +162,14 @@ NEW_REFRESH=$(echo "$REFRESH_RESPONSE" | sed -n 's/.*"refresh_token":"\([^"]*\)"
     && ok "Refresh token rotated" \
     || fail "Refresh token not rotated"
 
+# A refresh token is bound to the client it was issued to (S-02):
+# a different client must be rejected and the attempt must not mutate state.
+CROSS_CLIENT=$(curl -sS -o /dev/null -w "%{http_code}" -X POST \
+    -d "grant_type=refresh_token&client_id=local&refresh_token=${NEW_REFRESH}" \
+    "$BASE/realms/test/protocol/openid-connect/token")
+
+[[ "$CROSS_CLIENT" = "400" ]] && ok "Cross-client refresh rejected (S-02)" || fail "Cross-client refresh expected 400, got $CROSS_CLIENT"
+
 # ── Step 8: Revoke refresh token ──────────────────────────────
 echo ""
 echo "=== Step 8: Revoke refresh token ==="
