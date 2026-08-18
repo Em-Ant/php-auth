@@ -96,7 +96,7 @@ validation; introspect `invalid_client` 401 + `active:false` for garbage;
 
 | Ref | Fix | Acceptance | Files |
 |-----|-----|-----------|-------|
-| F-21 | **Bind auth code to client + redirect_uri.** `getTokensByCode` must verify `login.client_id === $client->getId()` and `login.redirect_uri === $requested redirect_uri`; reject with `invalid_grant`. | Redeeming client B's code with client A fails; wrong redirect fails. | `TokenGrantService`, `LoginRepository` (add findByCode scoped to client/redirect, or compare after fetch) |
+| F-21 | **Bind auth code to client + redirect_uri.** `getTokensByCode` must verify `login.client_id === $client->getId()` and `login.redirect_uri === $requested redirect_uri`; reject with `invalid_grant`. | Redeeming client B's code with client A fails; wrong redirect fails. ✅ done (CodeBindingTest + e2e Step 2b) | `TokenGrantService`, `LoginRepository` (add findByCode scoped to client/redirect, or compare after fetch) |
 | F-22 | **Bind refresh token to client.** `getTokensByRefreshToken` must verify `login.client_id === $client->getId()` (mirror the check revoke already has). | Client A's RT refreshed by client B → `invalid_grant`. | `TokenGrantService` |
 | F-23 | **Enforce realm isolation.** Code/refresh lookups must be scoped to the request realm (e.g. `findByCode($code, $realm_id)` via `JOIN clients`/`sessions` realm check). | Code minted in realm A is not redeemable at realm B. | `LoginRepository`, `TokenGrantService` |
 | F-24 | **`HttpOnly` on the SSO cookie** + separate non-HttpOnly check-session cookie (Keycloak splits these; the iframe must read the check cookie, not the session cookie). | `AUTH_SESSION` not readable from JS; check-session still works. | `HttpSessionCookieHandler`, `login-iframe.html` |

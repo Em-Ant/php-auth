@@ -79,6 +79,7 @@ class TokenGrantService
             InputValidator::validateRedirectUri($client, $redirect_uri);
             return $this->getTokensByCode(
                 $code,
+                $redirect_uri,
                 $realm,
                 $client,
                 $code_verifier
@@ -104,6 +105,7 @@ class TokenGrantService
 
     private function getTokensByCode(
         string $code,
+        string $redirect_uri,
         Realm $realm,
         Client $client,
         ?string $code_verifier
@@ -113,7 +115,19 @@ class TokenGrantService
 
         if ($login === null) {
             $this->logger->error("invalid authorization code");
-            throw new ValidationFailed('invalid code');
+            throw new ValidationFailed('invalid_grant');
+        }
+
+        if ($login->getClientId() !== $client->getId()) {
+            $this->logger->error(
+                "authorization code not bound to client {$client->getId()}"
+            );
+            throw new ValidationFailed('invalid_grant');
+        }
+
+        if ($login->getRedirectUri() !== $redirect_uri) {
+            $this->logger->error("authorization code not bound to redirect_uri");
+            throw new ValidationFailed('invalid_grant');
         }
 
         $code_challenge = $login->getCodeChallenge();

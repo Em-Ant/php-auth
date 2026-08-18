@@ -43,11 +43,15 @@ trait IntegrationFlowTrait
         return self::$app->handle($request);
     }
 
-    private function doFullLogin(string $state = 'fl-st', string $nonce = 'fl-nc'): array
-    {
+    private function obtainCode(
+        string $state,
+        string $nonce,
+        string $clientId = 'local',
+        string $redirectUri = 'http://localhost:5173'
+    ): string {
         $request = $this->createRequest('GET', '/realms/test/protocol/openid-connect/auth', [
-            'client_id' => 'local',
-            'redirect_uri' => 'http://localhost:5173',
+            'client_id' => $clientId,
+            'redirect_uri' => $redirectUri,
             'response_type' => 'code',
             'response_mode' => 'query',
             'scope' => 'openid',
@@ -80,13 +84,22 @@ trait IntegrationFlowTrait
         $location = $response->getHeaderLine('Location');
         preg_match('/code=([^&]+)/', $location, $m);
         self::assertNotEmpty($m, 'code not found in login redirect');
-        $code = $m[1];
+        return $m[1];
+    }
+
+    private function doFullLogin(
+        string $state = 'fl-st',
+        string $nonce = 'fl-nc',
+        string $clientId = 'local',
+        string $redirectUri = 'http://localhost:5173'
+    ): array {
+        $code = $this->obtainCode($state, $nonce, $clientId, $redirectUri);
 
         $request = $this->createRequest('POST', '/realms/test/protocol/openid-connect/token', [], [
             'grant_type' => 'authorization_code',
-            'client_id' => 'local',
+            'client_id' => $clientId,
             'code' => $code,
-            'redirect_uri' => 'http://localhost:5173',
+            'redirect_uri' => $redirectUri,
         ]);
         $response = $this->handle($request);
         return json_decode((string) $response->getBody(), true);
