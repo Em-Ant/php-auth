@@ -29,17 +29,6 @@ class CodeBindingTest extends TestCase
         self::$sessionCookieHandler->reset();
     }
 
-    private function redeemCode(string $code, string $clientId, string $redirectUri): ResponseInterface
-    {
-        $request = $this->createRequest('POST', '/realms/test/protocol/openid-connect/token', [], [
-            'grant_type' => 'authorization_code',
-            'client_id' => $clientId,
-            'code' => $code,
-            'redirect_uri' => $redirectUri,
-        ]);
-        return $this->handle($request);
-    }
-
     private function assertInvalidGrant(ResponseInterface $response): void
     {
         self::assertSame(400, $response->getStatusCode());
@@ -47,9 +36,9 @@ class CodeBindingTest extends TestCase
         self::assertSame('invalid_grant', $body['error_description'] ?? null);
     }
 
-    private function assertCodeRedeems(string $code, string $clientId, string $redirectUri): void
+    private function assertCodeRedeems(string $code, string $clientId, string $redirectUri, string $realm = 'test'): void
     {
-        $tokens = json_decode((string) $this->redeemCode($code, $clientId, $redirectUri)->getBody(), true);
+        $tokens = json_decode((string) $this->redeemCode($code, $clientId, $redirectUri, $realm)->getBody(), true);
         self::assertNotNull($tokens['access_token'] ?? null);
     }
 
@@ -79,5 +68,20 @@ class CodeBindingTest extends TestCase
         $this->assertInvalidGrant($response);
 
         $this->assertCodeRedeems($code, 'local', 'http://localhost:5173');
+    }
+
+    public function testCodeNotRedeemableInAnotherRealm(): void
+    {
+        $code = $this->obtainCode(
+            state: 'cb-realm-st',
+            nonce: 'cb-realm-nc',
+            clientId: 'kc_app',
+            redirectUri: 'https://www.keycloak.org/app',
+        );
+
+        $response = $this->redeemCode($code, 'kc_app', 'https://www.keycloak.org/app', 'web');
+        $this->assertInvalidGrant($response);
+
+        $this->assertCodeRedeems($code, 'kc_app', 'https://www.keycloak.org/app');
     }
 }

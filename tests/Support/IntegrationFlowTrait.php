@@ -87,6 +87,21 @@ trait IntegrationFlowTrait
         return $m[1];
     }
 
+    private function redeemCode(
+        string $code,
+        string $clientId,
+        string $redirectUri,
+        string $realm = 'test'
+    ): ResponseInterface {
+        $request = $this->createRequest('POST', "/realms/$realm/protocol/openid-connect/token", [], [
+            'grant_type' => 'authorization_code',
+            'client_id' => $clientId,
+            'code' => $code,
+            'redirect_uri' => $redirectUri,
+        ]);
+        return $this->handle($request);
+    }
+
     private function doFullLogin(
         string $state = 'fl-st',
         string $nonce = 'fl-nc',
@@ -95,13 +110,7 @@ trait IntegrationFlowTrait
     ): array {
         $code = $this->obtainCode($state, $nonce, $clientId, $redirectUri);
 
-        $request = $this->createRequest('POST', '/realms/test/protocol/openid-connect/token', [], [
-            'grant_type' => 'authorization_code',
-            'client_id' => $clientId,
-            'code' => $code,
-            'redirect_uri' => $redirectUri,
-        ]);
-        $response = $this->handle($request);
+        $response = $this->redeemCode($code, $clientId, $redirectUri);
         return json_decode((string) $response->getBody(), true);
     }
 }

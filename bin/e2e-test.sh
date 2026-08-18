@@ -132,6 +132,16 @@ echo "$WRONG_REDIRECT_CODE" | grep -q 'invalid_grant' \
     && ok "Wrong-redirect code redemption rejected (F-21)" \
     || fail "Wrong-redirect code redemption was accepted"
 
+# A code minted in one realm must not be redeemable at another (S-03):
+# same client + redirect, different realm URL.
+CROSS_REALM_CODE=$(curl -sS -X POST \
+    -d "grant_type=authorization_code&client_id=kc_app&code=${AUTH_CODE}&redirect_uri=https://www.keycloak.org/app" \
+    "$BASE/realms/web/protocol/openid-connect/token")
+
+echo "$CROSS_REALM_CODE" | grep -q 'invalid_grant' \
+    && ok "Cross-realm code redemption rejected (F-23)" \
+    || fail "Cross-realm code redemption was accepted"
+
 # The failed attempts must not consume the code: the real redemption in the
 # next step still succeeds.
 

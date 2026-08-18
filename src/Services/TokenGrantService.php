@@ -111,7 +111,7 @@ class TokenGrantService
         ?string $code_verifier
     ): array {
         $this->logger->info("generating tokens from authorization code $code");
-        $login = $this->loginRepository->findByCode($code);
+        $login = $this->loginRepository->findByCode($code, $realm->getId());
 
         if ($login === null) {
             $this->logger->error("invalid authorization code");
@@ -189,7 +189,7 @@ class TokenGrantService
     ): array {
         $this->logger->info("generating tokens from refresh token");
 
-        $login = $this->loginRepository->findByRefreshToken($refresh_token);
+        $login = $this->loginRepository->findByRefreshToken($refresh_token, $realm->getId());
         if ($login === null) {
             $this->logger->error("invalid refresh token");
             throw new ValidationFailed('invalid refresh token');

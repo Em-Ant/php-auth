@@ -52,7 +52,7 @@ class TokenRevocationService
 
         // Refresh token path (default when no hint, or hint is refresh_token)
         if ($tokenTypeHint !== 'access_token') {
-            $login = $this->loginRepository->findByRefreshToken($token);
+            $login = $this->loginRepository->findByRefreshToken($token, $realm->getId());
             if ($login !== null && $login->getClientId() === $client->getId()) {
                 $this->logger->info("revoke: expiring login {$login->getId()}");
                 $this->loginStateMachine->transition($login, LoginEvent::Expire, $realm);
