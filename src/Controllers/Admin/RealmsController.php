@@ -25,6 +25,7 @@ class RealmsController
     private const DEFAULT_TTL = 1800;
     private const DEFAULT_ACCESS_TTL = 300;
     private const DEFAULT_SESSION_TTL = 86400;
+    private const DEFAULT_OFFLINE_TTL = 2592000;
     private const DEFAULT_SCOPE = 'openid profile email';
 
     public function __construct(
@@ -70,7 +71,8 @@ class RealmsController
                 $this->optionalInt($body, 'session_expires_in', self::DEFAULT_SESSION_TTL),
                 $this->optionalInt($body, 'idle_session_expires_in', self::DEFAULT_TTL),
                 $this->optionalString($body, 'scope', null) ?? self::DEFAULT_SCOPE,
-                gmdate('Y-m-d H:i:s')
+                gmdate('Y-m-d H:i:s'),
+                $this->optionalInt($body, 'offline_refresh_token_expires_in', self::DEFAULT_OFFLINE_TTL)
             );
 
             $this->realms->create($realm);
@@ -118,7 +120,12 @@ class RealmsController
                 $this->optionalInt($body, 'session_expires_in', $existing->getSessionExpiresIn()),
                 $this->optionalInt($body, 'idle_session_expires_in', $existing->getIdleSessionExpiresIn()),
                 $this->optionalString($body, 'scope', null) ?? implode(' ', $existing->getScope()),
-                $existing->getCreatedAt()->format('Y-m-d H:i:s')
+                $existing->getCreatedAt()->format('Y-m-d H:i:s'),
+                $this->optionalInt(
+                    $body,
+                    'offline_refresh_token_expires_in',
+                    $existing->getOfflineRefreshTokenExpiresIn()
+                )
             );
 
             $this->realms->update($realm);
@@ -173,6 +180,7 @@ class RealmsController
             'authenticated_login_expires_in' => $realm->getAuthenticatedLoginExpiresIn(),
             'session_expires_in' => $realm->getSessionExpiresIn(),
             'idle_session_expires_in' => $realm->getIdleSessionExpiresIn(),
+            'offline_refresh_token_expires_in' => $realm->getOfflineRefreshTokenExpiresIn(),
             'scope' => implode(' ', $realm->getScope()),
             'created_at' => $realm->getCreatedAt()->format('Y-m-d H:i:s'),
         ];

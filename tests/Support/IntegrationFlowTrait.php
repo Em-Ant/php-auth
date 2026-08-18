@@ -47,14 +47,15 @@ trait IntegrationFlowTrait
         string $state,
         string $nonce,
         string $clientId = 'local',
-        string $redirectUri = 'http://localhost:5173'
+        string $redirectUri = 'http://localhost:5173',
+        string $scope = 'openid'
     ): string {
         $request = $this->createRequest('GET', '/realms/test/protocol/openid-connect/auth', [
             'client_id' => $clientId,
             'redirect_uri' => $redirectUri,
             'response_type' => 'code',
             'response_mode' => 'query',
-            'scope' => 'openid',
+            'scope' => $scope,
             'state' => $state,
             'nonce' => $nonce,
         ]);

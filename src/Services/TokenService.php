@@ -7,6 +7,7 @@ namespace AuthServer\Services;
 use AuthServer\Interfaces\KeyStore;
 use AuthServer\Models\Client;
 use AuthServer\Models\Login;
+use AuthServer\Models\OfflineSession;
 use AuthServer\Models\Realm;
 use AuthServer\Models\Session;
 use AuthServer\Models\User;
@@ -203,6 +204,39 @@ class TokenService
         ];
     }
 
+    /**
+     * Offline token bundle: the refresh token carries `typ: Offline` and the
+     * realm-configured offline TTL, and the session claims (sid, acr,
+     * auth_time) come from the offline session — which survives SSO logout.
+     */
+    public function createOfflineTokenBundle(
+        Realm $realm,
+        OfflineSession $offlineSession,
+        Client $client,
+        User $user
+    ): array {
+        $now = time();
+        $context = [
+            'subject' => $offlineSession->getUserId(),
+            'auth_time' => $offlineSession->getAuthenticatedAt() !== null
+                ? date_timestamp_get($offlineSession->getAuthenticatedAt())
+                : $now,
+            'acr' => $offlineSession->getAcr(),
+            'sid' => $offlineSession->getId(),
+            'nonce' => $offlineSession->getNonce(),
+            'scope' => $offlineSession->getScope(),
+        ];
+
+        return $this->createTokenBundleFromContext(
+            $realm,
+            $context,
+            $client,
+            $user,
+            $realm->getOfflineRefreshTokenExpiresIn(),
+            'Offline'
+        );
+    }
+
     public function createTokenBundle(
         Realm $realm,
         Session $session,
@@ -210,14 +244,53 @@ class TokenService
         Client $client,
         User $user
     ): array {
+        $context = [
+            'subject' => $session->getUserId(),
+            'auth_time' => date_timestamp_get($login->getAuthenticatedAt()),
+            'acr' => $session->getAcr(),
+            'sid' => $session->getId(),
+            'nonce' => $login->getNonce(),
+            'scope' => $login->getScope(),
+        ];
+
+        return $this->createTokenBundleFromContext(
+            $realm,
+            $context,
+            $client,
+            $user,
+            $realm->getRefreshTokenExpiresIn(),
+            'Refresh'
+        );
+    }
+
+    /**
+     * Assembles the access/id/refresh triple from a shared grant context.
+     *
+     * @param array{
+     *     subject: string,
+     *     auth_time: int,
+     *     acr: string,
+     *     sid: string,
+     *     nonce: string|null,
+     *     scope: string
+     * } $context
+     */
+    private function createTokenBundleFromContext(
+        Realm $realm,
+        array $context,
+        Client $client,
+        User $user,
+        int $refreshExpiresIn,
+        string $refreshTyp
+    ): array {
         $now = time();
         $kid = $realm->getKeysId();
+
         $access_token = $this->createAccessToken(
             $now,
             $realm->getAccessTokenExpiresIn(),
             $realm->getName(),
-            $login,
-            $session,
+            $context,
             $client,
             $user,
             $kid
@@ -226,8 +299,7 @@ class TokenService
             $now,
             $realm->getAccessTokenExpiresIn(),
             $realm->getName(),
-            $login,
-            $session,
+            $context,
             $client,
             $user,
             $access_token,
@@ -235,37 +307,49 @@ class TokenService
         );
         $refresh_token = $this->createRefreshToken(
             $now,
-            $realm->getRefreshTokenExpiresIn(),
+            $refreshExpiresIn,
             $realm->getName(),
-            $login,
-            $session,
+            $context,
             $client,
             $user,
-            $kid
+            $kid,
+            $refreshTyp
         );
 
         return [
             "access_token" => $access_token,
             "expires_in" => $realm->getAccessTokenExpiresIn(),
-            "refresh_expires_in" => $realm->getRefreshTokenExpiresIn(),
+            "refresh_expires_in" => $refreshExpiresIn,
             "refresh_token" => $refresh_token,
             "token_type" => "Bearer",
             "id_token" => $id_token,
             "not-before-policy" => 0,
-            "session_state" => $session->getId(),
-            "scope" => $login->getScope(),
+            "session_state" => $context['sid'],
+            "scope" => $context['scope'],
         ];
     }
 
+    /**
+     * Shared claim sources for both the SSO-bound and the offline grant.
+     *
+     * @param array{
+     *     subject: string,
+     *     auth_time: int,
+     *     acr: string,
+     *     sid: string,
+     *     nonce: string|null,
+     *     scope: string
+     * } $context
+     */
     private function createRefreshToken(
         int $now,
         int $validity,
-        $realm_name,
-        Login $login,
-        Session $session,
+        string $realm_name,
+        array $context,
         Client $client,
         User $user,
-        string $keys_id
+        string $keys_id,
+        string $typ = 'Refresh'
     ): string {
         $exp = $now + $validity;
         return $this->createToken(
@@ -275,27 +359,36 @@ class TokenService
                 "jti" => get_guid(),
                 "iss" => $this->issuer . "/realms/$realm_name",
                 "aud" => $this->issuer,
-                "sub" => $session->getUserId(),
-                "typ" => "Refresh",
+                "sub" => $context['subject'],
+                "typ" => $typ,
                 "azp" => $client->getName(),
-                "nonce" => $login->getNonce(),
-                "session_state" => $session->getId(),
+                "nonce" => $context['nonce'],
+                "session_state" => $context['sid'],
                 "realm_access" => [
                     "roles" => $user->getRealmRoles()
                 ],
-                "scope" => $login->getScope(),
-                "sid" => $session->getId()
+                "scope" => $context['scope'],
+                "sid" => $context['sid']
             ],
             $keys_id
         );
     }
 
+    /**
+     * @param array{
+     *     subject: string,
+     *     auth_time: int,
+     *     acr: string,
+     *     sid: string,
+     *     nonce: string|null,
+     *     scope: string
+     * } $context
+     */
     private function createAccessToken(
         int $now,
         int $validity,
         string $realm_name,
-        Login $login,
-        Session $session,
+        array $context,
         Client $client,
         User $user,
         string $keys_id
@@ -305,36 +398,45 @@ class TokenService
             [
                 "exp" => $exp,
                 "iat" => $now,
-                "auth_time" => date_timestamp_get($login->getAuthenticatedAt()),
+                "auth_time" => $context['auth_time'],
                 "jti" => get_guid(),
                 "iss" => $this->issuer . "/realms/$realm_name",
                 "aud" => $client->getName(),
-                "sub" => $session->getUserId(),
+                "sub" => $context['subject'],
                 "typ" => "Bearer",
                 "azp" => $client->getName(),
-                "nonce" => $login->getNonce(),
-                "session_state" => $session->getId(),
-                "acr" => $session->getAcr(),
+                "nonce" => $context['nonce'],
+                "session_state" => $context['sid'],
+                "acr" => $context['acr'],
                 "allowed-origins" => [
                     $client->getUri()
                 ],
                 "realm_access" => [
                     "roles" => $user->getRealmRoles()
                 ],
-                "scope" => $login->getScope(),
-                "sid" => $session->getId(),
+                "scope" => $context['scope'],
+                "sid" => $context['sid'],
                 "preferred_username" => $user->getName()
             ],
             $keys_id
         );
     }
 
+    /**
+     * @param array{
+     *     subject: string,
+     *     auth_time: int,
+     *     acr: string,
+     *     sid: string,
+     *     nonce: string|null,
+     *     scope: string
+     * } $context
+     */
     private function createIdToken(
         int $now,
         int $validity,
         string $realm_name,
-        Login $login,
-        Session $session,
+        array $context,
         Client $client,
         User $user,
         string $access_token,
@@ -345,18 +447,18 @@ class TokenService
             [
                 "exp" => $exp,
                 "iat" => $now,
-                "auth_time" => date_timestamp_get($login->getAuthenticatedAt()),
+                "auth_time" => $context['auth_time'],
                 "jti" => get_guid(),
                 "iss" => $this->issuer . "/realms/$realm_name",
                 "aud" => $client->getName(),
-                "sub" => $session->getUserId(),
+                "sub" => $context['subject'],
                 "typ" => "ID",
                 "azp" => $client->getName(),
-                "nonce" => $login->getNonce(),
-                "session_state" => $session->getId(),
+                "nonce" => $context['nonce'],
+                "session_state" => $context['sid'],
                 "at_hash" => self::calculateAtHash($access_token),
-                "acr" => $session->getAcr(),
-                "sid" => $session->getId(),
+                "acr" => $context['acr'],
+                "sid" => $context['sid'],
                 "preferred_username" => $user->getName()
             ],
             $keys_id

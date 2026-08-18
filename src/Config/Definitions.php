@@ -21,6 +21,7 @@ use AuthServer\Controllers\TokenController;
 use AuthServer\Interfaces\ClientRepository as IClientRepo;
 use AuthServer\Interfaces\KeyStore;
 use AuthServer\Interfaces\LoginRepository as ILoginRepo;
+use AuthServer\Interfaces\OfflineSessionRepository as IOfflineSessionRepo;
 use AuthServer\Interfaces\RealmRepository as IRealmRepo;
 use AuthServer\Interfaces\SessionCookieHandler;
 use AuthServer\Interfaces\SessionRepository as ISessionRepo;
@@ -29,6 +30,7 @@ use AuthServer\Middleware\RealmProvider;
 use AuthServer\Repositories\ClientRepository;
 use AuthServer\Repositories\LoginRepository;
 use AuthServer\Repositories\MigrationRepository;
+use AuthServer\Repositories\OfflineSessionRepository;
 use AuthServer\Repositories\RealmRepository;
 use AuthServer\Repositories\SessionRepository;
 use AuthServer\Repositories\TokenBlacklistRepository;
@@ -41,6 +43,7 @@ use AuthServer\Services\HttpSessionCookieHandler;
 use AuthServer\Services\InputValidator;
 use AuthServer\Services\LoginStateMachine;
 use AuthServer\Services\MigrationRunner;
+use AuthServer\Services\OfflineSessionService;
 use AuthServer\Services\RateLimiter;
 use AuthServer\Services\ScopeResolver;
 use AuthServer\Services\SecretsService;
@@ -128,6 +131,7 @@ final class Definitions
             IClientRepo::class => \DI\autowire(ClientRepository::class),
             ISessionRepo::class => \DI\autowire(SessionRepository::class),
             ILoginRepo::class => \DI\autowire(LoginRepository::class),
+            IOfflineSessionRepo::class => \DI\autowire(OfflineSessionRepository::class),
             IUserRepo::class => \DI\autowire(UserRepository::class),
             IRealmRepo::class => \DI\autowire(RealmRepository::class),
 
@@ -138,6 +142,7 @@ final class Definitions
             TokenGrantService::class => \DI\autowire(),
             TokenRevocationService::class => \DI\autowire(),
             TokenIntrospectionService::class => \DI\autowire(),
+            OfflineSessionService::class => \DI\autowire(),
             InputValidator::class => \DI\autowire(),
             LoginStateMachine::class => \DI\autowire(),
             ScopeResolver::class => \DI\autowire(),

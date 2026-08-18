@@ -436,4 +436,88 @@ class AdminCrudTest extends TestCase
         $response = $this->handle($this->adminRequest('DELETE', '/admin/users/' . $user['id']));
         self::assertSame(204, $response->getStatusCode());
     }
+
+    // ── Offline sessions (F-02 admin integration) ───────────────
+
+    private function insertOfflineSession(
+        string $realmId,
+        string $userId,
+        string $clientId,
+        string $status = 'ACTIVE'
+    ): void {
+        $stmt = self::$pdo->prepare(
+            "INSERT INTO offline_sessions (id, realm_id, user_id, client_id, acr, scope, nonce, refresh_token, status)
+             VALUES (:id, :realm, :user, :client, '0', 'openid offline_access', 'nc', :refresh, :status)"
+        );
+        $stmt->execute([
+            ':id' => get_guid(),
+            ':realm' => $realmId,
+            ':user' => $userId,
+            ':client' => $clientId,
+            ':refresh' => get_guid(),
+            ':status' => $status,
+        ]);
+    }
+
+    public function testDeleteUserWithActiveOfflineSessionReturns409(): void
+    {
+        $user = $this->assertStatus(201, $this->adminRequest('POST', '/admin/users', [
+            'realm_id' => self::TEST_REALM,
+            'email' => 'offline-user-' . get_guid() . '@example.com',
+            'password' => self::USER_PASSWORD,
+        ]));
+
+        $this->insertOfflineSession(self::TEST_REALM, $user['id'], self::TEST_CLIENT);
+
+        $this->assertStatus(409, $this->adminRequest('DELETE', '/admin/users/' . $user['id']));
+    }
+
+    public function testDeleteClientWithActiveOfflineSessionReturns409(): void
+    {
+        $client = $this->assertStatus(201, $this->adminRequest('POST', '/admin/clients', [
+            'name' => 'offline-guarded-' . get_guid(),
+            'realm_id' => self::TEST_REALM,
+            'uri' => 'https://offline-guarded.example.com',
+        ]));
+
+        $this->insertOfflineSession(
+            self::TEST_REALM,
+            'b0aa0c22-a356-40c7-9fa2-6f973c3f614a',
+            $client['id']
+        );
+
+        $this->assertStatus(409, $this->adminRequest('DELETE', '/admin/clients/' . $client['id']));
+    }
+
+    public function testInvalidateExpiresOfflineSessionsAndUnblocksDeletion(): void
+    {
+        $user = $this->assertStatus(201, $this->adminRequest('POST', '/admin/users', [
+            'realm_id' => self::TEST_REALM,
+            'email' => 'offline-inv-' . get_guid() . '@example.com',
+            'password' => self::USER_PASSWORD,
+        ]));
+
+        $this->insertOfflineSession(self::TEST_REALM, $user['id'], self::TEST_CLIENT);
+
+        $data = $this->assertStatus(200, $this->adminRequest('POST', '/admin/sessions/invalidate', [
+            'user_id' => $user['id'],
+        ]));
+        self::assertSame(1, $data['invalidated']);
+
+        $status = self::$pdo->query(
+            "SELECT status FROM offline_sessions WHERE user_id = '" . $user['id'] . "'"
+        )->fetchColumn();
+        self::assertSame('EXPIRED', $status);
+
+        // Expired offline grants no longer block deletion, and the delete
+        // removes the rows so no orphans survive the user
+        $response = $this->handle($this->adminRequest('DELETE', '/admin/users/' . $user['id']));
+        self::assertSame(204, $response->getStatusCode());
+        self::assertSame(
+            0,
+            (int) self::$pdo->query(
+                "SELECT COUNT(*) FROM offline_sessions WHERE user_id = '" . $user['id'] . "'"
+            )->fetchColumn()
+        );
+    }
 }

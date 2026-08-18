@@ -433,9 +433,10 @@ REALMS_LIST=$(curl -sS -H "$ADMIN_HDR" "$BASE/admin/realms")
 REALM_COUNT=$(echo "$REALMS_LIST" | python3 -c "import sys,json; print(len(json.load(sys.stdin)['realms']))" 2>/dev/null || echo 0)
 [[ "$REALM_COUNT" -ge 2 ]] && ok "List realms returns seeded realms ($REALM_COUNT found)" || fail "Expected >=2 seeded realms, got $REALM_COUNT"
 
-# Create realm
+# Create realm (offline_access granted so the F-02 flow can run on it; the
+# throwaway realm is deleted at the end of this section)
 REALM_RESP=$(curl -sS -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
-    -d '{"name":"e2e-admin-realm","keys_id":"'"$ADMIN_CREATED_KID"'"}' \
+    -d '{"name":"e2e-admin-realm","keys_id":"'"$ADMIN_CREATED_KID"'","scope":"openid profile email offline_access"}' \
     "$BASE/admin/realms")
 ADMIN_CREATED_REALM_ID=$(echo "$REALM_RESP" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
 REALM_NAME=$(echo "$REALM_RESP" | sed -n 's/.*"name":"\([^"]*\)".*/\1/p')
@@ -695,6 +696,110 @@ ADMIN_REVOKED=$(curl -sS -X POST \
 
 rm -f "$ADMIN_OIDC_COOKIE" "$ADMIN_OIDC_HEADERS"
 
+# ── Step 24b: Offline access on the throwaway realm (F-02) ──
+echo ""
+echo "=== Step 24b: OIDC login — offline_access long-lived refresh token ==="
+
+# Fresh rate-limit headroom for the extra /token calls below
+sqlite3 db/data.db "DELETE FROM rate_limits;" 2>/dev/null || true
+
+OFFLINE_COOKIE=$(mktemp)
+OFFLINE_HEADERS=$(mktemp)
+
+OFFLINE_AUTH=$(curl -sS -c "$OFFLINE_COOKIE" \
+    "$ADMIN_AUTH_BASE/auth?client_id=$ADMIN_CLIENT_NAME&redirect_uri=$ADMIN_REDIRECT_URI&response_type=code&response_mode=query&scope=openid%20offline_access&state=e2e-offline-st&nonce=e2e-offline-nc")
+
+echo "$OFFLINE_AUTH" | grep -q 'login' \
+    && ok "Offline auth: login form with offline_access scope" \
+    || fail "Offline auth: did not return login form"
+
+OFFLINE_LOGIN_ID=$(echo "$OFFLINE_AUTH" | sed -n 's/.*action="[^"]*?q=\([^"]*\)".*/\1/p')
+OFFLINE_CSRF=$(echo "$OFFLINE_AUTH" | sed -n 's/.*name="csrf_token"\s*value="\([^"]*\)".*/\1/p')
+
+[[ -n "$OFFLINE_LOGIN_ID" ]] && ok "Offline auth: extracted login_id" || { fail "Offline auth: login_id missing"; rm -f "$OFFLINE_COOKIE" "$OFFLINE_HEADERS"; exit 1; }
+[[ -n "$OFFLINE_CSRF" ]]     && ok "Offline auth: extracted csrf_token" || { fail "Offline auth: csrf_token missing"; rm -f "$OFFLINE_COOKIE" "$OFFLINE_HEADERS"; exit 1; }
+
+> "$OFFLINE_HEADERS"
+OFFLINE_LOGIN_CODE=$(curl -sS -c "$OFFLINE_COOKIE" -b "$OFFLINE_COOKIE" \
+    -D "$OFFLINE_HEADERS" -o /dev/null -w "%{http_code}" \
+    -X POST \
+    -d "email=${ADMIN_EMAIL}&password=${ADMIN_PASSWORD}&csrf_token=${OFFLINE_CSRF}" \
+    "$ADMIN_AUTH_BASE/login-actions/authenticate?q=${OFFLINE_LOGIN_ID}")
+
+if [[ "$OFFLINE_LOGIN_CODE" != "302" ]]; then
+    fail "Offline login expected 302, got $OFFLINE_LOGIN_CODE"
+    rm -f "$OFFLINE_COOKIE" "$OFFLINE_HEADERS"
+    exit 1
+fi
+ok "Offline login returned 302 redirect"
+
+OFFLINE_LOCATION=$(grep -i '^location:' "$OFFLINE_HEADERS" | sed 's/.*location: //I' | tr -d '\r\n')
+OFFLINE_CODE=$(echo "$OFFLINE_LOCATION" | sed 's/.*code=\([^&]*\).*/\1/')
+
+if [[ -n "$OFFLINE_CODE" ]]; then
+    ok "Offline auth code obtained"
+else
+    fail "Offline auth: no code in Location header"
+    rm -f "$OFFLINE_COOKIE" "$OFFLINE_HEADERS"
+    exit 1
+fi
+
+OFFLINE_TOKENS=$(curl -sS -X POST \
+    -d "grant_type=authorization_code&client_id=${ADMIN_CLIENT_NAME}&code=${OFFLINE_CODE}&redirect_uri=${ADMIN_REDIRECT_URI}" \
+    "$ADMIN_AUTH_BASE/token")
+
+OFFLINE_AT=$(echo "$OFFLINE_TOKENS" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+OFFLINE_RT=$(echo "$OFFLINE_TOKENS" | sed -n 's/.*"refresh_token":"\([^"]*\)".*/\1/p')
+OFFLINE_IDT=$(echo "$OFFLINE_TOKENS" | sed -n 's/.*"id_token":"\([^"]*\)".*/\1/p')
+OFFLINE_RT_TTL=$(echo "$OFFLINE_TOKENS" | sed -n 's/.*"refresh_expires_in":\([0-9]*\).*/\1/p')
+
+[[ -n "$OFFLINE_RT" ]] && ok "Offline grant: refresh_token issued" || { fail "Offline grant: no refresh_token"; rm -f "$OFFLINE_COOKIE" "$OFFLINE_HEADERS"; exit 1; }
+echo "$OFFLINE_TOKENS" | grep -q '"scope":"openid offline_access"' && ok "Offline grant: scope is openid offline_access" || fail "Offline grant: unexpected scope"
+[[ "$OFFLINE_RT_TTL" = "2592000" ]] && ok "Offline grant: refresh_expires_in = 30d ($OFFLINE_RT_TTL)" || fail "Offline grant: refresh_expires_in = $OFFLINE_RT_TTL"
+
+OFFLINE_TYP=$(echo "$OFFLINE_RT" | cut -d. -f2 | python3 -c "import sys,base64,json; p=sys.stdin.read().strip(); p+='='*(-len(p)%4); print(json.loads(base64.urlsafe_b64decode(p))['typ'])" 2>/dev/null || true)
+[[ "$OFFLINE_TYP" = "Offline" ]] && ok "Offline refresh token carries typ=Offline" || fail "Offline refresh token typ: $OFFLINE_TYP"
+
+# Refresh: issues a fresh bundle and rotates the offline token
+OFFLINE_REFRESH=$(curl -sS -X POST \
+    -d "grant_type=refresh_token&client_id=${ADMIN_CLIENT_NAME}&refresh_token=${OFFLINE_RT}" \
+    "$ADMIN_AUTH_BASE/token")
+OFFLINE_NEW_AT=$(echo "$OFFLINE_REFRESH" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+OFFLINE_NEW_RT=$(echo "$OFFLINE_REFRESH" | sed -n 's/.*"refresh_token":"\([^"]*\)".*/\1/p')
+
+[[ -n "$OFFLINE_NEW_AT" ]] && ok "Offline refresh produced new access_token" || fail "Offline refresh: no access_token"
+[[ -n "$OFFLINE_NEW_RT" ]] && [[ "$OFFLINE_NEW_RT" != "$OFFLINE_RT" ]] \
+    && ok "Offline refresh token rotated" \
+    || fail "Offline refresh token not rotated"
+
+OFFLINE_INTRO=$(curl -sS -X POST \
+    -d "token=${OFFLINE_NEW_RT}&client_id=${ADMIN_CLIENT_NAME}" \
+    "$ADMIN_AUTH_BASE/token/introspect")
+echo "$OFFLINE_INTRO" | grep -q '"active":true' && ok "Offline refresh token introspects active" || fail "Offline refresh token not active on introspect"
+
+# Offline tokens survive SSO logout (Keycloak parity)
+OFFLINE_LOGOUT=$(curl -sS -o /dev/null -w "%{http_code}" \
+    "$ADMIN_AUTH_BASE/logout?id_token_hint=${OFFLINE_IDT}")
+[[ "$OFFLINE_LOGOUT" = "204" ]] && ok "Offline SSO logout returned 204" || fail "Offline logout expected 204, got $OFFLINE_LOGOUT"
+
+OFFLINE_AFTER_LOGOUT=$(curl -sS -X POST \
+    -d "grant_type=refresh_token&client_id=${ADMIN_CLIENT_NAME}&refresh_token=${OFFLINE_NEW_RT}" \
+    "$ADMIN_AUTH_BASE/token")
+echo "$OFFLINE_AFTER_LOGOUT" | grep -q '"access_token"' && ok "Offline refresh survives logout" || fail "Offline refresh failed after logout"
+
+# RFC 7009 revocation kills the offline token
+OFFLINE_REVOKE=$(curl -sS -o /dev/null -w "%{http_code}" -X POST -u "${ADMIN_CLIENT_NAME}:" \
+    -d "token=${OFFLINE_NEW_RT}" \
+    "$ADMIN_AUTH_BASE/revoke")
+[[ "$OFFLINE_REVOKE" = "200" ]] && ok "Offline revoke returned 200" || { fail "Offline revoke expected 200, got $OFFLINE_REVOKE"; rm -f "$OFFLINE_COOKIE" "$OFFLINE_HEADERS"; exit 1; }
+
+OFFLINE_REVOKED_REFRESH=$(curl -sS -X POST \
+    -d "grant_type=refresh_token&client_id=${ADMIN_CLIENT_NAME}&refresh_token=${OFFLINE_NEW_RT}" \
+    "$ADMIN_AUTH_BASE/token" | grep -cE 'expired|invalid' || true)
+[[ "$OFFLINE_REVOKED_REFRESH" -gt 0 ]] && ok "Revoked offline refresh token rejected" || fail "Revoked offline refresh token was accepted"
+
+rm -f "$OFFLINE_COOKIE" "$OFFLINE_HEADERS"
+
 # ── Step 25: Admin delete cascade ────────────────────────────
 echo ""
 echo "=== Step 25: Admin — delete (cleanup) ==="
@@ -707,20 +812,23 @@ ADMIN_INVALIDATE=$(curl -sS -X POST -H "$ADMIN_HDR" -H "Content-Type: applicatio
     "$BASE/admin/sessions/invalidate")
 
 echo "$ADMIN_INVALIDATE" | grep -q '"invalidated"' \
-    && ok "Admin API invalidated OIDC sessions/logins" \
+    && ok "Admin API invalidated OIDC sessions/logins/offline" \
     || { fail "Admin API session invalidation failed: $ADMIN_INVALIDATE"; }
 
-# Verification (local dev only): confirm no leftover logins/sessions block deletion.
-# Falls back to sqlite3 only if the admin API left residue behind.
+# Verification (local dev only): confirm no leftover logins/sessions or ACTIVE
+# offline_sessions block deletion. The offline grant was revoked in 24b, so its
+# row is EXPIRED here — an ACTIVE row would trip the admin delete guards (409).
 LEFT_LOGINS=$(sqlite3 db/data.db "SELECT COUNT(*) FROM logins WHERE client_id = '$ADMIN_CREATED_CLIENT_ID';" 2>/dev/null || echo 0)
 LEFT_SESSIONS=$(sqlite3 db/data.db "SELECT COUNT(*) FROM sessions WHERE user_id = '$ADMIN_CREATED_USER_ID';" 2>/dev/null || echo 0)
+LEFT_OFFLINE_ACTIVE=$(sqlite3 db/data.db "SELECT COUNT(*) FROM offline_sessions WHERE client_id = '$ADMIN_CREATED_CLIENT_ID' AND status = 'ACTIVE';" 2>/dev/null || echo 0)
 
-if [[ "$LEFT_LOGINS" -eq 0 && "$LEFT_SESSIONS" -eq 0 ]]; then
-    ok "No leftover logins/sessions (verified via sqlite)"
+if [[ "$LEFT_LOGINS" -eq 0 && "$LEFT_SESSIONS" -eq 0 && "$LEFT_OFFLINE_ACTIVE" -eq 0 ]]; then
+    ok "No leftover guard rows (logins/sessions/offline) — verified via sqlite"
 else
-    fail "Leftover guard rows: $LEFT_LOGINS logins, $LEFT_SESSIONS sessions — sqlite fallback cleanup"
+    fail "Leftover guard rows: $LEFT_LOGINS logins, $LEFT_SESSIONS sessions, $LEFT_OFFLINE_ACTIVE active offline — sqlite fallback cleanup"
     sqlite3 db/data.db "DELETE FROM logins WHERE client_id = '$ADMIN_CREATED_CLIENT_ID';" 2>/dev/null || true
     sqlite3 db/data.db "DELETE FROM sessions WHERE user_id = '$ADMIN_CREATED_USER_ID';" 2>/dev/null || true
+    sqlite3 db/data.db "UPDATE offline_sessions SET status = 'EXPIRED' WHERE client_id = '$ADMIN_CREATED_CLIENT_ID' AND status = 'ACTIVE';" 2>/dev/null || true
 fi
 
 # Delete user (no sessions → 204)
@@ -739,6 +847,10 @@ DEL_CLIENT=$(curl -sS -o /dev/null -w "%{http_code}" -X DELETE -H "$ADMIN_HDR" "
 # Confirm client is gone
 GONE_CLIENT=$(curl -sS -o /dev/null -w "%{http_code}" -H "$ADMIN_HDR" "$BASE/admin/clients/$ADMIN_CREATED_CLIENT_ID")
 [[ "$GONE_CLIENT" = "404" ]] && ok "Deleted client returns 404" || fail "Expected 404, got $GONE_CLIENT"
+
+# No offline_sessions rows may survive the deleted client (no orphans)
+LEFT_OFFLINE_AFTER=$(sqlite3 db/data.db "SELECT COUNT(*) FROM offline_sessions WHERE client_id = '$ADMIN_CREATED_CLIENT_ID';" 2>/dev/null || echo 1)
+[[ "$LEFT_OFFLINE_AFTER" -eq 0 ]] && ok "No offline_sessions rows survived the delete" || fail "$LEFT_OFFLINE_AFTER orphaned offline_sessions row(s) left"
 ADMIN_CREATED_CLIENT_ID=""
 
 # Delete realm (now empty → 204)

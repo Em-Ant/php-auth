@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AuthServer\Controllers\Admin;
 
 use AuthServer\Interfaces\LoginRepository;
+use AuthServer\Interfaces\OfflineSessionRepository;
 use AuthServer\Interfaces\SessionRepository;
 use AuthServer\Models\Session;
 use AuthServer\Response\JsonResponse;
@@ -19,6 +20,7 @@ class SessionsController
     public function __construct(
         private readonly SessionRepository $sessions,
         private readonly LoginRepository $logins,
+        private readonly OfflineSessionRepository $offlineSessions,
     ) {
     }
 
@@ -73,6 +75,9 @@ class SessionsController
                     $this->deleteSessionAndLogins($session->getId());
                     $count++;
                 }
+                // Offline grants survive SSO logout by design; admin invalidation
+                // is the way to kill them without the token (RFC 7009 analog).
+                $count += $this->offlineSessions->setExpiredByUserId($userId);
             }
 
             if ($clientId !== null) {
@@ -84,6 +89,7 @@ class SessionsController
                     $this->deleteSessionAndLogins($sessionId);
                     $count++;
                 }
+                $count += $this->offlineSessions->setExpiredByClientId($clientId);
             }
 
             return JsonResponse::create($response, ['invalidated' => $count]);

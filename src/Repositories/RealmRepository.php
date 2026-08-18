@@ -40,11 +40,13 @@ class RealmRepository implements IRepo
                 "INSERT INTO realms (
                     id, name, keys_id, refresh_token_expires_in, access_token_expires_in,
                     pending_login_expires_in, authenticated_login_expires_in,
-                    session_expires_in, idle_session_expires_in, scope
+                    session_expires_in, idle_session_expires_in,
+                    offline_refresh_token_expires_in, scope
                 ) VALUES (
                     :id, :name, :keys_id, :refresh_token_expires_in, :access_token_expires_in,
                     :pending_login_expires_in, :authenticated_login_expires_in,
-                    :session_expires_in, :idle_session_expires_in, :scope
+                    :session_expires_in, :idle_session_expires_in,
+                    :offline_refresh_token_expires_in, :scope
                 )"
             );
             $statement->execute(self::realmParams($realm, $id));
@@ -68,6 +70,7 @@ class RealmRepository implements IRepo
                     authenticated_login_expires_in = :authenticated_login_expires_in,
                     session_expires_in = :session_expires_in,
                     idle_session_expires_in = :idle_session_expires_in,
+                    offline_refresh_token_expires_in = :offline_refresh_token_expires_in,
                     scope = :scope
                 WHERE id = :id"
             );
@@ -145,6 +148,7 @@ class RealmRepository implements IRepo
             ':authenticated_login_expires_in' => $realm->getAuthenticatedLoginExpiresIn(),
             ':session_expires_in' => $realm->getSessionExpiresIn(),
             ':idle_session_expires_in' => $realm->getIdleSessionExpiresIn(),
+            ':offline_refresh_token_expires_in' => $realm->getOfflineRefreshTokenExpiresIn(),
             ':scope' => implode(' ', $realm->getScope()),
         ];
     }
@@ -162,7 +166,8 @@ class RealmRepository implements IRepo
             (int) $r['session_expires_in'],
             (int) $r['idle_session_expires_in'],
             $r['scope'],
-            $r['created_at']
+            $r['created_at'],
+            (int) ($r['offline_refresh_token_expires_in'] ?? 2592000)
         );
     }
 }
