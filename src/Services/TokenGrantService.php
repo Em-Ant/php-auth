@@ -195,7 +195,7 @@ class TokenGrantService
 
         $valid = $this->tokenValidator->validate($refresh_token, $realm, 'Refresh');
         if ($valid === null) {
-            $this->loginStateMachine->transition($login, LoginEvent::Expire, $realm);
+            $this->logger->error("refresh token failed validation");
             throw new ValidationFailed('refresh_token is expired');
         }
 
