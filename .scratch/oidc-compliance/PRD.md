@@ -113,17 +113,17 @@ validation; introspect `invalid_client` 401 + `active:false` for garbage;
 | F-30 | **Revocation 401 on failed client auth** (RFC 7009 §2.2). | Bad client → 401 `invalid_client`. |
 | F-31 | **Make `nonce`/`state`/`response_mode` optional for the code flow** (nonce still enforced when response_type is implicit/hybrid — which is rejected anyway). | Code flow without nonce/state/response_mode succeeds; defaults apply. |
 | F-32 | **`prompt=login` forces re-auth** (session not reused); `prompt=consent` → at least a documented non-goal until the consent screen (F-10) lands. | SSO session + `prompt=login` → login form. |
-| F-33 | **Exact `redirect_uri` matching** (drop prefix/trailing-slash normalization; registered URI matched exactly). | Sub-path redirect rejected; exact matches pass. Keep an eye on Keycloak wildcard behavior before flipping. |
+| F-33 | **Exact `redirect_uri` matching** (drop prefix/trailing-slash normalization; registered URI matched exactly). ✅ verified live — Keycloak uses exact match, no implicit prefix/sub-path/query; wildcards only when explicitly registered. | Sub-path redirect rejected; exact matches pass. |
 | F-34 | **Truthful discovery**: rename `scope_supported`→`scopes_supported`; set `request_parameter_supported`/`request_uri`/mTLS/front-channel/pairwise to false (or implement). | Doc matches implemented surface. |
 
 ### P2 — Keycloak parity (opportunistic; subset-by-design acknowledged)
 
 | Ref | Fix | Acceptance |
 |-----|-----|-----------|
-| F-35 | **`x5t` / `x5t#sha256` as b64url of binary thumbprint** (RFC 7517 §4.7). | JWKS thumbprints verify against cert. |
-| F-36 | **Salted `session_state`** (SHA-256 over `client_id origin session_id salt`), iframe computes same value. | Check-session iframe unchanged with Keycloak-style clients; raw session id no longer in URLs. |
+| F-35 | **`x5t` / `x5t#sha256` as b64url of binary thumbprint** (RFC 7517 §4.7). ✅ verified live — Keycloak emits b64url of SHA-1/SHA-256 over the DER cert; both matched recomputation. | JWKS thumbprints verify against cert. |
+| F-36 | **`session_state` — corrected premise (verified live).** Keycloak sends the **raw session-id UUID** in the auth response / ID token, *not* a salted hash. The salted value lives only in the `KEYCLOAK_SESSION` cookie, and the check-session iframe computes `SHA-256(session_state)` client-side and compares it to that cookie (verified: cookie = b64url(SHA-256(session_state))). Our raw-session-id `session_state` is close to correct; the actual gap is the iframe/cookie mechanism, not the claim value. | Check-session iframe interoperates with Keycloak-style clients; raw session id not in URLs (moved to cookie). |
 | F-37 | **Sliding idle session timeout** — `checkExpiry` idle leg uses `updated_at`. | Session kept alive by activity up to absolute max. |
-| F-38 | **`acr` default `1`** for password login (configurable per realm later). | ID token `acr: "1"`. |
+| F-38 | **`acr` default `1`** for password login (configurable per realm later). ✅ verified live — Keycloak reports `1` for password auth. | ID token `acr: "1"`. |
 | F-39 | **userinfo claims per scope** (`profile` → name/given/family/preferred_username; `email` → email/email_verified) | userinfo honors requested scopes. |
 | F-40 | **Drop `nonce` from access/refresh tokens.** | Access/refresh tokens have no `nonce`. |
 | P-07…P-09 | **Deferred**: `login_hint`/`max_age`/`ui_locales`; `WWW-Authenticate` on 401; `X-Powered-By` removal — batch with a future hardening pass. | — |
@@ -141,14 +141,35 @@ validation; introspect `invalid_client` 401 + `active:false` for garbage;
   ensures `prompt=consent` isn't silently *ignored*.
 - **Blacklist purge** (P-10) — already tracked as F-19 (`token-lifecycle`).
 
-## Open questions (verify against a real Keycloak)
+## Open questions — verified against a live Keycloak (2026-08-19)
 
-1. Refresh-token `aud`: this server uses the root issuer; Keycloak appears to
-   use the realm URL. Confirm before F-22/F-23 touch the claim set.
-2. Introspection `token_type` for ID tokens (`"ID"` here) — confirm Keycloak's
-   value before asserting parity in e2e.
-3. Whether `redirect_uri` exact-match (F-33) should follow Keycloak's
-   `*.path` wildcard semantics instead of plain exact — decide at F-33.
+All six probes run against a running Keycloak (realm + confidential/public
+clients + password-grant and code-flow tokens, then removed after probing).
+
+1. **Refresh-token `aud`** — ✅ verified: Keycloak uses the **realm URL**
+   (`http://localhost:8080/realms/<realm>`), NOT the root issuer. Our server
+   uses the root issuer → **real mismatch; fix the claim set when F-22/F-23
+   touch it.** (Also observed: AT `aud` = `account`, RT `azp` = client id.)
+2. **Introspection `token_type` for ID tokens** — ✅ verified: Keycloak returns
+   `"ID"` with `typ: ID`, `active: true`. Our `"ID"` is **correct parity**; safe
+   to assert in e2e.
+3. **`redirect_uri` matching (F-33)** — ✅ verified: Keycloak does **exact
+   match** with no implicit prefix/sub-path/query normalization (all → `400
+   Invalid parameter: redirect_uri`). Wildcards (`*`) only match when
+   *explicitly registered* per path (`https://app.example.com/other/*`), match
+   any depth, allow query strings, and match zero-length after the slash; a
+   sibling path (`/otherx`) is rejected. → Keep F-33 as exact match; wildcard
+   support is optional and only for explicitly-registered patterns.
+4. **`session_state` (F-36)** — ✅ verified (premise corrected): see F-36 row
+   above. `session_state` is a raw session-id UUID; the salted SHA-256 is the
+   `KEYCLOAK_SESSION` cookie, recomputed by the iframe.
+5. **`x5t` / `x5t#S256` (F-35)** — ✅ verified: b64url of binary thumbprint
+   (SHA-1 / SHA-256 over DER cert); both matched recomputation.
+6. **`acr` (F-38)** — ✅ verified: `"1"` for password auth.
+
+**Runtime note:** probe instance left running (`localhost:8080`, Quarkus, no
+docker). Dev server uses port 8000, no clash. Can be stopped any time — the
+verified answers above are persisted here.
 
 ## Acceptance (whole PRD)
 
@@ -157,3 +178,4 @@ validation; introspect `invalid_client` 401 + `active:false` for garbage;
 2. `composer check` green; error-surface assertions added to e2e (`bin/e2e-test.sh`).
 3. Discovery doc matches the implemented surface 1:1.
 4. No behavioral regression in the happy-path e2e flow.
+5. Refresh-token `aud` claim set updated to the realm URL (verified parity, Q1).
