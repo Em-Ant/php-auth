@@ -1,27 +1,44 @@
-# CI E2E — deduplicate e2e scripts
+# CI E2E — two scopes, one canonical flow
 
 ## Problem Statement
 
-The repo has two near-identical E2E shell scripts:
+The repo has two E2E shell scripts:
 
-- `bin/e2e-test.sh` — local dev-server smoke test (`composer test:e2e`)
-- `bin/e2e-test-keycloak.sh` — post-deploy smoke test in the GitHub Actions
-  pipeline (`composer test:e2e:kc`, invoked by `.github/workflows/deploy.yml`)
+- `bin/e2e-test.sh` — local OIDC behavioral-integrity suite (`composer test:e2e`).
+  DB access (dev-server harness, `sqlite3` leftover checks), admin-API CRUD to
+  build a disposable realm, 146 checks.
+- `bin/e2e-test-keycloak.sh` — post-deploy smoke test (`composer test:e2e:kc`,
+  GitHub Actions deploy pipeline). **No DB access, no admin API, bounded
+  footprint** — but drifts from the local suite.
 
-They share ~95% of the flow (auth → login → token → introspect → refresh →
-revoke → client_credentials) but drift independently: step numbering has
-already diverged, and features added to one script are not automatically added
-to the other (the local script gained the client_credentials step before the
-keycloak script did).
+The original "merge the two scripts" premise was **wrong**: the two targets have
+opposite constraints (local = heavy regression w/ DB; prod = zero-DB, minimal
+pollution). Merging would leak prod-polluting steps into prod or strip
+prod-safe coverage locally.
 
-## Goal
+## Goal (revised)
 
-One canonical E2E script that covers both targets. Making it configurable via
-env vars removes the need for two copies.
+Split deliberately into two artifacts with distinct contracts, not one merged
+script:
 
-Status: **DEFERRED** — the two scripts were only aligned feature-wise for now
-(see issue 01). No pipeline/config changes were made.
+1. **`bin/smoke-test.sh`** (rename/repurpose of `e2e-test-keycloak.sh`) — the
+   prod post-release smoke. Invariants: **no DB access, no admin API, bounded
+   footprint** (one login; refresh + access revoked at the end; never creates
+   realms/clients/users/keys). ~30 checks: discovery, `/certs`,
+   auth→login→token, introspect, userinfo, refresh, revoke, prompt=none,
+   logout. Config via `BASE_URL`/`REALM`/`CLIENT`/`REDIRECT_URI` env.
+   Composer: `test:smoke`.
+2. **`bin/e2e-test.sh`** — stays the local OIDC integrity suite (dev-server
+   harness, DB-backed verification, all 146 checks). The admin-CRUD stage is
+   reframed as harness (builds a disposable realm for the OIDC flow), not OIDC
+   scope.
 
-## Issues
+## Phase 2 (better than bash; no Playwright/browser)
 
-- [#01](issues/01-merge-scripts.md) — Merge the two E2E scripts into one configurable script
+A **PHPUnit suite that drives a live `BASE_URL` over HTTP** (PSR-18/curl):
+real JSON parsing + structured asserts instead of `grep`/`sed`. The *same*
+test files run against local dev server and prod; the prod subset is gated by
+env or a dedicated smoke group. PHP + PHPUnit are already dependencies. Bash
+remains the phase-1 source of truth.
+
+Status: **OPEN** — F-20 reframed from "merge" to "split + define contracts".
