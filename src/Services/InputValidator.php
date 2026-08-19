@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AuthServer\Services;
 
+use AuthServer\Exceptions\OAuth2Error;
 use AuthServer\Exceptions\ValidationFailed;
 use AuthServer\Models\Client;
 use AuthServer\Models\GrantType;
@@ -12,13 +13,7 @@ class InputValidator
 {
     public static function validateRedirectUri(Client $client, string $redirect_uri): void
     {
-        $_redirect_uri = rtrim($redirect_uri, '/');
-        $_client_uri = rtrim($client->getUri(), '/');
-
-        if (
-            $_redirect_uri !== $_client_uri &&
-            !str_starts_with($_redirect_uri, $_client_uri . '/')
-        ) {
+        if ($redirect_uri !== $client->getUri()) {
             throw new ValidationFailed('invalid redirect_uri');
         }
     }
@@ -54,10 +49,7 @@ class InputValidator
             'scope',
             'client_id',
             'response_type',
-            'response_mode',
             'redirect_uri',
-            'state',
-            'nonce',
         ];
 
         $code_challenge_method = $query['code_challenge_method'] ?? null;
@@ -70,12 +62,17 @@ class InputValidator
 
         self::validateParams($query, $required_fields);
 
-        if (!in_array($query['response_mode'], ['fragment', 'query'])) {
+        if (($query['response_type'] ?? '') !== 'code') {
+            throw OAuth2Error::unsupportedResponseType('unsupported response_type');
+        }
+
+        $response_mode = $query['response_mode'] ?? 'query';
+        if (!in_array($response_mode, ['fragment', 'query'])) {
             throw new ValidationFailed('invalid response mode');
         }
 
         if (!in_array('openid', explode(' ', $query['scope']))) {
-            throw new ValidationFailed('invalid scope');
+            throw OAuth2Error::invalidScope('invalid scope');
         }
     }
 
@@ -90,7 +87,7 @@ class InputValidator
 
         $grantType = GrantType::tryFrom($query['grant_type']);
         if ($grantType === null) {
-            throw new ValidationFailed('unsupported flow');
+            throw OAuth2Error::unsupportedGrantType('unsupported flow');
         }
 
         if ($grantType === GrantType::AuthorizationCode && !isset($query['code'])) {
@@ -107,10 +104,10 @@ class InputValidator
     public static function validateCodeChallenge(?string $code_challenge, ?string $code_verifier): void
     {
         if ($code_verifier === null) {
-            throw new ValidationFailed('invalid code_verifier');
+            throw OAuth2Error::invalidGrant('invalid code_verifier');
         }
         if ($code_challenge !== Base64Utils::b64UrlEncode(hash('sha256', $code_verifier, true))) {
-            throw new ValidationFailed('code_verifier does not match code_challenge');
+            throw OAuth2Error::invalidGrant('code_verifier does not match code_challenge');
         }
     }
 

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace AuthServer\Services;
 
-use AuthServer\Exceptions\ValidationFailed;
+use AuthServer\Exceptions\OAuth2Error;
 use AuthServer\Models\Client;
 use AuthServer\Models\Realm;
 use Psr\Log\LoggerInterface;
@@ -31,7 +31,7 @@ class ScopeResolver
             $this->logger->info(
                 "scope 'openid' missing for client '{$client->getName()}' realm '{$realm->getName()}'"
             );
-            throw new ValidationFailed('invalid scope');
+            throw OAuth2Error::invalidScope('invalid scope');
         }
 
         if ($requestedScopes === []) {
@@ -46,7 +46,7 @@ class ScopeResolver
                 $this->logger->info(
                     "scope '$scope' not allowed for client '{$client->getName()}' realm '{$realm->getName()}'"
                 );
-                throw new ValidationFailed('invalid scope');
+                throw OAuth2Error::invalidScope('invalid scope');
             }
         }
 

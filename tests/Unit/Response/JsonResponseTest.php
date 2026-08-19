@@ -24,13 +24,21 @@ class JsonResponseTest extends TestCase
     {
         $this->response->method('getBody')->willReturn($this->stream);
         $this->stream->expects(self::once())->method('write');
-        $this->response->expects(self::once())
-            ->method('withHeader')
-            ->with('Content-Type', 'application/json')
-            ->willReturn($this->response);
+
+        $headers = [];
+        $this->response->method('withHeader')->willReturnCallback(
+            function (string $name, string $value) use (&$headers) {
+                $headers[$name] = $value;
+                return $this->response;
+            }
+        );
         $this->response->method('withStatus')->willReturn($this->response);
 
         JsonResponse::create($this->response, ['key' => 'val']);
+
+        self::assertSame('no-store', $headers['Cache-Control']);
+        self::assertSame('no-cache', $headers['Pragma']);
+        self::assertSame('application/json', $headers['Content-Type']);
     }
 
     public function testCreateSetsStatusCode(): void
@@ -55,10 +63,7 @@ class JsonResponseTest extends TestCase
         $this->response->method('withHeader')->willReturnCallback(
             function (string $name, string $value) use (&$callCount) {
                 $callCount++;
-                if ($callCount === 1) {
-                    self::assertSame('Content-Type', $name);
-                }
-                if ($callCount === 2) {
+                if ($callCount === 4) {
                     self::assertSame('Access-Control-Allow-Origin', $name);
                     self::assertSame('https://example.com', $value);
                 }

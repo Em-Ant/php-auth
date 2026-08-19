@@ -78,14 +78,10 @@ class AuthenticationOrchestrator
         $csrf_token = $this->secretsService->generateCode();
 
         $login = $this->loginRepository->createPending(
-            $client->getId(),
-            $query['state'],
-            $query['nonce'],
-            $query['scope'],
-            $query['redirect_uri'],
-            $query['response_mode'],
-            $query['code_challenge'] ?? null,
-            $csrf_token
+            ...$this->loginFields($query),
+            client_id: $client->getId(),
+            code_challenge: $query['code_challenge'] ?? null,
+            csrf_token: $csrf_token
         );
 
         if ($login === null) {
@@ -138,15 +134,11 @@ class AuthenticationOrchestrator
         $code = $this->secretsService->generateCode();
 
         $login = $this->loginRepository->createAuthenticated(
-            $client->getId(),
-            $session_id,
-            $query['state'],
-            $query['nonce'],
-            $query['scope'],
-            $query['redirect_uri'],
-            $query['response_mode'],
-            $code,
-            $query['code_challenge'] ?? null
+            ...$this->loginFields($query),
+            client_id: $client->getId(),
+            session_id: $session_id,
+            code: $code,
+            code_challenge: $query['code_challenge'] ?? null
         );
 
         if ($login === null) {
@@ -341,6 +333,35 @@ class AuthenticationOrchestrator
         }
 
         return $post_logout_redirect_uri;
+    }
+
+    /**
+     * Creates the login row for the validated auth request, applying defaults
+     * for the OIDC code-flow parameters that are optional (OIDC Core §3.1.2.1):
+     * state, nonce, response_mode.
+     */
+    /**
+     * OIDC code-flow fields shared by the pending and authenticated login rows
+     * (OIDC Core §3.1.2.1). state, nonce and response_mode are optional for the
+     * code flow, so defaults are applied when omitted.
+     *
+     * @return array{
+     *     state: string,
+     *     nonce: string,
+     *     scope: string,
+     *     redirect_uri: string,
+     *     response_mode: string
+     * }
+     */
+    private function loginFields(array $query): array
+    {
+        return [
+            'state' => $query['state'] ?? '',
+            'nonce' => $query['nonce'] ?? '',
+            'scope' => $query['scope'],
+            'redirect_uri' => $query['redirect_uri'],
+            'response_mode' => $query['response_mode'] ?? 'query',
+        ];
     }
 
     public function ensureValidClient(

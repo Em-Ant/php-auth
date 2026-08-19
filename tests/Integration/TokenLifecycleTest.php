@@ -99,6 +99,15 @@ class TokenLifecycleTest extends TestCase
         self::assertSame(200, $response->getStatusCode());
     }
 
+    public function testRevokeWithUnknownClientReturns401(): void
+    {
+        $response = $this->revoke('not-a-valid-jwt', 'nonexistent-client');
+
+        self::assertSame(401, $response->getStatusCode());
+        $body = json_decode((string) $response->getBody(), true);
+        self::assertSame('invalid_client', $body['error'] ?? '');
+    }
+
     public function testRevokeRefreshToken(): void
     {
         $tokens = $this->doFullLogin();

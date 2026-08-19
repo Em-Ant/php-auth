@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace AuthServer\Services;
 
+use AuthServer\Exceptions\OAuth2Error;
 use AuthServer\Exceptions\StorageFailed;
-use AuthServer\Exceptions\ValidationFailed;
 use AuthServer\Interfaces\OfflineSessionRepository as IOfflineSessionRepo;
 use AuthServer\Interfaces\UserRepository as IUserRepo;
 use AuthServer\Models\Client;
@@ -106,26 +106,26 @@ class OfflineSessionService
         );
         if ($offlineSession === null) {
             $this->logger->error("invalid offline refresh token");
-            throw new ValidationFailed('invalid refresh token');
+            throw OAuth2Error::invalidGrant('invalid refresh token');
         }
         if ($offlineSession->getClientId() !== $client->getId()) {
             $this->logger->error(
                 "offline refresh token not bound to client {$client->getId()}"
             );
-            throw new ValidationFailed('invalid refresh token');
+            throw OAuth2Error::invalidGrant('invalid refresh token');
         }
         if (
             $offlineSession->getStatus() !== OfflineSessionStatus::Active
             || $this->isExpired($offlineSession, $realm)
         ) {
             $this->logger->error("offline session {$offlineSession->getId()} is expired");
-            throw new ValidationFailed('offline session is expired');
+            throw OAuth2Error::invalidGrant('offline session is expired');
         }
 
         $valid = $this->tokenValidator->validate($refreshToken, $realm, 'Offline');
         if ($valid === null) {
             $this->logger->error("offline refresh token failed validation");
-            throw new ValidationFailed('refresh_token is expired');
+            throw OAuth2Error::invalidGrant('refresh_token is expired');
         }
 
         $user = $this->userRepository->findById($offlineSession->getUserId());

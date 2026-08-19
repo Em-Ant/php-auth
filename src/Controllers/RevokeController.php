@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AuthServer\Controllers;
 
+use AuthServer\Exceptions\AuthenticationFailed;
 use AuthServer\Models\Realm;
 use AuthServer\Response\JsonResponse;
 use AuthServer\Services\TokenRevocationService;
@@ -38,7 +39,16 @@ class RevokeController
         /** @var Realm */
         $realm = $request->getAttribute(Realm::class);
 
-        $this->revocationService->revoke($body, $realm);
+        try {
+            $this->revocationService->revoke($body, $realm);
+        } catch (AuthenticationFailed $e) {
+            return JsonResponse::error(
+                $response,
+                'invalid_client',
+                $e->getMessage(),
+                401
+            );
+        }
 
         return JsonResponse::create($response, [], 200);
     }

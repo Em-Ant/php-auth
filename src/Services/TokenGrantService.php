@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace AuthServer\Services;
 
+use AuthServer\Exceptions\OAuth2Error;
 use AuthServer\Exceptions\StorageFailed;
-use AuthServer\Exceptions\ValidationFailed;
 use AuthServer\Interfaces\LoginRepository as ILoginRepo;
 use AuthServer\Interfaces\SessionRepository as ISessionRepo;
 use AuthServer\Interfaces\UserRepository as IUserRepo;
@@ -14,7 +14,9 @@ use AuthServer\Models\GrantType;
 use AuthServer\Models\LoginEvent;
 use AuthServer\Models\LoginStatus;
 use AuthServer\Models\Realm;
+use AuthServer\Models\Session;
 use AuthServer\Models\SessionStatus;
+use AuthServer\Models\User;
 use Psr\Log\LoggerInterface;
 
 class TokenGrantService
@@ -75,11 +77,10 @@ class TokenGrantService
             $this->logger->info(
                 "client $client_id authentication failed while generating tokens"
             );
-            throw new ValidationFailed('invalid client');
+            throw OAuth2Error::invalidClient('invalid client');
         }
 
         if ($grant_type === GrantType::AuthorizationCode->value) {
-            InputValidator::validateRedirectUri($client, $redirect_uri);
             return $this->getTokensByCode(
                 $code,
                 $redirect_uri,
@@ -103,7 +104,7 @@ class TokenGrantService
         }
 
         $this->logger->error("unsupported token flow $grant_type");
-        throw new ValidationFailed('unsupported flow');
+        throw OAuth2Error::unsupportedGrantType('unsupported flow');
     }
 
     private function getTokensByCode(
@@ -118,19 +119,19 @@ class TokenGrantService
 
         if ($login === null) {
             $this->logger->error("invalid authorization code");
-            throw new ValidationFailed('invalid_grant');
+            throw OAuth2Error::invalidGrant('invalid_grant');
         }
 
         if ($login->getClientId() !== $client->getId()) {
             $this->logger->error(
                 "authorization code not bound to client {$client->getId()}"
             );
-            throw new ValidationFailed('invalid_grant');
+            throw OAuth2Error::invalidGrant('invalid_grant');
         }
 
         if ($login->getRedirectUri() !== $redirect_uri) {
             $this->logger->error("authorization code not bound to redirect_uri");
-            throw new ValidationFailed('invalid_grant');
+            throw OAuth2Error::invalidGrant('invalid_grant');
         }
 
         $code_challenge = $login->getCodeChallenge();
@@ -139,7 +140,7 @@ class TokenGrantService
         }
         if ($login->getStatus() !== LoginStatus::Authenticated) {
             $this->logger->error("code $code is expired");
-            throw new ValidationFailed('code is expired');
+            throw OAuth2Error::invalidGrant('code is expired');
         }
 
         $session_id = $login->getSessionId();
@@ -151,20 +152,7 @@ class TokenGrantService
             throw new StorageFailed("invalid session $session_id");
         }
 
-        $expiryCheck = $this->sessionOrchestrator->checkExpiry(
-            $session,
-            $realm->getSessionExpiresIn(),
-            $realm->getIdleSessionExpiresIn()
-        );
-        if (!$expiryCheck) {
-            $this->logger->error("session $session_id expired");
-            throw new ValidationFailed('session expired');
-        }
-
-        $user = $this->userRepository->findById($session->getUserId());
-        if ($user === null) {
-            throw new StorageFailed('invalid session');
-        }
+        $user = $this->activeSessionUser($session, $realm);
 
         if ($this->scopeHasOfflineAccess($login->getScope())) {
             return $this->offlineSessionService->createOfflineGrant(
@@ -214,17 +202,17 @@ class TokenGrantService
         $login = $this->loginRepository->findByRefreshToken($refresh_token, $realm->getId());
         if ($login === null) {
             $this->logger->error("invalid refresh token");
-            throw new ValidationFailed('invalid refresh token');
+            throw OAuth2Error::invalidGrant('invalid refresh token');
         }
         if ($login->getClientId() !== $client->getId()) {
             $this->logger->error(
                 "refresh token not bound to client {$client->getId()}"
             );
-            throw new ValidationFailed('invalid refresh token');
+            throw OAuth2Error::invalidGrant('invalid refresh token');
         }
         if ($login->getStatus() !== LoginStatus::Active) {
             $this->logger->error("login is in invalid status");
-            throw new ValidationFailed('login is expired');
+            throw OAuth2Error::invalidGrant('login is expired');
         }
 
         $login = $this->loginStateMachine->transition($login, LoginEvent::CheckExpiry, $realm);
@@ -232,7 +220,7 @@ class TokenGrantService
         $valid = $this->tokenValidator->validate($refresh_token, $realm, 'Refresh');
         if ($valid === null) {
             $this->logger->error("refresh token failed validation");
-            throw new ValidationFailed('refresh_token is expired');
+            throw OAuth2Error::invalidGrant('refresh_token is expired');
         }
 
         $session_id = $login->getSessionId();
@@ -245,24 +233,10 @@ class TokenGrantService
         }
         if ($session->getStatus() !== SessionStatus::Active) {
             $this->logger->error("invalid status for session $session_id - not active");
-            throw new ValidationFailed('invalid session status');
+            throw OAuth2Error::invalidGrant('invalid session status');
         }
 
-        $expiryCheck = $this->sessionOrchestrator->checkExpiry(
-            $session,
-            $realm->getSessionExpiresIn(),
-            $realm->getIdleSessionExpiresIn()
-        );
-        if (!$expiryCheck) {
-            $this->logger->error("session $session_id expired");
-            throw new ValidationFailed('session expired');
-        }
-
-        $user = $this->userRepository->findById($session->getUserId());
-        if ($user === null) {
-            $this->logger->error("invalid user for active session $session_id");
-            throw new StorageFailed('invalid session');
-        }
+        $user = $this->activeSessionUser($session, $realm);
 
         $token_bundle = $this->tokenService->createTokenBundle(
             $realm,
@@ -281,6 +255,28 @@ class TokenGrantService
         $this->sessionOrchestrator->refresh($session_id);
 
         return $token_bundle;
+    }
+
+    private function activeSessionUser(Session $session, Realm $realm): User
+    {
+        $expiryCheck = $this->sessionOrchestrator->checkExpiry(
+            $session,
+            $realm->getSessionExpiresIn(),
+            $realm->getIdleSessionExpiresIn()
+        );
+        if (!$expiryCheck) {
+            $session_id = $session->getId();
+            $this->logger->error("session $session_id expired");
+            throw OAuth2Error::invalidGrant('session expired');
+        }
+
+        $user = $this->userRepository->findById($session->getUserId());
+        if ($user === null) {
+            $session_id = $session->getId();
+            $this->logger->error("invalid user for active session $session_id");
+            throw new StorageFailed('invalid session');
+        }
+        return $user;
     }
 
     private function scopeHasOfflineAccess(string $scope): bool

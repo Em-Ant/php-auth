@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AuthServer\Controllers;
 
 use AuthServer\Exceptions\AuthenticationFailed;
+use AuthServer\Exceptions\OAuth2Error;
 use AuthServer\Exceptions\ValidationFailed;
 use AuthServer\Interfaces\SessionCookieHandler;
 use AuthServer\Models\Realm;
@@ -17,8 +18,6 @@ class LogoutController
 {
     private AuthenticationOrchestrator $auth_service;
     private SessionCookieHandler $sessionCookie;
-
-    public const INVALID_REQUEST = 'Invalid request';
 
     public function __construct(
         AuthenticationOrchestrator $service,
@@ -56,13 +55,10 @@ class LogoutController
             return $response
                 ->withHeader('Location', $redirect_uri)
                 ->withStatus(302);
+        } catch (OAuth2Error $e) {
+            return JsonResponse::errorFromOAuth2Error($response, $e);
         } catch (ValidationFailed | AuthenticationFailed $e) {
-            return JsonResponse::error(
-                $response,
-                self::INVALID_REQUEST,
-                $e->getMessage(),
-                400
-            );
+            return JsonResponse::invalidRequest($response, $e);
         }
     }
 }
