@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AuthServer\Controllers;
 
 use AuthServer\Exceptions\AuthenticationFailed;
+use AuthServer\Exceptions\OAuth2Error;
 use AuthServer\Exceptions\ValidationFailed;
 use AuthServer\Models\Realm;
 use AuthServer\Response\JsonResponse;
@@ -17,8 +18,6 @@ class TokenController
 {
     private TokenGrantService $tokenGrantService;
     private AuthenticationOrchestrator $auth_service;
-
-    public const INVALID_REQUEST = 'Invalid request';
 
     public function __construct(
         TokenGrantService $tokenGrantService,
@@ -47,22 +46,16 @@ class TokenController
             /** @var Realm */
             $realm = $request->getAttribute(Realm::class);
 
+            $tokens = $this->tokenGrantService->getTokens($body, $realm);
+
             $origin = $request->getHeaderLine('Origin')
                 ?: $this->auth_service->getClientUri($body['client_id'] ?? '');
 
-            return JsonResponse::create(
-                $response,
-                $this->tokenGrantService->getTokens($body, $realm),
-                200,
-                $origin
-            );
+            return JsonResponse::create($response, $tokens, 200, $origin);
+        } catch (OAuth2Error $e) {
+            return JsonResponse::errorFromOAuth2Error($response, $e);
         } catch (ValidationFailed | AuthenticationFailed $e) {
-            return JsonResponse::error(
-                $response,
-                self::INVALID_REQUEST,
-                $e->getMessage(),
-                400
-            );
+            return JsonResponse::invalidRequest($response, $e);
         }
     }
 }

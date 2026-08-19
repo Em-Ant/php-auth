@@ -5,8 +5,8 @@
   "introspection_endpoint": "<<ISSUER>>/protocol/openid-connect/token/introspect",
   "userinfo_endpoint": "<<ISSUER>>/protocol/openid-connect/userinfo",
   "end_session_endpoint": "<<ISSUER>>/protocol/openid-connect/logout",
-  "frontchannel_logout_session_supported": true,
-  "frontchannel_logout_supported": true,
+  "frontchannel_logout_session_supported": false,
+  "frontchannel_logout_supported": false,
   "jwks_uri": "<<ISSUER>>/protocol/openid-connect/certs",
   "check_session_iframe": "<<ISSUER>>/protocol/openid-connect/login-status-iframe.html",
   "grant_types_supported": [
@@ -22,8 +22,7 @@
     "code"
   ],
   "subject_types_supported": [
-    "public",
-    "pairwise"
+    "public"
   ],
   "id_token_signing_alg_values_supported": [
     "RS256"
@@ -73,17 +72,17 @@
     "normal"
   ],
   "claims_parameter_supported": false,
-  "scope_supported": <<SCOPE_SUPPORTED>>,
+  "scopes_supported": <<SCOPE_SUPPORTED>>,
   "prompt_values_supported": [
     "none"
   ],
-  "request_parameter_supported": true,
-  "request_uri_parameter_supported": true,
-  "require_request_uri_registration": true,
+  "request_parameter_supported": false,
+  "request_uri_parameter_supported": false,
+  "require_request_uri_registration": false,
   "code_challenge_methods_supported": [
     "S256"
   ],
-  "tls_client_certificate_bound_access_tokens": true,
+  "tls_client_certificate_bound_access_tokens": false,
   "revocation_endpoint": "<<ISSUER>>/protocol/openid-connect/revoke",
   "revocation_endpoint_auth_methods_supported": ["client_secret_basic"],
   "revocation_endpoint_auth_signing_alg_values_supported": ["RS256"],

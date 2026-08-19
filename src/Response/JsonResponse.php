@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace AuthServer\Response;
 
+use AuthServer\Exceptions\OAuth2Error;
 use Psr\Http\Message\ResponseInterface;
+use Throwable;
 
 class JsonResponse
 {
@@ -19,6 +21,8 @@ class JsonResponse
         );
 
         $response = $response
+            ->withHeader('Cache-Control', 'no-store')
+            ->withHeader('Pragma', 'no-cache')
             ->withHeader('Content-Type', 'application/json')
             ->withStatus($status);
 
@@ -47,6 +51,25 @@ class JsonResponse
             ],
             $status,
             $origin
+        );
+    }
+
+    public static function invalidRequest(
+        ResponseInterface $response,
+        Throwable $e
+    ): ResponseInterface {
+        return self::error($response, 'invalid_request', $e->getMessage(), 400);
+    }
+
+    public static function errorFromOAuth2Error(
+        ResponseInterface $response,
+        OAuth2Error $error
+    ): ResponseInterface {
+        return self::error(
+            $response,
+            $error->getError(),
+            $error->getMessage(),
+            $error->getStatus()
         );
     }
 }

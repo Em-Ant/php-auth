@@ -91,9 +91,9 @@ class MiscEndpointsTest extends TestCase
         ));
         $this->assertEquals(200, $res->getStatusCode());
         $body = json_decode((string) $res->getBody(), true);
-        $this->assertEquals(['openid', 'profile', 'email'], $body['scope_supported']);
-        $this->assertNotContains('acr', $body['scope_supported']);
-        $this->assertNotContains('write', $body['scope_supported']);
+        $this->assertEquals(['openid', 'profile', 'email'], $body['scopes_supported']);
+        $this->assertNotContains('acr', $body['scopes_supported']);
+        $this->assertNotContains('write', $body['scopes_supported']);
     }
 
     public function testLoginStatusIframeReturns200(): void
@@ -137,7 +137,7 @@ class MiscEndpointsTest extends TestCase
     {
         $res = $this->handle($this->createRequest(
             'GET',
-            '/realms/test/protocol/openid-connect/login-status-iframe.html/init?client_id=playground&origin=https://em-ant.gitlab.io'
+            '/realms/test/protocol/openid-connect/login-status-iframe.html/init?client_id=playground&origin=http://localhost:5173'
         ));
         $this->assertEquals(400, $res->getStatusCode());
     }

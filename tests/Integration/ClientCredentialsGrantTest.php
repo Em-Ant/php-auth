@@ -131,7 +131,7 @@ class ClientCredentialsGrantTest extends TestCase
             'client_id' => 'does-not-exist',
         ]);
 
-        self::assertSame(400, $response->getStatusCode());
+        self::assertSame(401, $response->getStatusCode());
     }
 
     public function testClientCredentialsRejectsUnsupportedGrantType(): void
@@ -161,7 +161,7 @@ class ClientCredentialsGrantTest extends TestCase
             'client_id' => 'svc',
             'client_secret' => 'wrong-secret',
         ]);
-        self::assertSame(400, $response->getStatusCode());
+        self::assertSame(401, $response->getStatusCode());
 
         // Correct secret
         [$response, $body] = $this->grantClientCredentials([

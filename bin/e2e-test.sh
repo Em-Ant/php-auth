@@ -20,7 +20,12 @@ FAIL=0
 cleanup() {
     local exit_code=$?
     admin_cleanup 2>/dev/null || true
+    rm -f "${ADMIN_OIDC_COOKIE:-}" "${ADMIN_OIDC_HEADERS:-}" 2>/dev/null || true
     [[ -n "${SERVER_PID:-}" ]] && kill "$SERVER_PID" 2>/dev/null || true
+    # Belt-and-braces: a crashed previous run can leave the PHP built-in server
+    # (or a child) holding the port even after its PID is gone, so force-release
+    # it. No-op when fuser is unavailable or the port is already free.
+    fuser -k "${PORT}/tcp" 2>/dev/null || true
     wait 2>/dev/null || true
     echo ""
     echo "=== Results: $PASS passed, $FAIL failed ==="
@@ -73,6 +78,39 @@ CSRF_TOKEN=$(echo "$AUTH_PAGE" | sed -n 's/.*name="csrf_token"\s*value="\([^"]*\
 
 [[ -n "$LOGIN_ID" ]]   && ok "Extracted login_id: ${LOGIN_ID:0:8}..."   || { fail "login_id missing"; exit 1; }
 [[ -n "$CSRF_TOKEN" ]] && ok "Extracted csrf_token: ${CSRF_TOKEN:0:8}..." || { fail "csrf_token missing"; exit 1; }
+
+# ── Step 1b: Discovery document truthfulness (F-34) ─────────────
+echo ""
+echo "=== Step 1b: OIDC discovery document (F-34) ==="
+DISCOVERY=$(curl -sS "$BASE/realms/test/.well-known/openid-configuration")
+
+echo "$DISCOVERY" | grep -q '"scopes_supported": \["openid"' \
+    && ok "scopes_supported advertised (RFC 8414)" \
+    || fail "scopes_supported missing from discovery"
+echo "$DISCOVERY" | grep -q '"scope_supported"' \
+    && fail "legacy scope_supported still advertised" \
+    || ok "no legacy scope_supported key"
+echo "$DISCOVERY" | grep -q '"request_parameter_supported": false' \
+    && ok "request_parameter_supported: false" \
+    || fail "request_parameter_supported not false"
+echo "$DISCOVERY" | grep -q '"request_uri_parameter_supported": false' \
+    && ok "request_uri_parameter_supported: false" \
+    || fail "request_uri_parameter_supported not false"
+echo "$DISCOVERY" | grep -q '"require_request_uri_registration": false' \
+    && ok "require_request_uri_registration: false" \
+    || fail "require_request_uri_registration not false"
+echo "$DISCOVERY" | grep -q '"tls_client_certificate_bound_access_tokens": false' \
+    && ok "tls_client_certificate_bound_access_tokens: false" \
+    || fail "tls_client_certificate_bound_access_tokens not false"
+echo "$DISCOVERY" | grep -q '"frontchannel_logout_supported": false' \
+    && ok "frontchannel_logout_supported: false" \
+    || fail "frontchannel_logout_supported not false"
+echo "$DISCOVERY" | grep -q '"frontchannel_logout_session_supported": false' \
+    && ok "frontchannel_logout_session_supported: false" \
+    || fail "frontchannel_logout_session_supported not false"
+echo "$DISCOVERY" | grep -q '"pairwise"' \
+    && fail "subject_types_supported advertises pairwise" \
+    || ok "subject_types_supported: public only (no pairwise)"
 
 # ── Step 2: POST login ────────────────────────────────────────
 echo ""
@@ -151,10 +189,38 @@ echo "$CROSS_REALM_CODE" | grep -q 'invalid_grant' \
 # The failed attempts must not consume the code: the real redemption in the
 # next step still succeeds.
 
+# ── Step 2c: prompt=login forces re-auth (F-32) ────────────────
+echo ""
+echo "=== Step 2c: prompt=login forces re-auth (F-32) ==="
+# AUTH_SESSION is Secure+HttpOnly, so curl's cookie jar will not re-send it
+# over plain http. Inject the session value captured from the jar directly so
+# the SSO-session branch can be exercised (same technique as an https client).
+SSO_VALUE=$(awk -F'\t' '$6 == "AUTH_SESSION" {print $7; exit}' "$COOKIE_JAR" 2>/dev/null || true)
+[[ -n "$SSO_VALUE" ]] && ok "Captured SSO session cookie value" || fail "AUTH_SESSION not found in cookie jar"
+
+SSO_URL="$BASE/realms/test/protocol/openid-connect/auth?client_id=kc_app&redirect_uri=https://www.keycloak.org/app&response_type=code&response_mode=query&scope=openid&state=e2e-sso&nonce=e2e-sso"
+
+> "$HEADER_DUMP"
+SSO_CODE=$(curl -sS -o /dev/null -w "%{http_code}" -b "AUTH_SESSION=${SSO_VALUE}" -D "$HEADER_DUMP" "$SSO_URL")
+[[ "$SSO_CODE" = "302" ]] && ok "Valid SSO session reused without prompt → 302" || fail "SSO reuse expected 302, got $SSO_CODE"
+SSO_LOCATION=$(grep -i '^location:' "$HEADER_DUMP" 2>/dev/null | sed 's/.*location: //I' | tr -d '\r\n' || true)
+echo "$SSO_LOCATION" | grep -q 'code=' \
+    && ok "SSO reuse issued a code" \
+    || fail "SSO reuse did not issue a code"
+
+PL_CODE=$(curl -sS -o /dev/null -w "%{http_code}" -b "AUTH_SESSION=${SSO_VALUE}" "${SSO_URL}&prompt=login")
+[[ "$PL_CODE" = "200" ]] && ok "prompt=login with valid session returns 200" || fail "prompt=login expected 200, got $PL_CODE"
+
+PL_BODY=$(curl -sS -b "AUTH_SESSION=${SSO_VALUE}" "${SSO_URL}&prompt=login")
+echo "$PL_BODY" | grep -q 'login' \
+    && ok "prompt=login renders login form (session not reused)" \
+    || fail "prompt=login did not render login form"
+
 # ── Step 3: POST /token ───────────────────────────────────────
 echo ""
 echo "=== Step 3: POST /token ==="
-TOKEN_RESPONSE=$(curl -sS -X POST \
+> "$HEADER_DUMP"
+TOKEN_RESPONSE=$(curl -sS -D "$HEADER_DUMP" -X POST \
     -d "grant_type=authorization_code&client_id=kc_app&code=${AUTH_CODE}&redirect_uri=https://www.keycloak.org/app" \
     "$BASE/realms/test/protocol/openid-connect/token")
 
@@ -167,6 +233,16 @@ TOKEN_TYPE=$(echo "$TOKEN_RESPONSE" | sed -n 's/.*"token_type":"\([^"]*\)".*/\1/
 [[ -n "$REFRESH_TOKEN" ]] && ok "Got refresh_token" || fail "No refresh_token"
 [[ -n "$ID_TOKEN" ]]      && ok "Got id_token"      || fail "No id_token"
 [[ "$TOKEN_TYPE" = "Bearer" ]] && ok "token_type is Bearer" || fail "token_type: $TOKEN_TYPE"
+
+# ── Step 3b: no-store on token responses (F-28) ────────────────
+echo ""
+echo "=== Step 3b: token response cache headers (F-28) ==="
+grep -qi '^Cache-Control: *no-store' "$HEADER_DUMP" \
+    && ok "Token response Cache-Control: no-store" \
+    || fail "Token response missing Cache-Control: no-store"
+grep -qi '^Pragma: *no-cache' "$HEADER_DUMP" \
+    && ok "Token response Pragma: no-cache" \
+    || fail "Token response missing Pragma: no-cache"
 
 # ── Step 4: Introspect active tokens ─────────────────────────
 echo ""
@@ -210,6 +286,84 @@ INTRO_GARBAGE=$(curl -sS -X POST \
     "$BASE/realms/test/protocol/openid-connect/token/introspect")
 
 echo "$INTRO_GARBAGE" | grep -q '"active":false' && ok "Garbage token is not active" || fail "Garbage token should not be active"
+
+# ── Step 6b: RFC 6749 error surface (F-27/F-29) ────────────────
+echo ""
+echo "=== Step 6b: RFC 6749 error surface (F-27/F-29) ==="
+
+# Unknown client on the token endpoint -> 401 invalid_client
+BAD_CLIENT_CODE=$(curl -sS -o /dev/null -w "%{http_code}" -X POST \
+    -d "grant_type=refresh_token&client_id=nonexistent&refresh_token=${REFRESH_TOKEN}" \
+    "$BASE/realms/test/protocol/openid-connect/token")
+[[ "$BAD_CLIENT_CODE" = "401" ]] && ok "Token endpoint unknown client returns 401" || { fail "Token unknown client expected 401, got $BAD_CLIENT_CODE"; exit 1; }
+
+BAD_CLIENT_BODY=$(curl -sS -X POST \
+    -d "grant_type=refresh_token&client_id=nonexistent&refresh_token=${REFRESH_TOKEN}" \
+    "$BASE/realms/test/protocol/openid-connect/token")
+echo "$BAD_CLIENT_BODY" | grep -q '"error":"invalid_client"' \
+    && ok "Token endpoint returns invalid_client" \
+    || fail "Token endpoint did not return invalid_client"
+
+# Unsupported grant type -> 400 unsupported_grant_type
+BAD_GRANT_CODE=$(curl -sS -X POST \
+    -d "grant_type=implicit&client_id=kc_app" \
+    "$BASE/realms/test/protocol/openid-connect/token")
+echo "$BAD_GRANT_CODE" | grep -q '"error":"unsupported_grant_type"' \
+    && ok "Unsupported grant type rejected (F-27)" \
+    || fail "Unsupported grant type not rejected"
+
+# Unsupported response_type on the auth endpoint -> 400 unsupported_response_type (F-29)
+BAD_RESPONSE_TYPE=$(curl -sS -o /dev/null -w "%{http_code}" -X GET \
+    "$BASE/realms/test/protocol/openid-connect/auth?client_id=kc_app&redirect_uri=https://www.keycloak.org/app&response_type=token&scope=openid")
+[[ "$BAD_RESPONSE_TYPE" = "400" ]] && ok "response_type=token rejected (F-29)" || { fail "response_type=token expected 400, got $BAD_RESPONSE_TYPE"; exit 1; }
+
+BAD_RESPONSE_BODY=$(curl -sS -X GET \
+    "$BASE/realms/test/protocol/openid-connect/auth?client_id=kc_app&redirect_uri=https://www.keycloak.org/app&response_type=token&scope=openid")
+echo "$BAD_RESPONSE_BODY" | grep -q '"error":"unsupported_response_type"' \
+    && ok "Auth endpoint returns unsupported_response_type" \
+    || fail "Auth endpoint did not return unsupported_response_type"
+
+# ── Step 6c: nonce/state/response_mode optional (F-31) ─────────
+echo ""
+echo "=== Step 6c: code flow without nonce/state/response_mode (F-31) ==="
+COMPAT_COOKIE="$E2E_LOG_DIR/compat-cookies.txt"
+COMPAT_URL="$BASE/realms/test/protocol/openid-connect/auth?client_id=local&redirect_uri=http://localhost:5173&response_type=code&scope=openid"
+
+AUTH_NO_OPT=$(curl -sS -c "$COMPAT_COOKIE" "$COMPAT_URL")
+echo "$AUTH_NO_OPT" | grep -q 'login' \
+    && ok "Auth without nonce/state/response_mode renders login form" \
+    || fail "Auth without optional params did not render login form"
+
+NO_OPT_LOGIN_ID=$(echo "$AUTH_NO_OPT" | sed -n 's/.*action="[^"]*?q=\([^"]*\)".*/\1/p')
+NO_OPT_CSRF=$(echo "$AUTH_NO_OPT" | sed -n 's/.*name="csrf_token"\s*value="\([^"]*\)".*/\1/p')
+[[ -n "$NO_OPT_LOGIN_ID" && -n "$NO_OPT_CSRF" ]] \
+    && ok "Extracted login_id + csrf_token for optional-params flow" \
+    || { fail "login_id/csrf_token missing for F-31 flow"; rm -f "$COMPAT_COOKIE"; exit 1; }
+
+> "$HEADER_DUMP"
+NO_OPT_CODE=$(curl -sS -o /dev/null -w "%{http_code}" -c "$COMPAT_COOKIE" -b "$COMPAT_COOKIE" -D "$HEADER_DUMP" -X POST \
+    -d "email=test@example.com&password=tst&csrf_token=${NO_OPT_CSRF}" \
+    "$BASE/realms/test/protocol/openid-connect/login-actions/authenticate?q=${NO_OPT_LOGIN_ID}")
+[[ "$NO_OPT_CODE" = "302" ]] && ok "Login without optional params returned 302" || { fail "F-31 login expected 302, got $NO_OPT_CODE"; rm -f "$COMPAT_COOKIE"; exit 1; }
+
+NO_OPT_LOCATION=$(grep -i '^location:' "$HEADER_DUMP" 2>/dev/null | sed 's/.*location: //I' | tr -d '\r\n' || true)
+echo "$NO_OPT_LOCATION" | grep -q 'code=' \
+    && ok "Code issued with defaulted state/nonce/response_mode" \
+    || fail "No code in F-31 redirect"
+rm -f "$COMPAT_COOKIE"
+
+# ── Step 6d: exact redirect_uri matching (F-33) ────────────────
+echo ""
+echo "=== Step 6d: exact redirect_uri matching (F-33) ==="
+SUB_PATH_CODE=$(curl -sS -o /dev/null -w "%{http_code}" \
+    "$BASE/realms/test/protocol/openid-connect/auth?client_id=kc_app&redirect_uri=https://www.keycloak.org/appx&response_type=code&scope=openid")
+[[ "$SUB_PATH_CODE" = "400" ]] && ok "Sub-path redirect_uri rejected (F-33)" || fail "Sub-path redirect_uri expected 400, got $SUB_PATH_CODE"
+
+SUB_PATH_BODY=$(curl -sS \
+    "$BASE/realms/test/protocol/openid-connect/auth?client_id=kc_app&redirect_uri=https://www.keycloak.org/appx&response_type=code&scope=openid")
+echo "$SUB_PATH_BODY" | grep -q '"error":"invalid_request"' \
+    && ok "Sub-path redirect rejected with invalid_request" \
+    || fail "Sub-path redirect error not invalid_request"
 
 # ── Step 7: Refresh token ─────────────────────────────────────
 echo ""
@@ -266,6 +420,14 @@ REVOKE_RESPONSE=$(curl -sS -o /dev/null -w "%{http_code}" -X POST \
     "$BASE/realms/test/protocol/openid-connect/revoke")
 
 [[ "$REVOKE_RESPONSE" = "200" ]] && ok "Revoke returned 200" || { fail "Revoke expected 200, got $REVOKE_RESPONSE"; exit 1; }
+
+# Revoke with unknown client must 401 (RFC 7009 §2.2)
+REVOKE_BAD_CLIENT=$(curl -sS -o /dev/null -w "%{http_code}" -X POST \
+    -u "nonexistent-client:" \
+    -d "token=${NEW_REFRESH}" \
+    "$BASE/realms/test/protocol/openid-connect/revoke")
+
+[[ "$REVOKE_BAD_CLIENT" = "401" ]] && ok "Revoke with unknown client returned 401" || { fail "Revoke with unknown client expected 401, got $REVOKE_BAD_CLIENT"; exit 1; }
 
 # Try to use the revoked refresh token
 USED_REFRESH=$(curl -sS -X POST \
@@ -564,7 +726,6 @@ BAD_REALM_USER=$(curl -sS -o /dev/null -w "%{http_code}" -X POST -H "$ADMIN_HDR"
 
 ADMIN_OIDC_COOKIE=$(mktemp)
 ADMIN_OIDC_HEADERS=$(mktemp)
-trap 'rm -f "$ADMIN_OIDC_COOKIE" "$ADMIN_OIDC_HEADERS"' EXIT
 
 ADMIN_REALM_NAME="e2e-admin-realm"
 ADMIN_CLIENT_NAME="e2e-admin-client"

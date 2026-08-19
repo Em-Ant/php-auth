@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AuthServer\Services;
 
+use AuthServer\Exceptions\AuthenticationFailed;
 use AuthServer\Interfaces\LoginRepository as ILoginRepo;
 use AuthServer\Interfaces\OfflineSessionRepository as IOfflineSessionRepo;
 use AuthServer\Interfaces\SessionRepository as ISessionRepo;
@@ -52,7 +53,7 @@ class TokenRevocationService
 
         $client = $this->clientAuthenticator->authenticate($clientId, $params);
         if ($client === null) {
-            return;
+            throw new AuthenticationFailed('invalid client');
         }
 
         // Refresh token path (default when no hint, or hint is refresh_token)

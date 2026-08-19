@@ -20,11 +20,11 @@ class InputValidatorTest extends TestCase
         $this->expectNotToPerformAssertions();
     }
 
-    public function testValidateRedirectUriSubPathMatch(): void
+    public function testValidateRedirectUriSubPathMatchThrows(): void
     {
         $client = new Client('c-1', 'app', 'r-1', null, 'https://example.com', false, '2025-01-01 00:00:00');
+        $this->expectException(ValidationFailed::class);
         InputValidator::validateRedirectUri($client, 'https://example.com/callback');
-        $this->expectNotToPerformAssertions();
     }
 
     public function testValidateRedirectUriMismatchThrows(): void
@@ -73,6 +73,29 @@ class InputValidatorTest extends TestCase
         ];
         $this->expectException(ValidationFailed::class);
         InputValidator::validateQueryParams($query);
+    }
+
+    public function testValidateQueryParamsRejectsNonCodeResponseType(): void
+    {
+        $query = [
+            'scope' => 'openid', 'client_id' => 'app',
+            'response_mode' => 'query', 'redirect_uri' => 'https://example.com',
+            'state' => 'st', 'nonce' => 'nc',
+            'response_type' => 'token',
+        ];
+        $this->expectException(ValidationFailed::class);
+        $this->expectExceptionMessage('unsupported response_type');
+        InputValidator::validateQueryParams($query);
+    }
+
+    public function testValidateQueryParamsAllowsOptionalNonceStateResponseMode(): void
+    {
+        $query = [
+            'scope' => 'openid', 'client_id' => 'app', 'response_type' => 'code',
+            'redirect_uri' => 'https://example.com',
+        ];
+        InputValidator::validateQueryParams($query);
+        $this->expectNotToPerformAssertions();
     }
 
     public function testValidateQueryParamsCodeChallengeMethod(): void

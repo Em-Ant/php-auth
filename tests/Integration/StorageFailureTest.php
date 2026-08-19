@@ -33,7 +33,7 @@ class StorageFailureTest extends TestCase
             'grant_type' => 'authorization_code',
             'code' => 'any-code',
             'client_id' => 'playground',
-            'redirect_uri' => 'https://em-ant.gitlab.io/react-playground',
+            'redirect_uri' => 'http://localhost:5173/react-playground/',
         ]));
         $request->getBody()->rewind();
         $request = $request->withHeader('Content-Type', 'application/x-www-form-urlencoded');
@@ -55,7 +55,7 @@ class StorageFailureTest extends TestCase
             'GET',
             '/realms/web/protocol/openid-connect/auth?' . http_build_query([
                 'client_id' => 'playground',
-                'redirect_uri' => 'https://em-ant.gitlab.io/react-playground',
+                'redirect_uri' => 'http://localhost:5173/react-playground/',
                 'response_type' => 'code',
                 'response_mode' => 'query',
                 'scope' => 'openid',

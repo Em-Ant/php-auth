@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AuthServer\Controllers;
 
 use AuthServer\Exceptions\AuthenticationFailed;
+use AuthServer\Exceptions\OAuth2Error;
 use AuthServer\Exceptions\StorageFailed;
 use AuthServer\Exceptions\ValidationFailed;
 use AuthServer\Interfaces\SessionCookieHandler;
@@ -27,8 +28,6 @@ class AuthorizationController
     private SessionCookieHandler $sessionCookie;
     private ViewRenderer $view;
     private LoggerInterface $logger;
-
-    public const INVALID_REQUEST = 'Invalid request';
 
     public function __construct(
         AuthenticationOrchestrator $service,
@@ -65,7 +64,8 @@ class AuthorizationController
                 $scope
             );
 
-            if ($current_session_id) {
+            $session = null;
+            if ($current_session_id && $prompt !== 'login') {
                 $session = $this->sessionOrchestrator->ensureValidSession(
                     $current_session_id,
                     $realm->getSessionExpiresIn(),
@@ -73,7 +73,7 @@ class AuthorizationController
                 );
             }
 
-            if (isset($session)) {
+            if ($session !== null) {
                 $login = $this->auth_service->createAuthorizedLogin(
                     $session,
                     $realm,
@@ -112,13 +112,10 @@ class AuthorizationController
                 'password' => '',
                 'error' => false,
             ]);
+        } catch (OAuth2Error $e) {
+            return JsonResponse::errorFromOAuth2Error($response, $e);
         } catch (ValidationFailed | AuthenticationFailed $e) {
-            return JsonResponse::error(
-                $response,
-                self::INVALID_REQUEST,
-                $e->getMessage(),
-                400
-            );
+            return JsonResponse::invalidRequest($response, $e);
         } catch (StorageFailed $e) {
             return $this->redirectStorageFailure($response, $realm, $e);
         }
@@ -143,7 +140,7 @@ class AuthorizationController
         } catch (ValidationFailed $e) {
             return JsonResponse::error(
                 $response,
-                'Invalid request',
+                'invalid_request',
                 'CSRF validation failed',
                 400
             );
@@ -237,10 +234,10 @@ class AuthorizationController
 
         $redirect_uri = new RedirectUri(
             $query['redirect_uri'],
-            $query['response_mode'],
+            $query['response_mode'] ?? 'query',
             [
                 'error' => 'login_required',
-                'state' => $query['state'],
+                'state' => $query['state'] ?? '',
             ]
         );
 

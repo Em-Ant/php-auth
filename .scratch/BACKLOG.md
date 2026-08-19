@@ -16,14 +16,7 @@ Single source of truth for what to work on next. **Local by design** (3 machines
 
 | ID | Type | Priority | Size | Blocked by | Why-now | Doc |
 |----|------|----------|------|------------|---------|-----|
-| F-27 | fix | P1 | M | | RFC 6749 §5.2 error codes/statuses (D-01) | `oidc-compliance/PRD.md` |
-| F-28 | fix | P1 | S | | `Cache-Control: no-store` + `Pragma` on token responses (D-02) | `oidc-compliance/PRD.md` |
-| F-29 | fix | P1 | S | | reject `response_type != code` (D-03) | `oidc-compliance/PRD.md` |
-| F-30 | fix | P1 | S | | revocation 401 on failed client auth (D-07) | `oidc-compliance/PRD.md` |
-| F-31 | fix | P1 | M | | nonce/state/response_mode optional for code flow (D-04) | `oidc-compliance/PRD.md` |
-| F-32 | fix | P1 | S | | `prompt=login` forces re-auth; don't silently ignore consent (D-05) | `oidc-compliance/PRD.md` |
-| F-33 | fix | P1 | M | | exact `redirect_uri` matching (D-06) | `oidc-compliance/PRD.md` |
-| F-34 | fix | P1 | S | | truthful discovery: `scopes_supported` + stop over-advertising (D-08/D-09) | `oidc-compliance/PRD.md` |
+| F-44 | fix | P0 | L | | **Pre-release blocker**: F-33 exact `redirect_uri` match broke existing apps (the old `str_starts_with` sub-path match was intentional). Must add explicit Keycloak-style `*` wildcard opt-in (verified semantics in keycloak-parity Q3: per-path registration, any depth, query allowed, zero-length after slash, siblings rejected) in `validateRedirectUri` + `validateClientOrigin`, migrate existing client URIs in `db/data.db`/seed to wildcard form, and update tests. | `keycloak-parity/PRD.md`, `oidc-compliance/PRD.md` (F-33) |
 | F-35 | fix | P1 | S | | model `jsonSerialize` uses `get_object_vars` → leaks password hash on direct serialization (whitelist maps) | `clean-code/issues/09-…` |
 | R-03 | refactor | P1 | L | | AuthOrchestrator: 9 deps, 10 jobs | `clean-code/issues/03-…` |
 | F-04 | feature | P1 | M | | client roles namespace (`resource_access.<client>`) | `scopes/` |
@@ -42,6 +35,12 @@ Single source of truth for what to work on next. **Local by design** (3 machines
 | F-13 | feature | P2 | S | | per-realm login page config | `ROADMAP → Login Form` |
 | F-19 | feature | P2 | S | | blacklist purge + expired-session cleanup | `token-lifecycle/issues/05-…` |
 | F-20 | feature | P2 | M | | merge the two E2E scripts — deferred (both scripts still cover the same flow) | `ci-e2e/issues/01-…` |
+| F-37 | fix | P2 | S | | JWKS `x5t`/`x5t#sha256` = b64url of binary thumbprint (RFC 7517 §4.7; breaks JWKS verification) — verified live vs Keycloak | `keycloak-parity/PRD.md` |
+| F-38 | fix | P2 | M | | check-session iframe mechanism: salted `KEYCLOAK_SESSION` cookie + client-side SHA-256 (premise verified live) | `keycloak-parity/PRD.md` |
+| F-39 | fix | P2 | S | | sliding idle session timeout — idle leg on `updated_at` | `keycloak-parity/PRD.md` |
+| F-40 | fix | P2 | S | | `acr` default `"1"` for password login (verified live) | `keycloak-parity/PRD.md` |
+| F-41 | fix | P2 | M | | userinfo claims per scope (`profile`/`email`) | `keycloak-parity/PRD.md` |
+| F-42 | fix | P2 | S | | drop `nonce` from access/refresh tokens (ID token only) | `keycloak-parity/PRD.md` |
 | R-07 | refactor | P3 | L | | duplicate Slim wiring `index.php`/`TestAppFactory` | `clean-code/issues/01-…` |
 | R-08 | refactor | P3 | S | | remaining domain enums (`ResponseMode`) | `ROADMAP → PHP 8` |
 | R-09 | refactor | P3 | M | | readonly props + constructor promotion | `ROADMAP → PHP 8` |
@@ -52,6 +51,7 @@ Single source of truth for what to work on next. **Local by design** (3 machines
 | F-16 | feature | P3 | L | | 2FA/TOTP | `ROADMAP → Login Methods` |
 | F-17 | feature | P3 | L | | Google-style modal widget (SAM iframe) | `ROADMAP → Login Form` |
 | F-18 | feature | P3 | S | | SMTP adapter (VPS) | `ROADMAP → Login Methods` |
+| F-43 | fix | P3 | S | | deferred batch: `login_hint`/`max_age`/`ui_locales`, `WWW-Authenticate` on 401, `X-Powered-By` removal — with a future hardening pass | `keycloak-parity/PRD.md` |
 
 **Blocked-by:** empty = pickable now; a task ID = wait for that task first.
 Conscious postponements (delayed/deferred) are flagged in Why-now, not as a

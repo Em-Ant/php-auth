@@ -332,12 +332,12 @@ class AuthenticationOrchestratorTest extends TestCase
         $this->svc->ensureValidClient('my-app', 'r-id', 'https://evil.com');
     }
 
-    public function testEnsureValidClientSubpathRedirectPasses(): void
+    public function testEnsureValidClientSubpathRedirectThrows(): void
     {
         $this->clientRepo->method('findByName')->with('my-app')->willReturn($this->client);
+        $this->expectException(ValidationFailed::class);
 
-        $result = $this->svc->ensureValidClient('my-app', 'r-id', 'https://example.com/logout');
-        self::assertSame($this->client, $result);
+        $this->svc->ensureValidClient('my-app', 'r-id', 'https://example.com/logout');
     }
 
     // ── validateLogoutRedirectUri ─────────────────────────────
@@ -351,13 +351,13 @@ class AuthenticationOrchestratorTest extends TestCase
         self::assertSame('https://example.com', $result);
     }
 
-    public function testValidateLogoutRedirectUriAcceptsSubpathTarget(): void
+    public function testValidateLogoutRedirectUriRejectsSubpathTarget(): void
     {
         $this->tokenValidator->method('decodeClaimsOnly')->willReturn(['azp' => 'my-app']);
         $this->clientRepo->method('findByName')->with('my-app')->willReturn($this->client);
 
         $result = $this->svc->validateLogoutRedirectUri('id-token', 'https://example.com/logged-out');
-        self::assertSame('https://example.com/logged-out', $result);
+        self::assertNull($result);
     }
 
     public function testValidateLogoutRedirectUriFallsBackToAud(): void

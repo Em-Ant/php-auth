@@ -294,14 +294,14 @@ class FullFlowTest extends TestCase
 
     // ── Logout redirect validation ────────────────────────────
 
-    public function testLogoutAcceptsSubpathOfRegisteredUri(): void
+    public function testLogoutRejectsSubpathOfRegisteredUri(): void
     {
         $tokens = $this->completeLogin('logout-sub-st', 'logout-sub-nc');
 
         $response = $this->requestLogout($tokens['id_token'], 'http://localhost:5173/logged-out');
 
-        self::assertSame(302, $response->getStatusCode());
-        self::assertSame('http://localhost:5173/logged-out', $response->getHeaderLine('Location'));
+        self::assertSame(204, $response->getStatusCode());
+        self::assertSame('', $response->getHeaderLine('Location'));
     }
 
     public function testLogoutRejectsUnregisteredUri(): void
@@ -366,6 +366,21 @@ class FullFlowTest extends TestCase
         self::assertStringContainsString('state=pn-ses-2-st', $location);
     }
 
+    // ── prompt=login forces re-auth (F-32) ─────────────────────
+
+    public function testPromptLoginWithValidSessionShowsLoginForm(): void
+    {
+        $this->resetSessionCookie();
+
+        [, $loginResponse] = $this->getFormAndLogin('pl-st', 'pl-nc', 'tst');
+        self::assertSame(302, $loginResponse->getStatusCode());
+
+        $response = $this->getAuthForm('pl-2-st', 'pl-2-nc', ['prompt' => 'login']);
+
+        self::assertSame(200, $response->getStatusCode());
+        self::assertStringContainsString('login', (string) $response->getBody());
+    }
+
     public function testPromptNoneMissingScopeReturns400(): void
     {
         $request = $this->createRequest('GET', '/realms/test/protocol/openid-connect/auth', [
@@ -398,6 +413,36 @@ class FullFlowTest extends TestCase
         $response = $this->handle($request);
         self::assertSame(400, $response->getStatusCode());
         self::assertStringContainsString('client_id', $this->decodeJson($response)['error_description']);
+    }
+
+    // ── response_type validation (F-29) ──────────────────────
+
+    public function testUnsupportedResponseTypeRejected(): void
+    {
+        $response = $this->getAuthForm('st', 'nc', ['response_type' => 'token']);
+
+        self::assertSame(400, $response->getStatusCode());
+        $error = $this->decodeJson($response);
+        self::assertSame('unsupported_response_type', $error['error']);
+    }
+
+    // ── nonce/state/response_mode optional for code flow (F-31) ─
+
+    public function testCodeFlowWithoutNonceStateResponseModeSucceeds(): void
+    {
+        $this->resetSessionCookie();
+
+        $query = ['client_id' => 'local', 'redirect_uri' => 'http://localhost:5173', 'response_type' => 'code', 'scope' => 'openid'];
+        $request = $this->createRequest('GET', '/realms/test/protocol/openid-connect/auth', $query);
+        $response = $this->handle($request);
+
+        self::assertSame(200, $response->getStatusCode());
+        self::assertStringContainsString('login', (string) $response->getBody());
+
+        $form = $this->parseLoginForm((string) $response->getBody());
+        $loginResponse = $this->login($form['loginId'], $form['csrfToken'], 'tst');
+        self::assertSame(302, $loginResponse->getStatusCode());
+        self::assertStringContainsString('code=', $loginResponse->getHeaderLine('Location'));
     }
 
     // ── PKCE flow ─────────────────────────────────────────────
@@ -437,7 +482,7 @@ class FullFlowTest extends TestCase
         $response = $this->exchangeCode($code);
         self::assertSame(400, $response->getStatusCode());
         $error = $this->decodeJson($response);
-        self::assertSame('Invalid request', $error['error']);
+        self::assertSame('invalid_grant', $error['error']);
         self::assertStringContainsString('code_verifier', $error['error_description']);
     }
 
@@ -449,7 +494,7 @@ class FullFlowTest extends TestCase
             'sso-st',
             'sso-nc',
             clientId: 'playground',
-            redirectUri: 'https://em-ant.gitlab.io/react-playground',
+            redirectUri: 'http://localhost:5173/react-playground/',
             realm: 'web',
         );
 
