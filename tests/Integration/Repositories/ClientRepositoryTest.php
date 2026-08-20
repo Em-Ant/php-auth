@@ -23,7 +23,7 @@ class ClientRepositoryTest extends RepositoryTestCase
         $client = $this->repo->findById('a540c566-dfbf-430a-9941-fb8531c022d4');
         self::assertNotNull($client);
         self::assertSame('local', $client->getName());
-        self::assertSame('http://localhost:5173', $client->getUri());
+        self::assertSame('http://localhost:5173/*', $client->getUri());
         self::assertFalse($client->requiresAuth());
     }
 

@@ -89,7 +89,7 @@ values (
     'local',
     /* plain client_id = c_id */
     '$argon2id$v=19$m=1024,t=2,p=2$YUM1NlEwLkxBS09xbGJWQw$bGDwvY/HzVl7SsOsGhgYwQkwB4QCamL/SU2EjzOtd2o',
-    'http://localhost:5173',
+    'http://localhost:5173/*',
     FALSE,
     'c03aa58c-2888-4f40-821c-4aadf5c58f6f'
   ),
@@ -107,7 +107,7 @@ values (
     'playground',
     /* plain client_id = c_id */
     '$argon2id$v=19$m=1024,t=2,p=2$YUM1NlEwLkxBS09xbGJWQw$bGDwvY/HzVl7SsOsGhgYwQkwB4QCamL/SU2EjzOtd2o',
-    'http://localhost:5173/react-playground/',
+    'http://localhost:5173/react-playground/*',
     FALSE,
     '84be68b8-7936-4422-bb4d-b741d2292a9f'
   );

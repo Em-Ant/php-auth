@@ -254,7 +254,7 @@ class AdminCrudTest extends TestCase
         $request = $this->adminRequest('POST', '/admin/clients', [
             'name' => 'local',
             'realm_id' => self::TEST_REALM,
-            'uri' => 'http://localhost:5173',
+            'uri' => 'http://localhost:5173/*',
         ]);
         $this->assertStatus(409, $request);
     }
@@ -290,7 +290,7 @@ class AdminCrudTest extends TestCase
 
         self::assertTrue($data['require_auth']);
         self::assertSame('local', $data['name']);
-        self::assertSame('http://localhost:5173', $data['uri']);
+        self::assertSame('http://localhost:5173/*', $data['uri']);
     }
 
     public function testDeleteClientWithLoginsReturns409(): void
