@@ -365,6 +365,24 @@ echo "$SUB_PATH_BODY" | grep -q '"error":"invalid_request"' \
     && ok "Sub-path redirect rejected with invalid_request" \
     || fail "Sub-path redirect error not invalid_request"
 
+# ── Step 6e: Keycloak-style `*` wildcard redirect_uri (F-44) ─
+echo ""
+echo "=== Step 6e: * wildcard redirect_uri (F-44) ==="
+# `local` is registered as `http://localhost:5173/*`: subroutes are allowed,
+# sibling hosts are not.
+WILD_SUB_CODE=$(curl -sS -o /dev/null -w "%{http_code}" \
+    "$BASE/realms/test/protocol/openid-connect/auth?client_id=local&redirect_uri=http://localhost:5173/dashboard&response_type=code&scope=openid")
+[[ "$WILD_SUB_CODE" = "200" ]] && ok "Wildcard: subroute login allowed" || fail "Wildcard subroute expected 200, got $WILD_SUB_CODE"
+
+WILD_SIB_HOST_CODE=$(curl -sS -o /dev/null -w "%{http_code}" \
+    "$BASE/realms/test/protocol/openid-connect/auth?client_id=local&redirect_uri=http://localhost:5173x/dashboard&response_type=code&scope=openid")
+[[ "$WILD_SIB_HOST_CODE" = "400" ]] && ok "Wildcard: sibling host rejected" || fail "Wildcard sibling host expected 400, got $WILD_SIB_HOST_CODE"
+
+# Path-scoped wildcard (`playground`, realm web): sibling path rejected.
+WILD_SIB_PATH_CODE=$(curl -sS -o /dev/null -w "%{http_code}" \
+    "$BASE/realms/web/protocol/openid-connect/auth?client_id=playground&redirect_uri=http://localhost:5173/react-playgroundx&response_type=code&scope=openid")
+[[ "$WILD_SIB_PATH_CODE" = "400" ]] && ok "Wildcard: sibling path rejected" || fail "Wildcard sibling path expected 400, got $WILD_SIB_PATH_CODE"
+
 # ── Step 7: Refresh token ─────────────────────────────────────
 echo ""
 echo "=== Step 7: Refresh token ==="
@@ -519,6 +537,11 @@ IFRAME_BAD_CLIENT=$(curl -sS -o /dev/null -w "%{http_code}" \
 IFRAME_BAD_ORIGIN=$(curl -sS -o /dev/null -w "%{http_code}" \
     "$BASE/realms/test/protocol/openid-connect/login-status-iframe.html/init?client_id=kc_app&origin=https://evil.com")
 [[ "$IFRAME_BAD_ORIGIN" = "400" ]] && ok "init with foreign origin rejected" || fail "init with foreign origin expected 400, got $IFRAME_BAD_ORIGIN"
+
+# Path-scoped wildcards do not affect the iframe origin allowlist (F-44).
+IFRAME_WILD_ORIGIN=$(curl -sS -o /dev/null -w "%{http_code}" \
+    "$BASE/realms/test/protocol/openid-connect/login-status-iframe.html/init?client_id=local&origin=http://localhost:5173")
+[[ "$IFRAME_WILD_ORIGIN" = "200" ]] && ok "wildcard client origin accepted by iframe init" || fail "wildcard iframe init expected 200, got $IFRAME_WILD_ORIGIN"
 
 # ── Step 13: Logout redirect validation ──────────────────────
 echo ""

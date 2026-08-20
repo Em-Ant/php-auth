@@ -86,7 +86,7 @@ validation; introspect `invalid_client` 401 + `active:false` for garbage;
 | F-30 | **Revocation 401 on failed client auth** (RFC 7009 §2.2). ✅ done (`TokenRevocationService` throws `invalid client`, `RevokeController` → 401) | Bad client → 401 `invalid_client`. |
 | F-31 | **Make `nonce`/`state`/`response_mode` optional for the code flow** (nonce still enforced when response_type is implicit/hybrid — which is rejected anyway). ✅ done (`InputValidator` + `AuthenticationOrchestrator::loginFields` defaults) | Code flow without nonce/state/response_mode succeeds; defaults apply. |
 | F-32 | **`prompt=login` forces re-auth** (session not reused); `prompt=consent` → at least a documented non-goal until the consent screen (F-10) lands. ✅ done (`AuthorizationController` gates session reuse on `prompt !== 'login'`) | SSO session + `prompt=login` → login form. |
-| F-33 | **Exact `redirect_uri` matching** (drop prefix/trailing-slash normalization; registered URI matched exactly). ✅ verified live — Keycloak uses exact match, no implicit prefix/sub-path/query; wildcards only when explicitly registered. ✅ done (`InputValidator::validateRedirectUri` exact match) | Sub-path redirect rejected; exact matches pass. |
+| F-33 | **Exact `redirect_uri` matching** (drop prefix/trailing-slash normalization; registered URI matched exactly). ✅ verified live — Keycloak uses exact match, no implicit prefix/sub-path/query; wildcards only when explicitly registered. ✅ done (`InputValidator::validateRedirectUri` exact match). ⚠️ Extended by F-44 (explicit `*` wildcard opt-in) — see implementation note below. | Sub-path redirect rejected; exact matches pass. |
 | F-34 | **Truthful discovery**: rename `scope_supported`→`scopes_supported`; set `request_parameter_supported`/`request_uri`/mTLS/front-channel/pairwise to false (or implement). ✅ done (`static/well-known.json`) | Doc matches implemented surface. |
 
 ## Non-goals / consciously deferred
@@ -144,6 +144,25 @@ All eight P1 fixes shipped together (one working session, 2026-08-19); P0
 - **Discovery (F-34):** `static/well-known.json` now truthful —
   `scopes_supported`, `subject_types_supported` only `public`, front-channel /
   request / request_uri / mTLS / pairwise all `false`.
+
+**F-44 — Keycloak-style `*` wildcard opt-in (P0, 2026-08-20):** F-33's exact
+match broke the intentional sub-path login flow, so an explicit opt-in was
+restored. `InputValidator::validateRedirectUri` now accepts a trailing `*` on
+the registered URI (semantics verified live, keycloak-parity Q3): the
+scheme/host/port must match **exactly** (the wildcard never crosses origins —
+mirrors the Keycloak 26.6.3 hostname fix), the requested path may be any depth
+under the registered prefix, query strings are allowed, zero-length-after-slash
+matches, and sibling paths/hosts are rejected. Origins are extracted strictly:
+malformed authorities (non-numeric ports like `localhost:5173x`, or userinfo)
+are rejected — parse_url silently truncates `localhost:5173x` to port 5173,
+the same parser-mismatch class as Keycloak CVE-2026-7504. **Iframe allowlist
+impact:** none — because the wildcard is path-scoped only, `validateClientOrigin`
+is unaffected (origins carry no path); locked with unit + e2e tests. Seed URIs
+migrated: `local` → `http://localhost:5173/*`, `playground` →
+`http://localhost:5173/react-playground/*`; `kc_app` stays exact (F-33
+regression anchor). `getClientUri` (token CORS fallback) now returns the
+origin, not the full URI, which would be an invalid `Access-Control-Allow-Origin`.
+Tests: 452 OK, `composer check` green.
 
 **Quality gates:** `composer test` 430 OK, `composer stan` (level 5) OK,
 `composer cs_check` (PSR12) OK, sonar-php gate (`--diff-ref=HEAD

@@ -294,11 +294,21 @@ class FullFlowTest extends TestCase
 
     // ── Logout redirect validation ────────────────────────────
 
-    public function testLogoutRejectsSubpathOfRegisteredUri(): void
+    public function testLogoutAllowsSubpathOfWildcardUri(): void
     {
         $tokens = $this->completeLogin('logout-sub-st', 'logout-sub-nc');
 
-        $response = $this->requestLogout($tokens['id_token'], 'http://localhost:5173/logged-out');
+        $response = $this->requestLogout($tokens['id_token'], 'http://localhost:5173/dashboard');
+
+        self::assertSame(302, $response->getStatusCode());
+        self::assertStringStartsWith('http://localhost:5173/dashboard', $response->getHeaderLine('Location'));
+    }
+
+    public function testLogoutRejectsSiblingHostOfRegisteredUri(): void
+    {
+        $tokens = $this->completeLogin('logout-bad-host-st', 'logout-bad-host-nc');
+
+        $response = $this->requestLogout($tokens['id_token'], 'http://localhost:5173x/logged-out');
 
         self::assertSame(204, $response->getStatusCode());
         self::assertSame('', $response->getHeaderLine('Location'));
@@ -499,5 +509,57 @@ class FullFlowTest extends TestCase
         );
 
         self::assertStringContainsString('login', (string) $response->getBody());
+    }
+
+    // ── Keycloak-style `*` wildcard redirect_uri (F-44) ─────────
+
+    public function testLoginFromSubrouteAllowedWithWildcard(): void
+    {
+        $this->resetSessionCookie();
+
+        [$formResponse, $loginResponse] = $this->getFormAndLogin('wild-st', 'wild-nc', 'tst', [
+            'redirect_uri' => 'http://localhost:5173/dashboard',
+        ]);
+        self::assertSame(200, $formResponse->getStatusCode());
+        self::assertSame(302, $loginResponse->getStatusCode());
+        self::assertStringStartsWith('http://localhost:5173/dashboard?code=', $loginResponse->getHeaderLine('Location'));
+
+        $code = $this->extractCode($loginResponse->getHeaderLine('Location'));
+        $tokenResponse = $this->exchangeCode($code, ['redirect_uri' => 'http://localhost:5173/dashboard']);
+        self::assertSame(200, $tokenResponse->getStatusCode());
+    }
+
+    public function testLoginFromSiblingHostRejectedWithWildcard(): void
+    {
+        $response = $this->getAuthForm('wild-bad-st', 'wild-bad-nc', redirectUri: 'http://localhost:5173x/dashboard');
+
+        self::assertSame(400, $response->getStatusCode());
+    }
+
+    public function testLoginFromSubrouteAllowedWithPathWildcard(): void
+    {
+        $response = $this->getAuthForm(
+            'wild-pw-st',
+            'wild-pw-nc',
+            clientId: 'playground',
+            redirectUri: 'http://localhost:5173/react-playground/dashboard',
+            realm: 'web',
+        );
+
+        self::assertSame(200, $response->getStatusCode());
+        self::assertStringContainsString('login', (string) $response->getBody());
+    }
+
+    public function testLoginFromSiblingPathRejectedWithPathWildcard(): void
+    {
+        $response = $this->getAuthForm(
+            'wild-sib-st',
+            'wild-sib-nc',
+            clientId: 'playground',
+            redirectUri: 'http://localhost:5173/react-playgroundx',
+            realm: 'web',
+        );
+
+        self::assertSame(400, $response->getStatusCode());
     }
 }

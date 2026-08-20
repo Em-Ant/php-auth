@@ -16,7 +16,6 @@ Single source of truth for what to work on next. **Local by design** (3 machines
 
 | ID | Type | Priority | Size | Blocked by | Why-now | Doc |
 |----|------|----------|------|------------|---------|-----|
-| F-44 | fix | P0 | L | | **Pre-release blocker**: F-33 exact `redirect_uri` match broke existing apps (the old `str_starts_with` sub-path match was intentional). Must add explicit Keycloak-style `*` wildcard opt-in (verified semantics in keycloak-parity Q3: per-path registration, any depth, query allowed, zero-length after slash, siblings rejected) in `validateRedirectUri` + `validateClientOrigin`, migrate existing client URIs in `db/data.db`/seed to wildcard form, and update tests. | `keycloak-parity/PRD.md`, `oidc-compliance/PRD.md` (F-33) |
 | F-35 | fix | P1 | S | | model `jsonSerialize` uses `get_object_vars` → leaks password hash on direct serialization (whitelist maps) | `clean-code/issues/09-…` |
 | R-03 | refactor | P1 | L | | AuthOrchestrator: 9 deps, 10 jobs | `clean-code/issues/03-…` |
 | F-04 | feature | P1 | M | | client roles namespace (`resource_access.<client>`) | `scopes/` |

@@ -267,7 +267,15 @@ class AuthenticationOrchestrator
             $this->logger->error("client $client_id not found");
             throw new ValidationFailed('invalid client_id');
         }
-        return $client->getUri();
+
+        // ACAO must be a serialized origin (scheme://host[:port]); for a
+        // wildcard-registered client the full URI would be invalid CORS.
+        $origin = InputValidator::originOf($client->getUri());
+        if ($origin === null) {
+            throw new ValidationFailed('invalid client uri');
+        }
+
+        return $origin;
     }
 
     /**

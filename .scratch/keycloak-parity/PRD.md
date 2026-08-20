@@ -102,6 +102,9 @@ clients + password-grant and code-flow tokens, then removed after probing).
    allow query strings, and match zero-length after the slash; a sibling path
    (`/otherx`) is rejected. → Ours already matches exactly (OIDC F-33);
    wildcard support is optional and only for explicitly-registered patterns.
+   ✅ **F-44 implemented** (2026-08-20): trailing-`*` opt-in with strict
+   origin binding (no cross-origin bleed, mirrors the 26.6.3 hostname fix);
+   seed migrated to wildcard form; see `oidc-compliance/PRD.md` note.
 4. **`session_state` (F-38)** — ✅ verified (premise corrected): see F-38 row
    above. `session_state` is a raw session-id UUID; the salted SHA-256 is the
    `KEYCLOAK_SESSION` cookie, recomputed by the iframe.

@@ -34,6 +34,106 @@ class InputValidatorTest extends TestCase
         InputValidator::validateRedirectUri($client, 'https://other.com');
     }
 
+    public function testValidateRedirectUriExactMatchIgnoresQuery(): void
+    {
+        $client = new Client('c-1', 'app', 'r-1', null, 'https://example.com', false, '2025-01-01 00:00:00');
+        $this->expectException(ValidationFailed::class);
+        InputValidator::validateRedirectUri($client, 'https://example.com?x=1');
+    }
+
+    // ── validateRedirectUri — Keycloak-style `*` wildcard (F-44) ─
+
+    public function testValidateRedirectUriRootWildcardAcceptsBareOrigin(): void
+    {
+        $client = new Client('c-1', 'app', 'r-1', null, 'http://localhost:5173/*', false, '2025-01-01 00:00:00');
+        InputValidator::validateRedirectUri($client, 'http://localhost:5173');
+        $this->expectNotToPerformAssertions();
+    }
+
+    public function testValidateRedirectUriRootWildcardAcceptsSubroute(): void
+    {
+        $client = new Client('c-1', 'app', 'r-1', null, 'http://localhost:5173/*', false, '2025-01-01 00:00:00');
+        InputValidator::validateRedirectUri($client, 'http://localhost:5173/dashboard');
+        $this->expectNotToPerformAssertions();
+    }
+
+    public function testValidateRedirectUriRootWildcardAcceptsDeepPathWithQuery(): void
+    {
+        $client = new Client('c-1', 'app', 'r-1', null, 'http://localhost:5173/*', false, '2025-01-01 00:00:00');
+        InputValidator::validateRedirectUri($client, 'http://localhost:5173/a/b/c?foo=1');
+        $this->expectNotToPerformAssertions();
+    }
+
+    public function testValidateRedirectUriRootWildcardRejectsSiblingHost(): void
+    {
+        $client = new Client('c-1', 'app', 'r-1', null, 'http://localhost:5173/*', false, '2025-01-01 00:00:00');
+        $this->expectException(ValidationFailed::class);
+        InputValidator::validateRedirectUri($client, 'http://localhost:5173x/dashboard');
+    }
+
+    public function testValidateRedirectUriRootWildcardRejectsOtherScheme(): void
+    {
+        $client = new Client('c-1', 'app', 'r-1', null, 'http://localhost:5173/*', false, '2025-01-01 00:00:00');
+        $this->expectException(ValidationFailed::class);
+        InputValidator::validateRedirectUri($client, 'https://localhost:5173/dashboard');
+    }
+
+    public function testValidateRedirectUriRootWildcardRejectsOtherPort(): void
+    {
+        $client = new Client('c-1', 'app', 'r-1', null, 'http://localhost:5173/*', false, '2025-01-01 00:00:00');
+        $this->expectException(ValidationFailed::class);
+        InputValidator::validateRedirectUri($client, 'http://localhost:5174/dashboard');
+    }
+
+    public function testValidateRedirectUriRootWildcardRejectsUserinfo(): void
+    {
+        $client = new Client('c-1', 'app', 'r-1', null, 'http://localhost:5173/*', false, '2025-01-01 00:00:00');
+        $this->expectException(ValidationFailed::class);
+        InputValidator::validateRedirectUri($client, 'http://user:pass@localhost:5173/dashboard');
+    }
+
+    public function testValidateRedirectUriPathWildcardAcceptsSubroute(): void
+    {
+        $client = new Client('c-1', 'app', 'r-1', null, 'http://localhost:5173/react-playground/*', false, '2025-01-01 00:00:00');
+        InputValidator::validateRedirectUri($client, 'http://localhost:5173/react-playground/dashboard');
+        $this->expectNotToPerformAssertions();
+    }
+
+    public function testValidateRedirectUriPathWildcardAcceptsZeroLengthAfterSlash(): void
+    {
+        $client = new Client('c-1', 'app', 'r-1', null, 'http://localhost:5173/react-playground/*', false, '2025-01-01 00:00:00');
+        InputValidator::validateRedirectUri($client, 'http://localhost:5173/react-playground/');
+        $this->expectNotToPerformAssertions();
+    }
+
+    public function testValidateRedirectUriPathWildcardAcceptsAnyDepth(): void
+    {
+        $client = new Client('c-1', 'app', 'r-1', null, 'http://localhost:5173/react-playground/*', false, '2025-01-01 00:00:00');
+        InputValidator::validateRedirectUri($client, 'http://localhost:5173/react-playground/a/b/c');
+        $this->expectNotToPerformAssertions();
+    }
+
+    public function testValidateRedirectUriPathWildcardRejectsSiblingPath(): void
+    {
+        $client = new Client('c-1', 'app', 'r-1', null, 'http://localhost:5173/react-playground/*', false, '2025-01-01 00:00:00');
+        $this->expectException(ValidationFailed::class);
+        InputValidator::validateRedirectUri($client, 'http://localhost:5173/react-playgroundx');
+    }
+
+    public function testValidateRedirectUriPathWildcardRejectsPathWithoutSlash(): void
+    {
+        $client = new Client('c-1', 'app', 'r-1', null, 'http://localhost:5173/react-playground/*', false, '2025-01-01 00:00:00');
+        $this->expectException(ValidationFailed::class);
+        InputValidator::validateRedirectUri($client, 'http://localhost:5173/react-playground');
+    }
+
+    public function testValidateRedirectUriPathWildcardRejectsBareOrigin(): void
+    {
+        $client = new Client('c-1', 'app', 'r-1', null, 'http://localhost:5173/react-playground/*', false, '2025-01-01 00:00:00');
+        $this->expectException(ValidationFailed::class);
+        InputValidator::validateRedirectUri($client, 'http://localhost:5173');
+    }
+
     // ── validateQueryParams ────────────────────────────────────
 
     public function testValidateQueryParamsValid(): void
@@ -223,6 +323,29 @@ class InputValidatorTest extends TestCase
         $client = new Client('c-1', 'app', 'r-1', null, 'https://example.com', false, '2025-01-01 00:00:00');
         $this->expectException(ValidationFailed::class);
         InputValidator::validateClientOrigin($client, 'https://example.com/app');
+    }
+
+    // ── validateClientOrigin — path wildcards do not affect origins (F-44) ─
+
+    public function testValidateClientOriginMatchesOriginOfWildcardUri(): void
+    {
+        $client = new Client('c-1', 'app', 'r-1', null, 'http://localhost:5173/*', false, '2025-01-01 00:00:00');
+        InputValidator::validateClientOrigin($client, 'http://localhost:5173');
+        $this->expectNotToPerformAssertions();
+    }
+
+    public function testValidateClientOriginMatchesOriginOfPathWildcardUri(): void
+    {
+        $client = new Client('c-1', 'app', 'r-1', null, 'http://localhost:5173/react-playground/*', false, '2025-01-01 00:00:00');
+        InputValidator::validateClientOrigin($client, 'http://localhost:5173');
+        $this->expectNotToPerformAssertions();
+    }
+
+    public function testValidateClientOriginRejectsSiblingHostOfWildcardUri(): void
+    {
+        $client = new Client('c-1', 'app', 'r-1', null, 'http://localhost:5173/*', false, '2025-01-01 00:00:00');
+        $this->expectException(ValidationFailed::class);
+        InputValidator::validateClientOrigin($client, 'http://localhost:5173x');
     }
 
     // ── validateCodeChallenge ──────────────────────────────────
