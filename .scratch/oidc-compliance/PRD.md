@@ -80,14 +80,26 @@ validation; introspect `invalid_client` 401 + `active:false` for garbage;
 
 | Ref | Fix | Acceptance |
 |-----|-----|-----------|
-| F-27 | **Compliant error codes + statuses.** Token/auth/logout/introspect return RFC 6749 §5.2 codes (`invalid_request`, `invalid_client`→401, `invalid_grant`, `unsupported_grant_type`, `invalid_scope`). ✅ done (`OAuth2Error`, e2e Step 6b) | e2e + curl assert lowercase codes and 401 for bad client. |
-| F-28 | **`Cache-Control: no-store` + `Pragma: no-cache` on every response containing tokens/credentials** (token, introspect, revoke, userinfo). ✅ done (`JsonResponse::create`) | Headers present; curl-asserted. |
-| F-29 | **Reject `response_type != code`** with `unsupported_response_type` (redirect to validated redirect_uri when possible, else error page). ✅ done (`InputValidator`, e2e Step 6b) | `response_type=token`/hybrid/`none` rejected. |
-| F-30 | **Revocation 401 on failed client auth** (RFC 7009 §2.2). ✅ done (`TokenRevocationService` throws `invalid client`, `RevokeController` → 401) | Bad client → 401 `invalid_client`. |
-| F-31 | **Make `nonce`/`state`/`response_mode` optional for the code flow** (nonce still enforced when response_type is implicit/hybrid — which is rejected anyway). ✅ done (`InputValidator` + `AuthenticationOrchestrator::loginFields` defaults) | Code flow without nonce/state/response_mode succeeds; defaults apply. |
-| F-32 | **`prompt=login` forces re-auth** (session not reused); `prompt=consent` → at least a documented non-goal until the consent screen (F-10) lands. ✅ done (`AuthorizationController` gates session reuse on `prompt !== 'login'`) | SSO session + `prompt=login` → login form. |
-| F-33 | **Exact `redirect_uri` matching** (drop prefix/trailing-slash normalization; registered URI matched exactly). ✅ verified live — Keycloak uses exact match, no implicit prefix/sub-path/query; wildcards only when explicitly registered. ✅ done (`InputValidator::validateRedirectUri` exact match). ⚠️ Extended by F-44 (explicit `*` wildcard opt-in) — see implementation note below. | Sub-path redirect rejected; exact matches pass. |
-| F-34 | **Truthful discovery**: rename `scope_supported`→`scopes_supported`; set `request_parameter_supported`/`request_uri`/mTLS/front-channel/pairwise to false (or implement). ✅ done (`static/well-known.json`) | Doc matches implemented surface. |
+| F-27 | **Compliant error codes + statuses.** Token/auth/logout/introspect return RFC 6749 §5.2 codes (`invalid_request`, `invalid_client`→401, `invalid_grant`, `unsupported_grant_type`, `invalid_scope`). | e2e + curl assert lowercase codes and 401 for bad client. |
+| F-28 | **`Cache-Control: no-store` + `Pragma: no-cache` on every response containing tokens/credentials** (token, introspect, revoke, userinfo). | Headers present; curl-asserted. |
+| F-29 | **Reject `response_type != code`** with `unsupported_response_type` (redirect to validated redirect_uri when possible, else error page). | `response_type=token`/hybrid/`none` rejected. |
+| F-30 | **Revocation 401 on failed client auth** (RFC 7009 §2.2). | Bad client → 401 `invalid_client`. |
+| F-31 | **Make `nonce`/`state`/`response_mode` optional for the code flow** (nonce still enforced when response_type is implicit/hybrid — which is rejected anyway). | Code flow without nonce/state/response_mode succeeds; defaults apply. |
+| F-32 | **`prompt=login` forces re-auth** (session not reused); `prompt=consent` → at least a documented non-goal until the consent screen (F-10) lands. | SSO session + `prompt=login` → login form. |
+| F-33 | **Exact `redirect_uri` matching** (drop prefix/trailing-slash normalization; registered URI matched exactly). ✅ verified live — Keycloak uses exact match, no implicit prefix/sub-path/query; wildcards only when explicitly registered. | Sub-path redirect rejected; exact matches pass. |
+| F-34 | **Truthful discovery**: rename `scope_supported`→`scopes_supported`; set `request_parameter_supported`/`request_uri`/mTLS/front-channel/pairwise to false (or implement). | Doc matches implemented surface. |
+
+### P2 — Keycloak parity (opportunistic; subset-by-design acknowledged)
+
+| Ref | Fix | Acceptance |
+|-----|-----|-----------|
+| F-35 | **`x5t` / `x5t#sha256` as b64url of binary thumbprint** (RFC 7517 §4.7). ✅ verified live — Keycloak emits b64url of SHA-1/SHA-256 over the DER cert; both matched recomputation. | JWKS thumbprints verify against cert. |
+| F-36 | **`session_state` — corrected premise (verified live).** Keycloak sends the **raw session-id UUID** in the auth response / ID token, *not* a salted hash. The salted value lives only in the `KEYCLOAK_SESSION` cookie, and the check-session iframe computes `SHA-256(session_state)` client-side and compares it to that cookie (verified: cookie = b64url(SHA-256(session_state))). Our raw-session-id `session_state` is close to correct; the actual gap is the iframe/cookie mechanism, not the claim value. | Check-session iframe interoperates with Keycloak-style clients; raw session id not in URLs (moved to cookie). |
+| F-37 | **Sliding idle session timeout** — `checkExpiry` idle leg uses `updated_at`. | Session kept alive by activity up to absolute max. |
+| F-38 | **`acr` default `1`** for password login (configurable per realm later). ✅ verified live — Keycloak reports `1` for password auth. | ID token `acr: "1"`. |
+| F-39 | **userinfo claims per scope** (`profile` → name/given/family/preferred_username; `email` → email/email_verified) | userinfo honors requested scopes. |
+| F-40 | **Drop `nonce` from access/refresh tokens.** | Access/refresh tokens have no `nonce`. |
+| P-07…P-09 | **Deferred**: `login_hint`/`max_age`/`ui_locales`; `WWW-Authenticate` on 401; `X-Powered-By` removal — batch with a future hardening pass. | — |
 
 ## Non-goals / consciously deferred
 
@@ -102,6 +114,36 @@ validation; introspect `invalid_client` 401 + `active:false` for garbage;
   ensures `prompt=consent` isn't silently *ignored*.
 - **Blacklist purge** (P-10) — already tracked as F-19 (`token-lifecycle`).
 
+## Open questions — verified against a live Keycloak (2026-08-19)
+
+All six probes run against a running Keycloak (realm + confidential/public
+clients + password-grant and code-flow tokens, then removed after probing).
+
+1. **Refresh-token `aud`** — ✅ verified: Keycloak uses the **realm URL**
+   (`http://localhost:8080/realms/<realm>`), NOT the root issuer. Our server
+   uses the root issuer → **real mismatch; fix the claim set when F-22/F-23
+   touch it.** (Also observed: AT `aud` = `account`, RT `azp` = client id.)
+2. **Introspection `token_type` for ID tokens** — ✅ verified: Keycloak returns
+   `"ID"` with `typ: ID`, `active: true`. Our `"ID"` is **correct parity**; safe
+   to assert in e2e.
+3. **`redirect_uri` matching (F-33)** — ✅ verified: Keycloak does **exact
+   match** with no implicit prefix/sub-path/query normalization (all → `400
+   Invalid parameter: redirect_uri`). Wildcards (`*`) only match when
+   *explicitly registered* per path (`https://app.example.com/other/*`), match
+   any depth, allow query strings, and match zero-length after the slash; a
+   sibling path (`/otherx`) is rejected. → Keep F-33 as exact match; wildcard
+   support is optional and only for explicitly-registered patterns.
+4. **`session_state` (F-36)** — ✅ verified (premise corrected): see F-36 row
+   above. `session_state` is a raw session-id UUID; the salted SHA-256 is the
+   `KEYCLOAK_SESSION` cookie, recomputed by the iframe.
+5. **`x5t` / `x5t#S256` (F-35)** — ✅ verified: b64url of binary thumbprint
+   (SHA-1 / SHA-256 over DER cert); both matched recomputation.
+6. **`acr` (F-38)** — ✅ verified: `"1"` for password auth.
+
+**Runtime note:** probe instance left running (`localhost:8080`, Quarkus, no
+docker). Dev server uses port 8000, no clash. Can be stopped any time — the
+verified answers above are persisted here.
+
 ## Acceptance (whole PRD)
 
 1. S-01…S-06 have regression tests (integration + e2e) that fail on the current
@@ -109,68 +151,4 @@ validation; introspect `invalid_client` 401 + `active:false` for garbage;
 2. `composer check` green; error-surface assertions added to e2e (`bin/e2e-test.sh`).
 3. Discovery doc matches the implemented surface 1:1.
 4. No behavioral regression in the happy-path e2e flow.
-
-## Implementation notes — P1 batch (F-27…F-34)
-
-All eight P1 fixes shipped together (one working session, 2026-08-19); P0
-(F-21…F-26) shipped earlier. Verification for the P1 batch:
-
-- **Error surface (F-27/F-29):** new `src/Exceptions/OAuth2Error` carries RFC
-  6749 §5.2 `error` code + HTTP status (extends `ValidationFailed` so existing
-  catch blocks keep working); controllers catch it first and emit
-  `error_code`/`error_description`. Mapping: `invalid_client` → 401 (incl.
-  unknown client / wrong secret), `invalid_grant` for code/refresh/PKCE
-  failures (RFC 7636 §4.6), `unsupported_grant_type` for unknown flows,
-  `unsupported_response_type` for `response_type != code` (F-29),
-  `invalid_scope` via `ScopeResolver`. `TokenController` now runs `getTokens`
-  before the `getClientUri` origin computation so a bad client produces the
-  correct 401 instead of a generic validation error.
-- **Cache headers (F-28):** `JsonResponse::create` sets `Cache-Control:
-  no-store` + `Pragma: no-cache` on every JSON response (token/introspect/
-  revoke/userinfo all route through it).
-- **Revocation 401 (F-30):** `TokenRevocationService` throws
-  `AuthenticationFailed('invalid client')` on failed client auth;
-  `RevokeController` maps it to 401 `invalid_client` (RFC 7009 §2.2).
-- **Optional code-flow params (F-31):** `InputValidator::validateQueryParams`
-  no longer requires `nonce`/`state`/`response_mode`; `AuthenticationOrchestrator`
-  applies defaults (`state`/`nonce` = `''`, `response_mode` = `query`) via the
-  `loginFields` helper when creating the login row.
-- **`prompt=login` (F-32):** `AuthorizationController::authorize` only reuses
-  the SSO session when `prompt !== 'login'`; `prompt=login` always renders the
-  login form.
-- **Exact `redirect_uri` (F-33):** `InputValidator::validateRedirectUri`
-  requires an exact match of the registered URI (no prefix/sub-path/trailing
-  slash normalization); logout validation updated to match.
-- **Discovery (F-34):** `static/well-known.json` now truthful —
-  `scopes_supported`, `subject_types_supported` only `public`, front-channel /
-  request / request_uri / mTLS / pairwise all `false`.
-
-**F-44 — Keycloak-style `*` wildcard opt-in (P0, 2026-08-20):** F-33's exact
-match broke the intentional sub-path login flow, so an explicit opt-in was
-restored. `InputValidator::validateRedirectUri` now accepts a trailing `*` on
-the registered URI (semantics verified live, keycloak-parity Q3): the
-scheme/host/port must match **exactly** (the wildcard never crosses origins —
-mirrors the Keycloak 26.6.3 hostname fix), the requested path may be any depth
-under the registered prefix, query strings are allowed, zero-length-after-slash
-matches, and sibling paths/hosts are rejected. Origins are extracted strictly:
-malformed authorities (non-numeric ports like `localhost:5173x`, or userinfo)
-are rejected — parse_url silently truncates `localhost:5173x` to port 5173,
-the same parser-mismatch class as Keycloak CVE-2026-7504. **Iframe allowlist
-impact:** none — because the wildcard is path-scoped only, `validateClientOrigin`
-is unaffected (origins carry no path); locked with unit + e2e tests. Seed URIs
-migrated: `local` → `http://localhost:5173/*`, `playground` →
-`http://localhost:5173/react-playground/*`; `kc_app` stays exact (F-33
-regression anchor). `getClientUri` (token CORS fallback) now returns the
-origin, not the full URI, which would be an invalid `Access-Control-Allow-Origin`.
-Tests: 452 OK, `composer check` green.
-
-**Quality gates:** `composer test` 430 OK, `composer stan` (level 5) OK,
-`composer cs_check` (PSR12) OK, sonar-php gate (`--diff-ref=HEAD
---fail-on-dup=3.0`) exit 0, `composer test:e2e` exit 0 (146 checks). The e2e
-script now also asserts each P1 fix: Step 1b discovery truthfulness (F-34),
-Step 2c `prompt=login` forces re-auth with a valid SSO session (F-32, session
-cookie injected manually since it is Secure and cannot round-trip plain http),
-Step 3b `Cache-Control: no-store`/`Pragma` on the token response (F-28),
-Step 6c code flow without nonce/state/response_mode (F-31), Step 6d sub-path
-`redirect_uri` rejected (F-33), plus the existing Step 6b error-surface
-assertions (F-27/F-29) and the revocation 401 check (F-30).
+5. Refresh-token `aud` claim set updated to the realm URL (verified parity, Q1).
