@@ -1,6 +1,6 @@
 # Phase 2 — Client scopes + client roles
 
-status: **PARTIAL** — client-scope gating done (2026-08-07); client roles deferred to a follow-up
+status: **DONE** — client-scope gating (2026-08-07); client roles (2026-08-21)
 
 ## Problem
 
@@ -105,3 +105,28 @@ Implementation notes:
 Outstanding for the follow-up: client role storage decision (normalized `roles`
 table vs pragmatic `users.client_roles` JSON), `resource_access.<client>.roles`
 claims, and introspection passthrough.
+
+### 2026-08-21 — Client roles shipped
+
+Chose the **normalized** option: `roles(id, realm_id, client_id NULL, name)`
++ `user_role_assignments(user_id, role_id)`.
+
+- Migration `005_roles` creates both tables and migrates the legacy
+  space-separated `users.realm_roles` column via recursive-CTE split, then
+  drops it. Every realm role is also **mirrored as a client role on each
+  client of the realm** with matching assignments — preserving the
+  pre-migration behaviour where clients inherited the whole realm-role
+  namespace. Down migration folds assignments back into `realm_roles`.
+- `RoleRepository` + interface; `UserRepository::buildFromData` hydrates realm
+  + client roles through it. `User` carries `clientRoles`
+  (`array<string, list<string>>`) instead of a raw string.
+- Claims: access + refresh tokens emit `resource_access.<client>.roles`
+  (only the requesting client, only roles the user holds);
+  introspection passes `resource_access`/`realm_access` through.
+- `syncRealmRoles` upserts missing realm roles; client assignments untouched.
+  No write path for client roles yet — admin CRUD is F-12 (issue 04),
+  scope↔role mapping is F-05 (issue 03).
+- Tests: `RolesMigrationTest` (migration data path), `RoleRepositoryTest`,
+  `TokenServiceTest` resource_access cases; e2e step 3c verifies the claim on
+  access/refresh tokens + introspection passthrough. 477 tests green;
+  `composer check` clean; e2e 153/153.
