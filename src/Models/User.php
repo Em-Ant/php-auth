@@ -6,6 +6,11 @@ namespace AuthServer\Models;
 
 use DateTime;
 
+/**
+ * A pure row model for `users`. Role assignments are not carried here —
+ * they live in the roles tables and are read through RoleRepository by the
+ * services that need them (token claims, future admin role mapping).
+ */
 class User implements \JsonSerializable
 {
     private string $id;
@@ -13,35 +18,23 @@ class User implements \JsonSerializable
     private string $name;
     private string $email;
     private string $password;
-    /** @var list<string> */
-    private array $realmRoles;
-    /** @var array<string, list<string>> */
-    private array $clientRoles;
     private DateTime $created_at;
     private bool $valid;
 
-    /**
-     * @param list<string> $realmRoles
-     * @param array<string, list<string>> $clientRoles
-     */
     public function __construct(
         string $id,
         string $realm_id,
         string $name,
         string $email,
         string $password,
-        array $realmRoles,
         string $created_at,
-        ?bool $valid = true,
-        array $clientRoles = []
+        ?bool $valid = true
     ) {
         $this->id = $id;
         $this->realm_id = $realm_id;
         $this->name = $name;
         $this->email = $email;
         $this->password = $password;
-        $this->realmRoles = $realmRoles;
-        $this->clientRoles = $clientRoles;
         $utc = new \DateTimeZone('UTC');
         $this->created_at =
             \DateTime::createFromFormat('Y-m-d H:i:s', $created_at, $utc);
@@ -68,23 +61,6 @@ class User implements \JsonSerializable
     {
         return $this->password;
     }
-    /** @return list<string> */
-    public function getRealmRoles(): array
-    {
-        return $this->realmRoles;
-    }
-
-    /** @return array<string, list<string>> */
-    public function getClientRoles(): array
-    {
-        return $this->clientRoles;
-    }
-
-    /** @return list<string> */
-    public function getClientRoleNames(string $clientName): array
-    {
-        return $this->clientRoles[$clientName] ?? [];
-    }
     public function getCreatedAt(): \DateTime
     {
         return $this->created_at;
@@ -101,8 +77,6 @@ class User implements \JsonSerializable
             'realm_id' => $this->realm_id,
             'name' => $this->name,
             'email' => $this->email,
-            'realm_roles' => $this->realmRoles,
-            'client_roles' => $this->clientRoles,
             'valid' => $this->valid,
             'created_at' => $this->created_at->format('Y-m-d H:i:s'),
         ];

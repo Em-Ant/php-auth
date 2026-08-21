@@ -24,7 +24,6 @@ class JsonSerializeTest extends TestCase
             'Alice',
             'alice@example.com',
             '$argon2id$hash',
-            ['admin', 'user'],
             self::NOW
         );
 
@@ -35,8 +34,6 @@ class JsonSerializeTest extends TestCase
         self::assertSame('r1', $data['realm_id']);
         self::assertSame('Alice', $data['name']);
         self::assertSame('alice@example.com', $data['email']);
-        self::assertSame(['admin', 'user'], $data['realm_roles']);
-        self::assertSame([], $data['client_roles']);
         self::assertTrue($data['valid']);
         self::assertSame(self::NOW, $data['created_at']);
     }
