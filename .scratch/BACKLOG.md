@@ -16,7 +16,6 @@ Single source of truth for what to work on next. **Local by design** (3 machines
 
 | ID | Type | Priority | Size | Blocked by | Why-now | Doc |
 |----|------|----------|------|------------|---------|-----|
-| F-35 | fix | P1 | S | | model `jsonSerialize` uses `get_object_vars` → leaks password hash on direct serialization (whitelist maps) | `clean-code/issues/09-…` |
 | R-03 | refactor | P1 | L | | AuthOrchestrator: 9 deps, 10 jobs | `clean-code/issues/03-…` |
 | F-04 | feature | P1 | M | | client roles namespace (`resource_access.<client>`) | `scopes/` |
 | F-05 | feature | P1 | L | F-04 | scope↔role gating at issuance (needs `roles` tables from F-04) | `scopes/issues/03-…` |

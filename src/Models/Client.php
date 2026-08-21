@@ -77,8 +77,14 @@ class Client implements \JsonSerializable
 
     public function jsonSerialize(): array
     {
-        $data = get_object_vars($this);
-        $data['created_at'] = $data['created_at']->format('Y-m-d H:i:s');
-        return $data;
+        return [
+            'id' => $this->id,
+            'name' => $this->name,
+            'realm_id' => $this->realm_id,
+            'uri' => $this->uri,
+            'require_auth' => $this->require_auth,
+            'scope' => $this->scope,
+            'created_at' => $this->created_at->format('Y-m-d H:i:s'),
+        ];
     }
 }

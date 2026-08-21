@@ -74,9 +74,14 @@ class User implements \JsonSerializable
 
     public function jsonSerialize(): array
     {
-        $data = get_object_vars($this);
-        $data['created_at'] = $data['created_at']->format('Y-m-d H:i:s');
-
-        return $data;
+        return [
+            'id' => $this->id,
+            'realm_id' => $this->realm_id,
+            'name' => $this->name,
+            'email' => $this->email,
+            'realm_roles' => $this->realm_roles,
+            'valid' => $this->valid,
+            'created_at' => $this->created_at->format('Y-m-d H:i:s'),
+        ];
     }
 }

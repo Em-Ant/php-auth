@@ -1,5 +1,7 @@
 # Model jsonSerialize leaks sensitive fields
 
+status: **DONE** (2026-08-21) — all six models (`User`, `Login`, `Client`, `Session`, `Realm`, `OfflineSession`) now serialize via explicit whitelist maps; `get_object_vars` removed everywhere. Excluded: `User::$password`, `Client::$client_secret`, `Login::$code`/`$code_challenge`/`$csrf_token`/`$refresh_token`, `OfflineSession::$refresh_token`/`$nonce`. Admin `toArray()` maps untouched (their shapes differ, e.g. `has_secret`). Covered by `tests/Unit/Models/JsonSerializeTest.php` (6 tests). BACKLOG F-35 closed.
+
 **Severity:** high — live footgun: a single direct serialization returns the password hash.
 
 Every model `jsonSerialize()` uses `get_object_vars($this)` (`Models/User.php:77`, `Models/Login.php:169`, plus `Session`, `Realm`, `Client`), which serializes **all** private properties — including `User::$password` (the Argon2id hash), `Login::$refresh_token`, `Login::$csrf_token`, and `Login::$code`.

@@ -101,8 +101,19 @@ class Realm implements \JsonSerializable
 
     public function jsonSerialize(): array
     {
-        $data = get_object_vars($this);
-        $data['created_at'] = $data['created_at']->format('Y-m-d H:i:s');
-        return $data;
+        return [
+            'id' => $this->id,
+            'name' => $this->name,
+            'keys_id' => $this->keys_id,
+            'refresh_token_expires_in' => $this->refresh_token_expires_in,
+            'access_token_expires_in' => $this->access_token_expires_in,
+            'pending_login_expires_in' => $this->pending_login_expires_in,
+            'authenticated_login_expires_in' => $this->authenticated_login_expires_in,
+            'session_expires_in' => $this->session_expires_in,
+            'idle_session_expires_in' => $this->idle_session_expires_in,
+            'offline_refresh_token_expires_in' => $this->offline_refresh_token_expires_in,
+            'scope' => $this->scope,
+            'created_at' => $this->created_at->format('Y-m-d H:i:s'),
+        ];
     }
 }

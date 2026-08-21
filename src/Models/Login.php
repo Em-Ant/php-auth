@@ -166,16 +166,19 @@ class Login implements \JsonSerializable
 
     public function jsonSerialize(): array
     {
-        $data = get_object_vars($this);
-        $data['status'] = $this->status->value;
-        $data['created_at'] = $data['created_at']->format('Y-m-d H:i:s');
-        $data['authenticated_at'] = isset($data['authenticated_at']) ?
-            $data['authenticated_at']->format('Y-m-d H:i:s') :
-            null;
-        $data['updated_at'] = isset($data['updated_at']) ?
-            $data['updated_at']->format('Y-m-d H:i:s') :
-            null;
-
-        return $data;
+        return [
+            'id' => $this->id,
+            'session_id' => $this->session_id,
+            'client_id' => $this->client_id,
+            'state' => $this->state,
+            'nonce' => $this->nonce,
+            'scope' => $this->scope,
+            'redirect_uri' => $this->redirect_uri,
+            'response_mode' => $this->response_mode,
+            'status' => $this->status->value,
+            'created_at' => $this->created_at->format('Y-m-d H:i:s'),
+            'authenticated_at' => $this->authenticated_at?->format('Y-m-d H:i:s'),
+            'updated_at' => $this->updated_at?->format('Y-m-d H:i:s'),
+        ];
     }
 }
