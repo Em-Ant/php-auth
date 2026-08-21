@@ -114,10 +114,12 @@ Chose the **normalized** option: `roles(id, realm_id, client_id NULL, name)`
 
 * Migration `005_roles` creates both tables and migrates the legacy
   space-separated `users.realm_roles` column via recursive-CTE split, then
-  drops it. Every realm role is also **mirrored as a client role on each
-  client of the realm** with matching assignments — preserving the
-  pre-migration behaviour where clients inherited the whole realm-role
-  namespace. Down migration folds assignments back into `realm_roles`.
+  drops it. Realm roles become the `client_id IS NULL` namespace; client
+  roles are a separate namespace and are **never** derived from realm roles.
+  (An earlier iteration mirrored realm roles onto every client; removed in
+  `c234547` — client roles start empty and get populated by admin CRUD,
+  issue 04.)
+  Down migration folds assignments back into `realm_roles`.
 * `RoleRepository` + interface; `UserRepository::buildFromData` hydrates realm
   - client roles through it. `User` carries `clientRoles`
     (`array<string, list<string>>`) instead of a raw string.

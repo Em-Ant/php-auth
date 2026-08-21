@@ -31,7 +31,7 @@ Single source of truth for what to work on next. **Local by design** (3 machines
 | F-12 | feature | P2 | M | | admin config surface for scopes/roles (roles CRUD from F-04; mappings after F-05) | `scopes/issues/04-…` |
 | F-13 | feature | P2 | S | | per-realm login page config | `ROADMAP → Login Form` |
 | F-19 | feature | P2 | S | | blacklist purge + expired-session cleanup | `token-lifecycle/issues/05-…` |
-| F-20 | refactor | P2 | M | | split E2E into two contracts — prod smoke (`bin/smoke-test.sh`, no DB, bounded footprint, ~30 checks) + local OIDC integrity suite; phase 2: PHPUnit-against-live-`BASE_URL` (no Playwright) | `ci-e2e/PRD.md` |
+| F-20 | refactor | P2 | M | | split E2E into two contracts — prod smoke (`bin/smoke-test.sh`, no DB, bounded footprint, ~30 checks) + local OIDC integrity suite; phase 2: PHPUnit-against-live-`BASE_URL` (no Playwright) — also replaces the ad-hoc `python3` JWT payload decoding in `bin/e2e-test.sh` with PHP tooling | `ci-e2e/PRD.md` |
 | F-37 | fix | P2 | S | | JWKS `x5t`/`x5t#sha256` = b64url of binary thumbprint (RFC 7517 §4.7; breaks JWKS verification) — verified live vs Keycloak | `keycloak-parity/PRD.md` |
 | F-38 | fix | P2 | M | | check-session iframe mechanism: salted `KEYCLOAK_SESSION` cookie + client-side SHA-256 (premise verified live) | `keycloak-parity/PRD.md` |
 | F-39 | fix | P2 | S | | sliding idle session timeout — idle leg on `updated_at` | `keycloak-parity/PRD.md` |

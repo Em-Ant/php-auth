@@ -174,7 +174,8 @@ class UsersController
 
     private static function splitRoles(string $roles): array
     {
-        return $roles === '' ? [] : explode(' ', $roles);
+        $parts = explode(' ', trim($roles));
+        return array_values(array_filter($parts, fn(string $p) => $p !== ''));
     }
 
     private function updatedPassword(array $body, User $existing): string

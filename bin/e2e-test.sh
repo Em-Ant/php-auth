@@ -234,6 +234,16 @@ TOKEN_TYPE=$(echo "$TOKEN_RESPONSE" | sed -n 's/.*"token_type":"\([^"]*\)".*/\1/
 [[ -n "$ID_TOKEN" ]]      && ok "Got id_token"      || fail "No id_token"
 [[ "$TOKEN_TYPE" = "Bearer" ]] && ok "token_type is Bearer" || fail "token_type: $TOKEN_TYPE"
 
+# ── Step 3b: no-store on token responses (F-28) ────────────────
+echo ""
+echo "=== Step 3b: token response cache headers (F-28) ==="
+grep -qi '^Cache-Control: *no-store' "$HEADER_DUMP" \
+    && ok "Token response Cache-Control: no-store" \
+    || fail "Token response missing Cache-Control: no-store"
+grep -qi '^Pragma: *no-cache' "$HEADER_DUMP" \
+    && ok "Token response Pragma: no-cache" \
+    || fail "Token response missing Pragma: no-cache"
+
 # ── Step 3c: Client roles in resource_access (F-04) ──────────
 echo ""
 echo "=== Step 3c: Client roles — resource_access (F-04) ==="
@@ -250,16 +260,6 @@ REFRESH_PAYLOAD=$(echo "$REFRESH_TOKEN" | cut -d. -f2 | python3 -c "import sys, 
 echo "$REFRESH_PAYLOAD" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('resource_access',{}).get('kc_app',{}).get('roles',[]))" 2>/dev/null | grep -q 'app-user' \
     && ok "refresh_token carries resource_access (F-04)" \
     || fail "refresh_token missing resource_access"
-
-# ── Step 3b: no-store on token responses (F-28) ────────────────
-echo ""
-echo "=== Step 3b: token response cache headers (F-28) ==="
-grep -qi '^Cache-Control: *no-store' "$HEADER_DUMP" \
-    && ok "Token response Cache-Control: no-store" \
-    || fail "Token response missing Cache-Control: no-store"
-grep -qi '^Pragma: *no-cache' "$HEADER_DUMP" \
-    && ok "Token response Pragma: no-cache" \
-    || fail "Token response missing Pragma: no-cache"
 
 # ── Step 4: Introspect active tokens ─────────────────────────
 echo ""
