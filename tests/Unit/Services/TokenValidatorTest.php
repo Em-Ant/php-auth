@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AuthServer\Tests\Unit\Services;
 
 use AuthServer\Interfaces\KeyStore;
+use AuthServer\Interfaces\RoleRepository;
 use AuthServer\Models\KeySet;
 use AuthServer\Models\Realm;
 use AuthServer\Repositories\TokenBlacklistRepository;
@@ -40,7 +41,11 @@ class TokenValidatorTest extends TestCase
             }
         };
 
-        $this->tokenService = new TokenService(self::ISSUER, $keyStore);
+        $this->tokenService = new TokenService(
+            self::ISSUER,
+            $keyStore,
+            $this->createMock(RoleRepository::class),
+        );
         $this->blacklist = $this->createMock(TokenBlacklistRepository::class);
         $this->blacklist->method('exists')->willReturn(false);
 

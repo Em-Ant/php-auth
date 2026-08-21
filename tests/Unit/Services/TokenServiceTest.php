@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AuthServer\Tests\Unit\Services;
 
 use AuthServer\Interfaces\KeyStore;
+use AuthServer\Interfaces\RoleRepository;
 use AuthServer\Models\KeySet;
 use AuthServer\Models\Client;
 use AuthServer\Models\Login;
@@ -21,12 +22,14 @@ class TokenServiceTest extends TestCase
     private const ISSUER = 'http://localhost:8000';
 
     private TokenService $tokenService;
+    private KeyStore $keyStore;
     private KeySet $keySet;
     private Realm $realm;
     private Session $session;
     private Login $login;
     private Client $client;
     private User $user;
+    private RoleRepository $roles;
 
     protected function setUp(): void
     {
@@ -38,7 +41,7 @@ class TokenServiceTest extends TestCase
             jwks: json_decode(file_get_contents("$keysDir/keys.json"), true),
         );
 
-        $keyStore = new class ($this->keySet) implements KeyStore {
+        $this->keyStore = new class ($this->keySet) implements KeyStore {
             public function __construct(private KeySet $keySet) {}
             public function findKeys(string $kid): KeySet
             {
@@ -46,7 +49,11 @@ class TokenServiceTest extends TestCase
             }
         };
 
-        $this->tokenService = new TokenService(self::ISSUER, $keyStore);
+        $this->roles = $this->createMock(RoleRepository::class);
+        $this->roles->method('findRealmRoleNamesByUserId')->willReturn(['admin', 'basic']);
+        $this->roles->method('findClientRoleNamesByUserId')->willReturn([]);
+
+        $this->tokenService = new TokenService(self::ISSUER, $this->keyStore, $this->roles);
 
         $this->realm = new Realm(
             id: 'r-id',
@@ -246,20 +253,24 @@ class TokenServiceTest extends TestCase
     }
 
     /**
-     * @param array<string, list<string>> $clientRoles
+     * @param array<string, list<string>> $clientRolesForUser
      */
-    private function userWithClientRoles(array $clientRoles): User
+    private function userWithClientRoles(array $clientRolesForUser): User
     {
+        $roles = $this->createMock(RoleRepository::class);
+        $roles->method('findRealmRoleNamesByUserId')->willReturn(['admin', 'basic']);
+        $roles->method('findClientRoleNamesByUserId')->willReturn($clientRolesForUser);
+
+        $this->tokenService = new TokenService(self::ISSUER, $this->keyStore, $roles);
+
         return new User(
             id: 'user-1',
             realm_id: 'r-id',
             name: 'emant',
             email: 'test@example.com',
             password: 'hashed',
-            realmRoles: ['admin', 'basic'],
             created_at: '2025-01-01 00:00:00',
             valid: true,
-            clientRoles: $clientRoles,
         );
     }
 

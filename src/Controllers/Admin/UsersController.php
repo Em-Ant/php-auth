@@ -8,6 +8,7 @@ use AuthServer\Exceptions\ConflictException;
 use AuthServer\Exceptions\ValidationFailed;
 use AuthServer\Interfaces\OfflineSessionRepository;
 use AuthServer\Interfaces\RealmRepository;
+use AuthServer\Interfaces\RoleRepository;
 use AuthServer\Interfaces\SessionRepository;
 use AuthServer\Interfaces\UserRepository;
 use AuthServer\Models\User;
@@ -31,6 +32,7 @@ class UsersController
         private readonly SessionRepository $sessions,
         private readonly OfflineSessionRepository $offlineSessions,
         private readonly SecretsService $secretsService,
+        private readonly RoleRepository $roles,
     ) {
     }
 
@@ -74,14 +76,14 @@ class UsersController
                 $this->optionalString($body, 'name', null) ?? '',
                 $email,
                 $this->secretsService->hashPassword($password),
-                $realmRoles,
                 gmdate('Y-m-d H:i:s'),
                 $this->optionalBool($body, 'valid', true)
             );
 
-            $this->users->create($user);
+            $created = $this->users->create($user);
+            $this->roles->syncRealmRoles($created->getId(), $realmId, $realmRoles);
 
-            return JsonResponse::create($response, self::toArray($user), 201);
+            return JsonResponse::create($response, self::toArray($created), 201);
         } catch (ValidationFailed $e) {
             return JsonResponse::error($response, 'invalid_request', $e->getMessage(), 400);
         }
@@ -120,12 +122,12 @@ class UsersController
                 $this->optionalString($body, 'name', null) ?? $existing->getName(),
                 $email,
                 $this->updatedPassword($body, $existing),
-                $realmRoles,
                 $existing->getCreatedAt()->format('Y-m-d H:i:s'),
                 $this->optionalBool($body, 'valid', $existing->getValid())
             );
 
             $this->users->update($user);
+            $this->roles->syncRealmRoles($existing->getId(), $realmId, $realmRoles);
 
             return JsonResponse::create($response, self::toArray($user));
         } catch (ValidationFailed $e) {
@@ -167,7 +169,10 @@ class UsersController
     {
         $raw = $this->optionalString($body, 'realm_roles', null);
         if ($raw === null) {
-            return $existing->getRealmRoles();
+            return $this->roles->findRealmRoleNamesByUserId(
+                $existing->getId(),
+                $existing->getRealmId()
+            );
         }
         return self::splitRoles($raw);
     }
@@ -196,7 +201,6 @@ class UsersController
             'realm_id' => $user->getRealmId(),
             'name' => $user->getName(),
             'email' => $user->getEmail(),
-            'realm_roles' => implode(' ', $user->getRealmRoles()),
             'valid' => $user->getValid(),
             'created_at' => $user->getCreatedAt()->format('Y-m-d H:i:s'),
         ];

@@ -13,12 +13,10 @@ use function AuthServer\get_guid;
 class UserRepository implements IUser
 {
     private \PDO $db;
-    private RoleRepository $roles;
 
-    public function __construct(\PDO $db, RoleRepository $roles)
+    public function __construct(\PDO $db)
     {
         $this->db = $db;
-        $this->roles = $roles;
     }
 
     public function findAll(?string $realmId = null): array
@@ -54,8 +52,6 @@ class UserRepository implements IUser
             );
             $statement->execute(self::userParams($user, $id));
 
-            $this->roles->syncRealmRoles($id, $user->getRealmId(), $user->getRealmRoles());
-
             return $this->findById($id) ?? $user;
         } catch (\PDOException $e) {
             throw new StorageFailed('failed to create user', 0, $e);
@@ -75,8 +71,6 @@ class UserRepository implements IUser
                 WHERE id = :id"
             );
             $ok = $statement->execute(self::userParams($user, $user->getId()));
-
-            $this->roles->syncRealmRoles($user->getId(), $user->getRealmId(), $user->getRealmRoles());
 
             return $ok;
         } catch (\PDOException $e) {
@@ -172,18 +166,14 @@ class UserRepository implements IUser
 
     private function buildFromData(array $r): User
     {
-        $userId = $r['id'];
-        $realmId = $r['realm_id'];
         return new User(
-            $userId,
-            $realmId,
+            $r['id'],
+            $r['realm_id'],
             $r['name'],
             $r['email'],
             $r['password'],
-            $this->roles->findRealmRoleNamesByUserId($userId, $realmId),
             $r['created_at'],
             $r['valid'] === 'TRUE',
-            $this->roles->findClientRoleNamesByUserId($userId, $realmId),
         );
     }
 }

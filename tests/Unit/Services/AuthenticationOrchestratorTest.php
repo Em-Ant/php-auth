@@ -78,7 +78,7 @@ class AuthenticationOrchestratorTest extends TestCase
         $this->session = new Session('s-id', 'r-id', 'u-id', '0', $now, null, 'ACTIVE');
 
         $this->user = new User(
-            'u-id', 'r-id', 'emant', 'test@example.com', 'hashed', ['admin', 'basic'], '2025-01-01 00:00:00',
+            'u-id', 'r-id', 'emant', 'test@example.com', 'hashed', '2025-01-01 00:00:00',
         );
     }
 

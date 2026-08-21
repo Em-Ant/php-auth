@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AuthServer\Services;
 
 use AuthServer\Interfaces\KeyStore;
+use AuthServer\Interfaces\RoleRepository;
 use AuthServer\Models\Client;
 use AuthServer\Models\Login;
 use AuthServer\Models\OfflineSession;
@@ -18,13 +19,16 @@ class TokenService
 {
     private string $issuer;
     private KeyStore $keyStore;
+    private RoleRepository $roles;
 
     public function __construct(
         string $issuer,
-        KeyStore $keyStore
+        KeyStore $keyStore,
+        RoleRepository $roles
     ) {
         $this->issuer = $issuer;
         $this->keyStore = $keyStore;
+        $this->roles = $roles;
     }
 
     public function verifySignature(string $token, Realm $realm): bool
@@ -286,6 +290,16 @@ class TokenService
         $now = time();
         $kid = $realm->getKeysId();
 
+        // Role claims are read once per issuance, straight from the roles
+        // tables — the User model carries no authorization state.
+        $roleClaims = [
+            'realm' => $this->roles->findRealmRoleNamesByUserId(
+                $user->getId(),
+                $user->getRealmId()
+            ),
+            'resource' => $this->resourceAccessClaim($user, $client),
+        ];
+
         $access_token = $this->createAccessToken(
             $now,
             $realm->getAccessTokenExpiresIn(),
@@ -293,6 +307,7 @@ class TokenService
             $context,
             $client,
             $user,
+            $roleClaims,
             $kid
         );
         $id_token = $this->createIdToken(
@@ -312,6 +327,7 @@ class TokenService
             $context,
             $client,
             $user,
+            $roleClaims,
             $kid,
             $refreshTyp
         );
@@ -330,16 +346,9 @@ class TokenService
     }
 
     /**
-     * Shared claim sources for both the SSO-bound and the offline grant.
+     * Role claims shared across the bundle's tokens.
      *
-     * @param array{
-     *     subject: string,
-     *     auth_time: int,
-     *     acr: string,
-     *     sid: string,
-     *     nonce: string|null,
-     *     scope: string
-     * } $context
+     * @param array{realm: list<string>, resource: array<string, array<string, list<string>>>|null} $roleClaims
      */
     private function createRefreshToken(
         int $now,
@@ -348,6 +357,7 @@ class TokenService
         array $context,
         Client $client,
         User $user,
+        array $roleClaims,
         string $keys_id,
         string $typ = 'Refresh'
     ): string {
@@ -364,14 +374,13 @@ class TokenService
             "nonce" => $context['nonce'],
             "session_state" => $context['sid'],
             "realm_access" => [
-                "roles" => $user->getRealmRoles()
+                "roles" => $roleClaims['realm']
             ],
             "scope" => $context['scope'],
             "sid" => $context['sid']
         ];
-        $resource_access = $this->resourceAccessClaim($client, $user);
-        if ($resource_access !== null) {
-            $claims["resource_access"] = $resource_access;
+        if ($roleClaims['resource'] !== null) {
+            $claims["resource_access"] = $roleClaims['resource'];
         }
         return $this->createToken($claims, $keys_id);
     }
@@ -385,6 +394,7 @@ class TokenService
      *     nonce: string|null,
      *     scope: string
      * } $context
+     * @param array{realm: list<string>, resource: array<string, array<string, list<string>>>|null} $roleClaims
      */
     private function createAccessToken(
         int $now,
@@ -393,6 +403,7 @@ class TokenService
         array $context,
         Client $client,
         User $user,
+        array $roleClaims,
         string $keys_id
     ): string {
         $exp = $now + $validity;
@@ -413,15 +424,14 @@ class TokenService
                 $client->getUri()
             ],
             "realm_access" => [
-                "roles" => $user->getRealmRoles()
+                "roles" => $roleClaims['realm']
             ],
             "scope" => $context['scope'],
             "sid" => $context['sid'],
             "preferred_username" => $user->getName()
         ];
-        $resource_access = $this->resourceAccessClaim($client, $user);
-        if ($resource_access !== null) {
-            $claims["resource_access"] = $resource_access;
+        if ($roleClaims['resource'] !== null) {
+            $claims["resource_access"] = $roleClaims['resource'];
         }
         return $this->createToken($claims, $keys_id);
     }
@@ -469,9 +479,19 @@ class TokenService
         );
     }
 
-    private function resourceAccessClaim(Client $client, User $user): ?array
+    /**
+     * `resource_access.<client>.roles` for the client the token is issued to,
+     * omitted when the user holds no roles for it.
+     *
+     * @return array<string, array<string, list<string>>>|null
+     */
+    private function resourceAccessClaim(User $user, Client $client): ?array
     {
-        $roles = $user->getClientRoleNames($client->getName());
+        $clientRoles = $this->roles->findClientRoleNamesByUserId(
+            $user->getId(),
+            $user->getRealmId()
+        );
+        $roles = $clientRoles[$client->getName()] ?? [];
         if ($roles === []) {
             return null;
         }
