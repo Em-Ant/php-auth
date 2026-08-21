@@ -6,7 +6,6 @@ namespace AuthServer\Tests\Integration;
 
 use AuthServer\Repositories\MigrationRepository;
 use AuthServer\Repositories\RoleRepository;
-use AuthServer\Models\Role;
 use AuthServer\Services\Database;
 use AuthServer\Services\MigrationRunner;
 use AuthServer\Tests\Support\RealmFixture;
@@ -14,15 +13,12 @@ use PHPUnit\Framework\TestCase;
 
 /**
  * Verifies the 005_roles data migration: legacy users.realm_roles is moved
- * into normalized realm roles + assignments, and every realm role is mirrored
- * as a client role on each client of the realm (the pre-migration behaviour
- * where clients inherited the whole realm-role namespace).
+ * into normalized realm roles + assignments (client_id IS NULL). Client roles
+ * are a separate namespace and are never derived from realm roles.
  */
 class RolesMigrationTest extends TestCase
 {
     private const REALM = '11111111-1111-4111-8111-111111111111';
-    private const CLIENT_A = '22222222-2222-4222-8222-222222222221';
-    private const CLIENT_B = '22222222-2222-4222-8222-222222222222';
     private const USER_ADMIN = '33333333-3333-4333-8333-333333333331';
     private const USER_BASIC = '33333333-3333-4333-8333-333333333332';
 
@@ -54,10 +50,6 @@ class RolesMigrationTest extends TestCase
     {
         RealmFixture::createRealm(self::$pdo, self::REALM, 'legacy');
 
-        foreach ([self::CLIENT_A => 'app_a', self::CLIENT_B => 'app_b'] as $id => $name) {
-            RealmFixture::createClient(self::$pdo, $id, $name, self::REALM);
-        }
-
         foreach ([
             self::USER_ADMIN => 'basic admin',
             self::USER_BASIC => 'basic',
@@ -88,28 +80,5 @@ class RolesMigrationTest extends TestCase
                 $this->roles->findRealmRoleNamesByUserId($userId, self::REALM)
             );
         }
-    }
-
-    public function testRealmRolesAreMirroredOnEveryClientOfTheRealm(): void
-    {
-        foreach ([self::CLIENT_A, self::CLIENT_B] as $clientId) {
-            $names = array_map(
-                fn(Role $r) => $r->getName(),
-                $this->roles->findAll(self::REALM, $clientId)
-            );
-            self::assertSame(['admin', 'basic'], $names);
-        }
-    }
-
-    public function testClientRoleAssignmentsMirrorTheUserRealmRoles(): void
-    {
-        self::assertSame(
-            ['app_a' => ['admin', 'basic'], 'app_b' => ['admin', 'basic']],
-            $this->roles->findClientRoleNamesByUserId(self::USER_ADMIN, self::REALM)
-        );
-        self::assertSame(
-            ['app_a' => ['basic'], 'app_b' => ['basic']],
-            $this->roles->findClientRoleNamesByUserId(self::USER_BASIC, self::REALM)
-        );
     }
 }

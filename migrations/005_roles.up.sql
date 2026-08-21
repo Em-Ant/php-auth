@@ -60,20 +60,4 @@ SELECT s.user_id, r.id
 FROM (SELECT user_id, realm_id, role FROM split WHERE role <> '') s
 JOIN roles r ON r.realm_id = s.realm_id AND r.client_id IS NULL AND r.name = s.role;
 
--- Mirror every realm role onto each client of the same realm: before this
--- change all clients implicitly inherited the full realm-role namespace, so a
--- per-client copy preserves that behaviour.
-INSERT OR IGNORE INTO roles (id, realm_id, client_id, name)
-SELECT lower(hex(randomblob(16))), r.realm_id, c.id, r.name
-FROM roles r
-JOIN clients c ON c.realm_id = r.realm_id
-WHERE r.client_id IS NULL;
-
-INSERT OR IGNORE INTO user_role_assignments (user_id, role_id)
-SELECT ura.user_id, cr.id
-FROM user_role_assignments ura
-JOIN roles rr ON rr.id = ura.role_id AND rr.client_id IS NULL
-JOIN clients c ON c.realm_id = rr.realm_id
-JOIN roles cr ON cr.client_id = c.id AND cr.name = rr.name;
-
 ALTER TABLE users DROP COLUMN realm_roles;

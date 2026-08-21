@@ -96,7 +96,7 @@ Implementation notes:
   `requireOpenid=true` still rejects a request without `openid` in the
   auth-code flow.
 - `client_credentials` with an omitted `scope` now grants the client's
-  *effective* allow-list (was: realm scope).
+  _effective_ allow-list (was: realm scope).
 - `db/seed.sql` unchanged — seeded clients keep `scope NULL` (inherit).
 - Tests: `ScopeResolverTest` (unit) + `ClientScopeTest` (integration,
   auth-code + client_credentials + `offline_access` gating). 267 tests green;
@@ -109,24 +109,25 @@ claims, and introspection passthrough.
 ### 2026-08-21 — Client roles shipped
 
 Chose the **normalized** option: `roles(id, realm_id, client_id NULL, name)`
-+ `user_role_assignments(user_id, role_id)`.
 
-- Migration `005_roles` creates both tables and migrates the legacy
+- `user_role_assignments(user_id, role_id)`.
+
+* Migration `005_roles` creates both tables and migrates the legacy
   space-separated `users.realm_roles` column via recursive-CTE split, then
   drops it. Every realm role is also **mirrored as a client role on each
   client of the realm** with matching assignments — preserving the
   pre-migration behaviour where clients inherited the whole realm-role
   namespace. Down migration folds assignments back into `realm_roles`.
-- `RoleRepository` + interface; `UserRepository::buildFromData` hydrates realm
-  + client roles through it. `User` carries `clientRoles`
-  (`array<string, list<string>>`) instead of a raw string.
-- Claims: access + refresh tokens emit `resource_access.<client>.roles`
+* `RoleRepository` + interface; `UserRepository::buildFromData` hydrates realm
+  - client roles through it. `User` carries `clientRoles`
+    (`array<string, list<string>>`) instead of a raw string.
+* Claims: access + refresh tokens emit `resource_access.<client>.roles`
   (only the requesting client, only roles the user holds);
   introspection passes `resource_access`/`realm_access` through.
-- `syncRealmRoles` upserts missing realm roles; client assignments untouched.
+* `syncRealmRoles` upserts missing realm roles; client assignments untouched.
   No write path for client roles yet — admin CRUD is F-12 (issue 04),
   scope↔role mapping is F-05 (issue 03).
-- Tests: `RolesMigrationTest` (migration data path), `RoleRepositoryTest`,
+* Tests: `RolesMigrationTest` (migration data path), `RoleRepositoryTest`,
   `TokenServiceTest` resource_access cases; e2e step 3c verifies the claim on
   access/refresh tokens + introspection passthrough. 477 tests green;
   `composer check` clean; e2e 153/153.
