@@ -100,16 +100,7 @@ class TokenServiceTest extends TestCase
             created_at: '2025-01-01 00:00:00',
         );
 
-        $this->user = new User(
-            id: 'user-1',
-            realm_id: 'r-id',
-            name: 'emant',
-            email: 'test@example.com',
-            password: 'hashed',
-            realmRoles: ['admin', 'basic'],
-            created_at: '2025-01-01 00:00:00',
-            valid: true,
-        );
+        $this->user = $this->userWithClientRoles([]);
     }
 
     // ── createToken ───────────────────────────────────────────
@@ -243,6 +234,79 @@ class TokenServiceTest extends TestCase
         self::assertArrayHasKey('acr', $payload);
         self::assertSame('emant', $payload['preferred_username']);
         self::assertSame(['admin', 'basic'], $payload['realm_access']['roles']);
+    }
+
+    public function testAccessTokenOmitsResourceAccessWhenUserHasNoClientRoles(): void
+    {
+        $payload = $this->tokenService->decodeTokenPayload(
+            $this->bundleForUser($this->user)['access_token']
+        );
+
+        self::assertArrayNotHasKey('resource_access', $payload);
+    }
+
+    /**
+     * @param array<string, list<string>> $clientRoles
+     */
+    private function userWithClientRoles(array $clientRoles): User
+    {
+        return new User(
+            id: 'user-1',
+            realm_id: 'r-id',
+            name: 'emant',
+            email: 'test@example.com',
+            password: 'hashed',
+            realmRoles: ['admin', 'basic'],
+            created_at: '2025-01-01 00:00:00',
+            valid: true,
+            clientRoles: $clientRoles,
+        );
+    }
+
+    private function bundleForUser(User $user): array
+    {
+        return $this->tokenService->createTokenBundle(
+            $this->realm, $this->session, $this->login, $this->client, $user,
+        );
+    }
+
+    public function testAccessTokenCarriesClientRolesForResourceAccess(): void
+    {
+        $user = $this->userWithClientRoles(['my-app' => ['app-user', 'app-admin']]);
+
+        $payload = $this->tokenService->decodeTokenPayload(
+            $this->bundleForUser($user)['access_token']
+        );
+
+        self::assertSame(
+            ['my-app' => ['roles' => ['app-user', 'app-admin']]],
+            $payload['resource_access']
+        );
+    }
+
+    public function testRefreshTokenCarriesClientRolesForResourceAccess(): void
+    {
+        $user = $this->userWithClientRoles(['my-app' => ['app-user']]);
+
+        $payload = $this->tokenService->decodeTokenPayload(
+            $this->bundleForUser($user)['refresh_token']
+        );
+
+        self::assertSame(
+            ['my-app' => ['roles' => ['app-user']]],
+            $payload['resource_access']
+        );
+    }
+
+    public function testResourceAccessIsOmittedWhenUserHasNoRolesForTheTokenClient(): void
+    {
+        $user = $this->userWithClientRoles(['other-app' => ['viewer']]);
+
+        $payload = $this->tokenService->decodeTokenPayload(
+            $this->bundleForUser($user)['access_token']
+        );
+
+        self::assertArrayNotHasKey('resource_access', $payload);
     }
 
     public function testIdTokenContainsSpecCompliantAtHash(): void

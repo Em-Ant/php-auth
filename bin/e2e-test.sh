@@ -241,13 +241,13 @@ echo "=== Step 3c: Client roles — resource_access (F-04) ==="
 ACCESS_PAYLOAD=$(echo "$ACCESS_TOKEN" | cut -d. -f2 | python3 -c "import sys, base64, json; payload=sys.stdin.read().strip(); payload += '=' * (4 - len(payload) % 4); print(json.dumps(json.loads(base64.urlsafe_b64decode(payload))))" 2>/dev/null || echo "{}")
 
 # The seeded realm-test user emant_test has app-user client role for kc_app
-echo "$ACCESS_PAYLOAD" | python3 -c "import sys,json; d=json.load(sys.stdin); roles=d.get('resource_access',{}).get('kc_app',{}).get('roles',[])" 2>/dev/null | grep -q 'app-user' \
+echo "$ACCESS_PAYLOAD" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('resource_access',{}).get('kc_app',{}).get('roles',[]))" 2>/dev/null | grep -q 'app-user' \
     && ok "resource_access.kc_app.roles contains app-user (F-04)" \
     || fail "resource_access.kc_app.roles missing app-user"
 
 REFRESH_PAYLOAD=$(echo "$REFRESH_TOKEN" | cut -d. -f2 | python3 -c "import sys, base64, json; payload=sys.stdin.read().strip(); payload += '=' * (4 - len(payload) % 4); print(json.dumps(json.loads(base64.urlsafe_b64decode(payload))))" 2>/dev/null || echo "{}")
 
-echo "$REFRESH_PAYLOAD" | python3 -c "import sys,json; d=json.load(sys.stdin); roles=d.get('resource_access',{}).get('kc_app',{}).get('roles',[])" 2>/dev/null | grep -q 'app-user' \
+echo "$REFRESH_PAYLOAD" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('resource_access',{}).get('kc_app',{}).get('roles',[]))" 2>/dev/null | grep -q 'app-user' \
     && ok "refresh_token carries resource_access (F-04)" \
     || fail "refresh_token missing resource_access"
 

@@ -88,7 +88,9 @@ class RoleRepository implements IRoleRepo
     {
         try {
             $stmt = $this->db->prepare('DELETE FROM roles WHERE id = :id');
-            return $stmt->execute([':id' => $id]);
+            $stmt->execute([':id' => $id]);
+
+            return $stmt->rowCount() > 0;
         } catch (\PDOException $e) {
             throw new StorageFailed('failed to delete role', 0, $e);
         }
