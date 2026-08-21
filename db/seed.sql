@@ -46,7 +46,6 @@ INSERT INTO users (
     'name',
     'email',
     'password',
-    'realm_roles',
     'id',
     'realm_id'
   )
@@ -55,7 +54,6 @@ values(
     'test@example.com',
     /* plain password = tst */
     '$argon2id$v=19$m=1024,t=2,p=2$VkZ0NDBpVmlKMWIwTHgxeg$thxvsbc3yVD9DbC+FjowJ59W+orWxHCT8vuhSi6cmlk',
-    'basic admin',
     '586d7bb3-d386-4b57-9e99-b2a460f20b47',
     '84be68b8-7936-4422-bb4d-b741d2292a9f'
   );
@@ -63,7 +61,6 @@ INSERT INTO users (
     'name',
     'email',
     'password',
-    'realm_roles',
     'id',
     'realm_id'
   )
@@ -72,10 +69,10 @@ values(
     'test@example.com',
     /* plain password = tst */
     '$argon2id$v=19$m=1024,t=2,p=2$VkZ0NDBpVmlKMWIwTHgxeg$thxvsbc3yVD9DbC+FjowJ59W+orWxHCT8vuhSi6cmlk',
-    'basic admin',
     'b0aa0c22-a356-40c7-9fa2-6f973c3f614a',
     'c03aa58c-2888-4f40-821c-4aadf5c58f6f'
   );
+
 INSERT INTO clients (
     'id',
     'name',
@@ -111,3 +108,26 @@ values (
     FALSE,
     '84be68b8-7936-4422-bb4d-b741d2292a9f'
   );
+
+-- Realm roles
+INSERT OR IGNORE INTO roles (id, realm_id, client_id, name) VALUES
+  ('5a1a1000-0000-4000-8000-000000000001', '84be68b8-7936-4422-bb4d-b741d2292a9f', NULL, 'basic'),
+  ('5a1a1000-0000-4000-8000-000000000002', '84be68b8-7936-4422-bb4d-b741d2292a9f', NULL, 'admin'),
+  ('5a1a1000-0000-4000-8000-000000000003', 'c03aa58c-2888-4f40-821c-4aadf5c58f6f', NULL, 'basic'),
+  ('5a1a1000-0000-4000-8000-000000000004', 'c03aa58c-2888-4f40-821c-4aadf5c58f6f', NULL, 'admin');
+
+-- Client roles for kc_app (realm test)
+INSERT OR IGNORE INTO roles (id, realm_id, client_id, name) VALUES
+  ('5a1a1000-0000-4000-8000-000000000005', 'c03aa58c-2888-4f40-821c-4aadf5c58f6f', 'df616379-3695-4466-bcda-910fcb50bb01', 'app-user'),
+  ('5a1a1000-0000-4000-8000-000000000006', 'c03aa58c-2888-4f40-821c-4aadf5c58f6f', 'df616379-3695-4466-bcda-910fcb50bb01', 'app-admin');
+
+-- User realm-role assignments
+INSERT OR IGNORE INTO user_role_assignments (user_id, role_id) VALUES
+  ('586d7bb3-d386-4b57-9e99-b2a460f20b47', '5a1a1000-0000-4000-8000-000000000001'),
+  ('586d7bb3-d386-4b57-9e99-b2a460f20b47', '5a1a1000-0000-4000-8000-000000000002'),
+  ('b0aa0c22-a356-40c7-9fa2-6f973c3f614a', '5a1a1000-0000-4000-8000-000000000003'),
+  ('b0aa0c22-a356-40c7-9fa2-6f973c3f614a', '5a1a1000-0000-4000-8000-000000000004');
+
+-- Client-role assignment: emant_test has app-user role for kc_app
+INSERT OR IGNORE INTO user_role_assignments (user_id, role_id) VALUES
+  ('b0aa0c22-a356-40c7-9fa2-6f973c3f614a', '5a1a1000-0000-4000-8000-000000000005');

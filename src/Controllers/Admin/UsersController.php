@@ -66,13 +66,16 @@ class UsersController
                 throw new ConflictException("user '$email' already exists in this realm");
             }
 
+            $realmRolesRaw = $this->optionalString($body, 'realm_roles', null) ?? self::DEFAULT_ROLES;
+            $realmRoles = $realmRolesRaw !== '' ? explode(' ', $realmRolesRaw) : [];
+
             $user = new User(
                 get_guid(),
                 $realmId,
                 $this->optionalString($body, 'name', null) ?? '',
                 $email,
                 $this->secretsService->hashPassword($password),
-                $this->optionalString($body, 'realm_roles', null) ?? self::DEFAULT_ROLES,
+                $realmRoles,
                 gmdate('Y-m-d H:i:s'),
                 $this->optionalBool($body, 'valid', true)
             );
@@ -110,14 +113,18 @@ class UsersController
                 throw new ConflictException("user '$email' already exists in this realm");
             }
 
+            $realmRolesRaw = $this->optionalString($body, 'realm_roles', null);
+            $realmRoles = $realmRolesRaw !== null
+                ? ($realmRolesRaw !== '' ? explode(' ', $realmRolesRaw) : [])
+                : $existing->getRealmRoles();
+
             $user = new User(
                 $existing->getId(),
                 $realmId,
                 $this->optionalString($body, 'name', null) ?? $existing->getName(),
                 $email,
                 $this->updatedPassword($body, $existing),
-                $this->optionalString($body, 'realm_roles', null)
-                    ?? implode(' ', $existing->getRealmRoles()),
+                $realmRoles,
                 $existing->getCreatedAt()->format('Y-m-d H:i:s'),
                 $this->optionalBool($body, 'valid', $existing->getValid())
             );

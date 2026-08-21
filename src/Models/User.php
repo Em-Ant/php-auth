@@ -13,26 +13,35 @@ class User implements \JsonSerializable
     private string $name;
     private string $email;
     private string $password;
-    private array $realm_roles;
+    /** @var list<string> */
+    private array $realmRoles;
+    /** @var array<string, list<string>> */
+    private array $clientRoles;
     private DateTime $created_at;
     private bool $valid;
 
+    /**
+     * @param list<string> $realmRoles
+     * @param array<string, list<string>> $clientRoles
+     */
     public function __construct(
         string $id,
         string $realm_id,
         string $name,
         string $email,
         string $password,
-        string $realm_roles,
+        array $realmRoles,
         string $created_at,
-        ?bool $valid = true
+        ?bool $valid = true,
+        array $clientRoles = []
     ) {
         $this->id = $id;
         $this->realm_id = $realm_id;
         $this->name = $name;
         $this->email = $email;
         $this->password = $password;
-        $this->realm_roles = explode(' ', $realm_roles);
+        $this->realmRoles = $realmRoles;
+        $this->clientRoles = $clientRoles;
         $utc = new \DateTimeZone('UTC');
         $this->created_at =
             \DateTime::createFromFormat('Y-m-d H:i:s', $created_at, $utc);
@@ -59,9 +68,22 @@ class User implements \JsonSerializable
     {
         return $this->password;
     }
+    /** @return list<string> */
     public function getRealmRoles(): array
     {
-        return $this->realm_roles;
+        return $this->realmRoles;
+    }
+
+    /** @return array<string, list<string>> */
+    public function getClientRoles(): array
+    {
+        return $this->clientRoles;
+    }
+
+    /** @return list<string> */
+    public function getClientRoleNames(string $clientName): array
+    {
+        return $this->clientRoles[$clientName] ?? [];
     }
     public function getCreatedAt(): \DateTime
     {
@@ -79,7 +101,8 @@ class User implements \JsonSerializable
             'realm_id' => $this->realm_id,
             'name' => $this->name,
             'email' => $this->email,
-            'realm_roles' => $this->realm_roles,
+            'realm_roles' => $this->realmRoles,
+            'client_roles' => $this->clientRoles,
             'valid' => $this->valid,
             'created_at' => $this->created_at->format('Y-m-d H:i:s'),
         ];

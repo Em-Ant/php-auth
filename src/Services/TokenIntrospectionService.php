@@ -124,7 +124,7 @@ class TokenIntrospectionService
         $jti = $decoded['jti'] ?? '';
         $typ = $decoded['typ'] ?? 'Bearer';
 
-        return [
+        $result = [
             'active' => true,
             'sub' => $decoded['sub'] ?? '',
             'aud' => $decoded['aud'] ?? '',
@@ -137,5 +137,14 @@ class TokenIntrospectionService
             'scope' => $decoded['scope'] ?? '',
             'sid' => $decoded['sid'] ?? '',
         ];
+
+        if (array_key_exists('resource_access', $decoded)) {
+            $result['resource_access'] = $decoded['resource_access'];
+        }
+        if (array_key_exists('realm_access', $decoded)) {
+            $result['realm_access'] = $decoded['realm_access'];
+        }
+
+        return $result;
     }
 }

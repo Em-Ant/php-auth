@@ -23,6 +23,7 @@ use AuthServer\Interfaces\KeyStore;
 use AuthServer\Interfaces\LoginRepository as ILoginRepo;
 use AuthServer\Interfaces\OfflineSessionRepository as IOfflineSessionRepo;
 use AuthServer\Interfaces\RealmRepository as IRealmRepo;
+use AuthServer\Interfaces\RoleRepository as IRoleRepo;
 use AuthServer\Interfaces\SessionCookieHandler;
 use AuthServer\Interfaces\SessionRepository as ISessionRepo;
 use AuthServer\Interfaces\UserRepository as IUserRepo;
@@ -32,6 +33,7 @@ use AuthServer\Repositories\LoginRepository;
 use AuthServer\Repositories\MigrationRepository;
 use AuthServer\Repositories\OfflineSessionRepository;
 use AuthServer\Repositories\RealmRepository;
+use AuthServer\Repositories\RoleRepository;
 use AuthServer\Repositories\SessionRepository;
 use AuthServer\Repositories\TokenBlacklistRepository;
 use AuthServer\Repositories\UserRepository;
@@ -134,6 +136,7 @@ final class Definitions
             IOfflineSessionRepo::class => \DI\autowire(OfflineSessionRepository::class),
             IUserRepo::class => \DI\autowire(UserRepository::class),
             IRealmRepo::class => \DI\autowire(RealmRepository::class),
+            IRoleRepo::class => \DI\autowire(RoleRepository::class),
 
             // ── Domain services ──
 

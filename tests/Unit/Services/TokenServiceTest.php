@@ -106,7 +106,7 @@ class TokenServiceTest extends TestCase
             name: 'emant',
             email: 'test@example.com',
             password: 'hashed',
-            realm_roles: 'basic admin',
+            realmRoles: ['admin', 'basic'],
             created_at: '2025-01-01 00:00:00',
             valid: true,
         );
@@ -242,7 +242,7 @@ class TokenServiceTest extends TestCase
         self::assertArrayHasKey('session_state', $payload);
         self::assertArrayHasKey('acr', $payload);
         self::assertSame('emant', $payload['preferred_username']);
-        self::assertSame(['basic', 'admin'], $payload['realm_access']['roles']);
+        self::assertSame(['admin', 'basic'], $payload['realm_access']['roles']);
     }
 
     public function testIdTokenContainsSpecCompliantAtHash(): void
