@@ -125,8 +125,8 @@ class SessionLoginManagementTest extends TestCase
 
         // Create a user first to satisfy FK
         $hash = password_hash('pass', PASSWORD_BCRYPT, ['cost' => 4]);
-        $pdo->exec("INSERT INTO users (id, realm_id, name, email, password, realm_roles, valid)
-                     VALUES ('$userId', '" . self::TEST_REALM . "', 'Temp', 'temp-".get_guid()."@example.com', '$hash', 'basic', 'TRUE')");
+        $pdo->exec("INSERT INTO users (id, realm_id, name, email, password, valid)
+                     VALUES ('$userId', '" . self::TEST_REALM . "', 'Temp', 'temp-".get_guid()."@example.com', '$hash', 'TRUE')");
 
         $s1 = get_guid();
         $s2 = get_guid();
@@ -156,8 +156,8 @@ class SessionLoginManagementTest extends TestCase
         $loginId = get_guid();
 
         $hash = password_hash('pass', PASSWORD_BCRYPT, ['cost' => 4]);
-        $pdo->exec("INSERT INTO users (id, realm_id, name, email, password, realm_roles, valid)
-                     VALUES ('$userId', '" . self::TEST_REALM . "', 'Temp', 'cid-".get_guid()."@example.com', '$hash', 'basic', 'TRUE')");
+        $pdo->exec("INSERT INTO users (id, realm_id, name, email, password, valid)
+                     VALUES ('$userId', '" . self::TEST_REALM . "', 'Temp', 'cid-".get_guid()."@example.com', '$hash', 'TRUE')");
         $pdo->exec("INSERT INTO sessions (id, realm_id, user_id, acr, status) VALUES ('$sessionId', '" . self::TEST_REALM . "', '$userId', '0', 'ACTIVE')");
         $pdo->exec("INSERT INTO logins (id, client_id, session_id, state, nonce, scope, redirect_uri, response_mode, status) VALUES ('$loginId', '" . self::TEST_CLIENT . "', '$sessionId', 'st', 'nc', 'openid', 'https://example.com', 'query', 'ACTIVE')");
 
@@ -218,8 +218,8 @@ class SessionLoginManagementTest extends TestCase
         $userId = get_guid();
         $email = 'disabled-' . $userId . '@example.com';
         $hash = password_hash('testpass', PASSWORD_BCRYPT, ['cost' => 4]);
-        $pdo->exec("INSERT INTO users (id, realm_id, name, email, password, realm_roles, valid)
-                     VALUES ('$userId', '" . self::TEST_REALM . "', 'Disabled User', '$email', '$hash', 'basic', 'FALSE')");
+        $pdo->exec("INSERT INTO users (id, realm_id, name, email, password, valid)
+                     VALUES ('$userId', '" . self::TEST_REALM . "', 'Disabled User', '$email', '$hash', 'FALSE')");
 
         // First GET /auth to get a valid login_id and csrf_token
         $authRequest = $this->createRequest('GET',
@@ -266,8 +266,8 @@ class SessionLoginManagementTest extends TestCase
         $userId = get_guid();
         $email = 'enabled-' . get_guid() . '@example.com';
         $hash = password_hash('testpass', PASSWORD_BCRYPT, ['cost' => 4]);
-        $pdo->exec("INSERT INTO users (id, realm_id, name, email, password, realm_roles, valid)
-                     VALUES ('$userId', '" . self::TEST_REALM . "', 'Enabled User', '$email', '$hash', 'basic', 'TRUE')");
+        $pdo->exec("INSERT INTO users (id, realm_id, name, email, password, valid)
+                     VALUES ('$userId', '" . self::TEST_REALM . "', 'Enabled User', '$email', '$hash', 'TRUE')");
 
         // First get the auth page to extract login_id and csrf_token
         $authRequest = $this->createRequest('GET',

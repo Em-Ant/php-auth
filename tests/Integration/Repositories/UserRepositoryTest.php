@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AuthServer\Tests\Integration\Repositories;
 
 use AuthServer\Exceptions\StorageFailed;
+use AuthServer\Repositories\RoleRepository;
 use AuthServer\Repositories\UserRepository;
 use AuthServer\Tests\Integration\RepositoryTestCase;
 use AuthServer\Tests\Support\FailingPdo;
@@ -15,7 +16,7 @@ class UserRepositoryTest extends RepositoryTestCase
 
     protected function setUp(): void
     {
-        $this->repo = new UserRepository(self::$pdo);
+        $this->repo = new UserRepository(self::$pdo, new RoleRepository(self::$pdo));
     }
 
     public function testFindByIdReturnsUser(): void
@@ -24,7 +25,7 @@ class UserRepositoryTest extends RepositoryTestCase
         self::assertNotNull($user);
         self::assertSame('emant', $user->getName());
         self::assertSame('test@example.com', $user->getEmail());
-        self::assertSame(['basic', 'admin'], $user->getRealmRoles());
+        self::assertSame(['admin', 'basic'], $user->getRealmRoles());
     }
 
     public function testFindByIdReturnsNullForMissing(): void
@@ -62,7 +63,7 @@ class UserRepositoryTest extends RepositoryTestCase
 
     public function testStorageFailureThrows(): void
     {
-        $repo = new UserRepository(new FailingPdo());
+        $repo = new UserRepository(new FailingPdo(), new RoleRepository(new FailingPdo()));
 
         $this->expectException(StorageFailed::class);
         $repo->findById('586d7bb3-d386-4b57-9e99-b2a460f20b47');

@@ -352,26 +352,28 @@ class TokenService
         string $typ = 'Refresh'
     ): string {
         $exp = $now + $validity;
-        return $this->createToken(
-            [
-                "exp" => $exp,
-                "iat" => $now,
-                "jti" => get_guid(),
-                "iss" => $this->issuer . "/realms/$realm_name",
-                "aud" => $this->issuer,
-                "sub" => $context['subject'],
-                "typ" => $typ,
-                "azp" => $client->getName(),
-                "nonce" => $context['nonce'],
-                "session_state" => $context['sid'],
-                "realm_access" => [
-                    "roles" => $user->getRealmRoles()
-                ],
-                "scope" => $context['scope'],
-                "sid" => $context['sid']
+        $claims = [
+            "exp" => $exp,
+            "iat" => $now,
+            "jti" => get_guid(),
+            "iss" => $this->issuer . "/realms/$realm_name",
+            "aud" => $this->issuer,
+            "sub" => $context['subject'],
+            "typ" => $typ,
+            "azp" => $client->getName(),
+            "nonce" => $context['nonce'],
+            "session_state" => $context['sid'],
+            "realm_access" => [
+                "roles" => $user->getRealmRoles()
             ],
-            $keys_id
-        );
+            "scope" => $context['scope'],
+            "sid" => $context['sid']
+        ];
+        $resource_access = $this->resourceAccessClaim($client, $user);
+        if ($resource_access !== null) {
+            $claims["resource_access"] = $resource_access;
+        }
+        return $this->createToken($claims, $keys_id);
     }
 
     /**
@@ -394,32 +396,34 @@ class TokenService
         string $keys_id
     ): string {
         $exp = $now + $validity;
-        return $this->createToken(
-            [
-                "exp" => $exp,
-                "iat" => $now,
-                "auth_time" => $context['auth_time'],
-                "jti" => get_guid(),
-                "iss" => $this->issuer . "/realms/$realm_name",
-                "aud" => $client->getName(),
-                "sub" => $context['subject'],
-                "typ" => "Bearer",
-                "azp" => $client->getName(),
-                "nonce" => $context['nonce'],
-                "session_state" => $context['sid'],
-                "acr" => $context['acr'],
-                "allowed-origins" => [
-                    $client->getUri()
-                ],
-                "realm_access" => [
-                    "roles" => $user->getRealmRoles()
-                ],
-                "scope" => $context['scope'],
-                "sid" => $context['sid'],
-                "preferred_username" => $user->getName()
+        $claims = [
+            "exp" => $exp,
+            "iat" => $now,
+            "auth_time" => $context['auth_time'],
+            "jti" => get_guid(),
+            "iss" => $this->issuer . "/realms/$realm_name",
+            "aud" => $client->getName(),
+            "sub" => $context['subject'],
+            "typ" => "Bearer",
+            "azp" => $client->getName(),
+            "nonce" => $context['nonce'],
+            "session_state" => $context['sid'],
+            "acr" => $context['acr'],
+            "allowed-origins" => [
+                $client->getUri()
             ],
-            $keys_id
-        );
+            "realm_access" => [
+                "roles" => $user->getRealmRoles()
+            ],
+            "scope" => $context['scope'],
+            "sid" => $context['sid'],
+            "preferred_username" => $user->getName()
+        ];
+        $resource_access = $this->resourceAccessClaim($client, $user);
+        if ($resource_access !== null) {
+            $claims["resource_access"] = $resource_access;
+        }
+        return $this->createToken($claims, $keys_id);
     }
 
     /**
@@ -463,6 +467,15 @@ class TokenService
             ],
             $keys_id
         );
+    }
+
+    private function resourceAccessClaim(Client $client, User $user): ?array
+    {
+        $roles = $user->getClientRoleNames($client->getName());
+        if ($roles === []) {
+            return null;
+        }
+        return [$client->getName() => ['roles' => $roles]];
     }
 
     private static function calculateAtHash(string $accessToken): string
