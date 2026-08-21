@@ -17,8 +17,7 @@ Single source of truth for what to work on next. **Local by design** (3 machines
 | ID | Type | Priority | Size | Blocked by | Why-now | Doc |
 |----|------|----------|------|------------|---------|-----|
 | R-03 | refactor | P1 | L | | AuthOrchestrator: 9 deps, 10 jobs | `clean-code/issues/03-…` |
-| F-04 | feature | P1 | M | | client roles namespace (`resource_access.<client>`) | `scopes/` |
-| F-05 | feature | P1 | L | F-04 | scope↔role gating at issuance (needs `roles` tables from F-04) | `scopes/issues/03-…` |
+| F-05 | feature | P1 | L | | scope↔role gating at issuance (`roles` tables shipped in F-04) | `scopes/issues/03-…` |
 | F-06 | feature | P1 | S | | offline revocation remainder: single-offline-session admin surface (list/revoke one session) + optional access-token bulk invalidation — revoke-by-user already shipped; admin CRUD exists, unblocked | `token-lifecycle/issues/04-…` |
 | R-04 | refactor | P2 | S | | Basic-auth block ×3 in controllers | `clean-code/issues/05-…` |
 | R-05 | refactor | P2 | S | | drop dead `InputValidator` DI entry (static conversion done) | `clean-code/issues/07-…` |
@@ -29,7 +28,7 @@ Single source of truth for what to work on next. **Local by design** (3 machines
 | F-09 | feature | P2 | M | | email magic link | `ROADMAP → Login Methods` |
 | F-10 | feature | P2 | M | | consent screen (`offline_access`) — delayed by design; client gating (scopes #02) is the control until then | `ROADMAP → Token Lifecycle` |
 | F-11 | feature | P2 | S | | per-realm password policy | `ROADMAP → Admin API` |
-| F-12 | feature | P2 | M | F-04 | admin config surface for scopes/roles (roles CRUD from F-04; mappings after F-05) | `scopes/issues/04-…` |
+| F-12 | feature | P2 | M | | admin config surface for scopes/roles (roles CRUD from F-04; mappings after F-05) | `scopes/issues/04-…` |
 | F-13 | feature | P2 | S | | per-realm login page config | `ROADMAP → Login Form` |
 | F-19 | feature | P2 | S | | blacklist purge + expired-session cleanup | `token-lifecycle/issues/05-…` |
 | F-20 | refactor | P2 | M | | split E2E into two contracts — prod smoke (`bin/smoke-test.sh`, no DB, bounded footprint, ~30 checks) + local OIDC integrity suite; phase 2: PHPUnit-against-live-`BASE_URL` (no Playwright) | `ci-e2e/PRD.md` |
