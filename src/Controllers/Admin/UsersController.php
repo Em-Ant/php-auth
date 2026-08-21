@@ -66,8 +66,7 @@ class UsersController
                 throw new ConflictException("user '$email' already exists in this realm");
             }
 
-            $realmRolesRaw = $this->optionalString($body, 'realm_roles', null) ?? self::DEFAULT_ROLES;
-            $realmRoles = $realmRolesRaw !== '' ? explode(' ', $realmRolesRaw) : [];
+            $realmRoles = self::splitRoles($this->optionalString($body, 'realm_roles', null) ?? self::DEFAULT_ROLES);
 
             $user = new User(
                 get_guid(),
@@ -113,10 +112,7 @@ class UsersController
                 throw new ConflictException("user '$email' already exists in this realm");
             }
 
-            $realmRolesRaw = $this->optionalString($body, 'realm_roles', null);
-            $realmRoles = $realmRolesRaw !== null
-                ? ($realmRolesRaw !== '' ? explode(' ', $realmRolesRaw) : [])
-                : $existing->getRealmRoles();
+            $realmRoles = $this->updatedRealmRoles($body, $existing);
 
             $user = new User(
                 $existing->getId(),
@@ -165,6 +161,20 @@ class UsersController
             throw new HttpNotFoundException($request, "user '$id' not found");
         }
         return $user;
+    }
+
+    private function updatedRealmRoles(array $body, User $existing): array
+    {
+        $raw = $this->optionalString($body, 'realm_roles', null);
+        if ($raw === null) {
+            return $existing->getRealmRoles();
+        }
+        return self::splitRoles($raw);
+    }
+
+    private static function splitRoles(string $roles): array
+    {
+        return $roles === '' ? [] : explode(' ', $roles);
     }
 
     private function updatedPassword(array $body, User $existing): string
