@@ -69,7 +69,10 @@ per realm — not schema changes.
 The admin API still accepts `realm_roles` as a full-set, space-separated
 string on user create/update. `RoleRepository::syncRealmRoles` reconciles that
 desired state into rows, auto-creating unknown role names
-(`ensureRealmRole`). This preserves the v0 contract, but:
+(`ensureRealmRole`). The request dialect is preserved; the response shape is
+not — user representations no longer include a `realm_roles` field, and role
+state must be read through the (future F-12) role endpoints instead. This
+preserves the v0 request contract, but:
 
 - it exists solely as a compatibility layer until F-12 ships granular role
   CRUD and per-user assignment endpoints;
