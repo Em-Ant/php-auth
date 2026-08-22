@@ -246,6 +246,28 @@ class MigrationsEndpointTest extends TestCase
 
     // ── Error cases ────────────────────────────────────────────
 
+    public function testMigrateFailureReturnsJson500NotHtml(): void
+    {
+        $repo = new MigrationRepository(Database::connect('sqlite::memory:'));
+        $failingRunner = new class ($repo, __DIR__ . '/../../migrations/') extends MigrationRunner {
+            #[\Override]
+            public function migrate(): array
+            {
+                throw new \RuntimeException('Migration 5-roles failed: simulated');
+            }
+        };
+        $controller = new MigrationsController($failingRunner);
+
+        $request = (new \Slim\Psr7\Factory\ServerRequestFactory())
+            ->createServerRequest('POST', '/db/migrations/migrate');
+        $response = $controller->migrate($request, (new \Slim\Psr7\Factory\ResponseFactory())->createResponse());
+
+        self::assertSame(500, $response->getStatusCode());
+        $body = json_decode((string) $response->getBody(), true);
+        self::assertSame('migration_failed', $body['error'] ?? null);
+        self::assertStringContainsString('simulated', $body['error_description'] ?? '');
+    }
+
     public function testGoWithNegativeVersionReturns400(): void
     {
         $request = $this->createRequest('POST', '/db/migrations/go', ['version' => -1], null, [

@@ -79,7 +79,7 @@ jobs:
           ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
           APP_URL: ${{ secrets.APP_URL }}
         run: |
-          curl -sS -X POST \
+          curl -sS --fail-with-body -X POST \
             -H "Authorization: Bearer $ADMIN_API_KEY" \
             "$APP_URL/admin/migrations/migrate"
 

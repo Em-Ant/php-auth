@@ -20,7 +20,11 @@ class MigrationsController
 
     public function migrate(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
-        $applied = $this->runner->migrate();
+        try {
+            $applied = $this->runner->migrate();
+        } catch (\RuntimeException $e) {
+            return JsonResponse::error($response, 'migration_failed', $e->getMessage(), 500);
+        }
 
         return JsonResponse::create($response, [
             'applied' => array_map(fn($m) => [
