@@ -61,14 +61,6 @@ class RolesMigrationTest extends TestCase
         }
     }
 
-    public function testRealmRolesColumnIsDropped(): void
-    {
-        $columns = self::$pdo->query("PRAGMA table_info(users)")->fetchAll();
-        $names = array_map(fn(array $c) => $c['name'], $columns);
-
-        self::assertNotContains('realm_roles', $names);
-    }
-
     public function testLegacyRolesAreNormalizedAsRealmRoles(): void
     {
         foreach ([
@@ -80,5 +72,17 @@ class RolesMigrationTest extends TestCase
                 $this->roles->findRealmRoleNamesByUserId($userId, self::REALM)
             );
         }
+    }
+
+    /**
+     * The migration abandons users.realm_roles but must not drop it: DROP
+     * COLUMN needs SQLite >= 3.35, which some shared hosts do not ship.
+     */
+    public function testLegacyColumnIsRetainedNotDropped(): void
+    {
+        $columns = self::$pdo->query("PRAGMA table_info(users)")->fetchAll();
+        $names = array_map(fn(array $c) => $c['name'], $columns);
+
+        self::assertContains('realm_roles', $names);
     }
 }

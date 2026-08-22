@@ -39,7 +39,12 @@ user_role_assignments(user_id, role_id)
   both axes; two partial unique indexes keep `(realm_id, name)` and
   `(client_id, name)` unique independently.
 - Migration `005_roles` moved the legacy strings into rows via recursive-CTE
-  split and dropped `users.realm_roles`.
+  split. It originally also dropped `users.realm_roles`; amended 2026-08-22 to
+  retain the column instead — `ALTER TABLE ... DROP COLUMN` needs SQLite ≥ 3.35
+  and broke on shared hosting with an older bundled SQLite (the migration
+  rolled back, leaving no role tables at all). The column is abandoned: no
+  code reads or writes it after this migration. Environments that already
+  applied the original 005 have simply dropped it; both states are valid.
 - Realm roles are **not** mirrored onto clients. Client roles start empty and
   are populated explicitly (admin CRUD, F-12). An earlier implementation
   mirrored them; removed deliberately.

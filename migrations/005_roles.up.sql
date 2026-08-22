@@ -24,8 +24,13 @@ CREATE TABLE IF NOT EXISTS user_role_assignments (
 );
 
 -- Migrate the legacy space-separated users.realm_roles column into normalized
--- realm roles (client_id IS NULL), one role + assignment per name, then drop
--- the column. lower(hex(randomblob(16))) gives each role a unique opaque id.
+-- realm roles (client_id IS NULL), one role + assignment per name.
+-- lower(hex(randomblob(16))) gives each role a unique opaque id.
+--
+-- The users.realm_roles column itself is retained but abandoned: no code reads
+-- it after this migration. Dropping it would need ALTER TABLE ... DROP COLUMN
+-- (SQLite >= 3.35) or a full table rebuild, neither portable to older SQLite
+-- builds shipped by some shared hosts.
 WITH RECURSIVE split(user_id, realm_id, role, rest) AS (
     SELECT id, realm_id, '', rtrim(realm_roles) || ' '
     FROM users
@@ -59,5 +64,3 @@ INSERT OR IGNORE INTO user_role_assignments (user_id, role_id)
 SELECT s.user_id, r.id
 FROM (SELECT user_id, realm_id, role FROM split WHERE role <> '') s
 JOIN roles r ON r.realm_id = s.realm_id AND r.client_id IS NULL AND r.name = s.role;
-
-ALTER TABLE users DROP COLUMN realm_roles;

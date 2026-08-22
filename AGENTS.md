@@ -24,6 +24,8 @@
 Files in `migrations/` are plain SQL: `NNN_name.up.sql` + `NNN_name.down.sql`.
 Run via CLI (`composer migrate`) or HTTP (`POST /db/migrations/migrate` with admin Bearer token).
 
+**SQLite floor: 3.31** (prod shared hosting, older bundled SQLite). Avoid newer constructs — notably `ALTER TABLE ... DROP COLUMN`; prefer retain-and-abandon for dead columns. If a migration is destructive/incompatible anyway, it is *risky* and needs a release plan with precomputed manual remediation SQL — see `docs/adr/0002`.
+
 **Seed data (`db/seed.sql`)** is dev-only and never runs in production. Invoke manually via `composer seed` (idempotent — skips if a realm already exists).
 
 ## Agent skills
