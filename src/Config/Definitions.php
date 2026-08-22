@@ -55,6 +55,7 @@ use AuthServer\Services\TokenIntrospectionService;
 use AuthServer\Services\TokenRevocationService;
 use AuthServer\Services\TokenService;
 use AuthServer\Services\TokenValidator;
+use AuthServer\Services\UserAdminService;
 use AuthServer\Services\ViewRenderer;
 use Monolog\Handler\StreamHandler;
 use Monolog\Logger;
@@ -146,6 +147,7 @@ final class Definitions
             TokenRevocationService::class => \DI\autowire(),
             TokenIntrospectionService::class => \DI\autowire(),
             OfflineSessionService::class => \DI\autowire(),
+            UserAdminService::class => \DI\autowire(),
             InputValidator::class => \DI\autowire(),
             LoginStateMachine::class => \DI\autowire(),
             ScopeResolver::class => \DI\autowire(),

@@ -153,17 +153,21 @@ class RoleRepository implements IRoleRepo
         }
     }
 
+    /**
+     * Replace the realm-role assignments for a user. Participates in an
+     * already-open transaction when the caller owns one (re-entrant), and
+     * only opens its own otherwise.
+     */
     public function syncRealmRoles(string $userId, string $realmId, array $roleNames): void
     {
-        try {
-            $this->db->beginTransaction();
+        $ownsTransaction = !$this->db->inTransaction();
 
-            $delete = $this->db->prepare(
-                'DELETE FROM user_role_assignments
-                 WHERE user_id = :user_id
-                   AND role_id IN (SELECT id FROM roles WHERE realm_id = :realm_id AND client_id IS NULL)'
-            );
-            $delete->execute([':user_id' => $userId, ':realm_id' => $realmId]);
+        if ($ownsTransaction) {
+            $this->db->beginTransaction();
+        }
+
+        try {
+            $this->deleteRealmRoleAssignments($userId, $realmId);
 
             foreach ($roleNames as $roleName) {
                 $roleId = $this->ensureRealmRole($realmId, $roleName);
@@ -174,11 +178,25 @@ class RoleRepository implements IRoleRepo
                 $insert->execute([':user_id' => $userId, ':role_id' => $roleId]);
             }
 
-            $this->db->commit();
+            if ($ownsTransaction) {
+                $this->db->commit();
+            }
         } catch (\PDOException $e) {
-            $this->db->rollBack();
+            if ($ownsTransaction) {
+                $this->db->rollBack();
+            }
             throw new StorageFailed('failed to sync realm roles', 0, $e);
         }
+    }
+
+    private function deleteRealmRoleAssignments(string $userId, string $realmId): void
+    {
+        $delete = $this->db->prepare(
+            'DELETE FROM user_role_assignments
+             WHERE user_id = :user_id
+               AND role_id IN (SELECT id FROM roles WHERE realm_id = :realm_id AND client_id IS NULL)'
+        );
+        $delete->execute([':user_id' => $userId, ':realm_id' => $realmId]);
     }
 
     private function ensureRealmRole(string $realmId, string $roleName): string

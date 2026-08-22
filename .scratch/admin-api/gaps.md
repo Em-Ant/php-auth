@@ -20,7 +20,6 @@ The decisions below are formalized in `docs/adr/0001-role-storage-and-claim-load
 | # | Gap | Impact | Tracked by |
 |---|-----|--------|------------|
 | G-1 | List endpoints are unbounded (`GET /admin/users`, `/clients`, `/sessions`, `/logins`) — no pagination, no envelope. | Memory/payload blowup as data grows. | A-03 (`issues/03-pagination`) |
-| G-2 | User create/update and `syncRealmRoles` are not atomic — half-failure leaves a user without roles (or drops an intended role change). | Broken write contract; low practical risk today (SQLite, single process). | A-04 (`issues/04-user-role-write-atomicity`) |
 | G-3 | **Legacy dialect shim**: `realm_roles` accepted as a full-set, space-separated *string* on user create/update; unknown role names are auto-created on the fly (`ensureRealmRole`). Full-replace semantics, no deltas. | Last remnant of the pre-005 denormalized world. Race-prone under concurrency; typos materialize as real roles. Superseded by G-4's granular model — do not build new features on it. | To be retired by F-12; recorded in **ADR-0001 (D4)** |
 | G-4 | **No role read/write surface**: no `GET /admin/roles`, no role assignment endpoints; after D-2 the user payload carries no roles, so per-user role mapping has no API yet (the future admin UI needs exactly this, per individual user). | Roles are currently manageable only via the G-3 shim (realm axis) or raw SQL (client axis). | F-12 (`scopes/issues/04`) |
 | G-5 | No audit log on any admin mutation. | Compliance/debuggability once real consumers exist. | F-07 (BACKLOG) |

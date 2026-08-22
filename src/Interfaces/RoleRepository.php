@@ -30,7 +30,8 @@ interface RoleRepository
 
     /**
      * Replace the realm-role assignments for a user. Client-role assignments
-     * are left untouched.
+     * are left untouched. Participates in a caller-owned transaction when one
+     * is open; only opens its own otherwise.
      *
      * @param list<string> $roleNames
      */

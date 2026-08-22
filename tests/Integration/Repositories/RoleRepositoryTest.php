@@ -82,6 +82,18 @@ class RoleRepositoryTest extends RepositoryTestCase
         );
     }
 
+    public function testSyncRealmRolesJoinsCallerTransaction(): void
+    {
+        self::$pdo->beginTransaction();
+        $this->repo->syncRealmRoles(self::EMANT_TEST, self::TEST_REALM, ['joined']);
+        self::$pdo->commit();
+
+        self::assertSame(
+            ['joined'],
+            $this->repo->findRealmRoleNamesByUserId(self::EMANT_TEST, self::TEST_REALM)
+        );
+    }
+
     public function testCreateAndFindByIdRoundTripForRealmRole(): void
     {
         $role = $this->repo->create($this->role(null, 'auditor'));
