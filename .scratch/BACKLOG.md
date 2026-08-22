@@ -18,7 +18,6 @@ Single source of truth for what to work on next. **Local by design** (3 machines
 |----|------|----------|------|------------|---------|-----|
 | R-03 | refactor | P1 | L | | AuthOrchestrator: 9 deps, 10 jobs | `clean-code/issues/03-…` |
 | A-03 | fix | P1 | M | | admin list endpoints unbounded — pagination + `{items,total,limit,offset}` envelope (users/clients/sessions/logins); auth paths unaffected, API has no consumers yet | `admin-api/issues/03-…` |
-| A-04 | fix | P2 | S | | user create/update + `syncRealmRoles` not atomic — wrap in one transaction (hoist or savepoints vs inner tx); move orchestration out of controller | `admin-api/issues/04-…` |
 | F-05 | feature | P1 | L | | scope↔role gating at issuance (`roles` tables shipped in F-04) | `scopes/issues/03-…` |
 | F-06 | feature | P1 | S | | offline revocation remainder: single-offline-session admin surface (list/revoke one session) + optional access-token bulk invalidation — revoke-by-user already shipped; admin CRUD exists, unblocked | `token-lifecycle/issues/04-…` |
 | R-04 | refactor | P2 | S | | Basic-auth block ×3 in controllers | `clean-code/issues/05-…` |

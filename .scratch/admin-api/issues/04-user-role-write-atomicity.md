@@ -1,6 +1,9 @@
 # 04 — Atomic user create/update with role assignments
 
-status: **OPEN**
+status: **DONE** 08/22/2026 — `UserAdminService` owns one transaction spanning
+the user-row write and `syncRealmRoles`; `syncRealmRoles` is re-entrant
+(`inTransaction()` guard), so it keeps standalone atomicity while joining the
+caller's transaction. Orchestration moved out of `UsersController`.
 
 ## Problem
 

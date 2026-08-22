@@ -14,6 +14,7 @@ use AuthServer\Interfaces\UserRepository;
 use AuthServer\Models\User;
 use AuthServer\Response\JsonResponse;
 use AuthServer\Services\SecretsService;
+use AuthServer\Services\UserAdminService;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Slim\Exception\HttpNotFoundException;
@@ -32,6 +33,7 @@ class UsersController
         private readonly SessionRepository $sessions,
         private readonly OfflineSessionRepository $offlineSessions,
         private readonly SecretsService $secretsService,
+        private readonly UserAdminService $userAdmin,
         private readonly RoleRepository $roles,
     ) {
     }
@@ -80,8 +82,7 @@ class UsersController
                 $this->optionalBool($body, 'valid', true)
             );
 
-            $created = $this->users->create($user);
-            $this->roles->syncRealmRoles($created->getId(), $realmId, $realmRoles);
+            $created = $this->userAdmin->createUser($user, $realmRoles);
 
             return JsonResponse::create($response, self::toArray($created), 201);
         } catch (ValidationFailed $e) {
@@ -126,8 +127,7 @@ class UsersController
                 $this->optionalBool($body, 'valid', $existing->getValid())
             );
 
-            $this->users->update($user);
-            $this->roles->syncRealmRoles($existing->getId(), $realmId, $realmRoles);
+            $this->userAdmin->updateUser($user, $realmRoles);
 
             return JsonResponse::create($response, self::toArray($user));
         } catch (ValidationFailed $e) {
