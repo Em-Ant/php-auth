@@ -191,6 +191,7 @@ final class Definitions
             LoginsController::class => \DI\autowire(),
             KeysController::class => \DI\autowire()
                 ->constructorParameter('keysRoot', \DI\get('keys_root')),
+            \AuthServer\Controllers\Admin\OfflineSessionsController::class => \DI\autowire(),
         ];
     }
 }

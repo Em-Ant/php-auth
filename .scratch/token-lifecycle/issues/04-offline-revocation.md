@@ -1,6 +1,10 @@
 # 04 — Offline revocation (admin-initiated)
 
-status: **PARTIAL** — revoke-by-user landed with F-02; the remainder is **unblocked** (admin CRUD exists) and queued as ready (BACKLOG F-06)
+status: **DONE** — 2026-08-23 (F-06)
+
+- F-02 (2026-08-18): `POST /admin/sessions/invalidate` bulk-expires `offline_sessions` by `user_id`/`client_id`, 409 guards on active offline grants, deletes expired rows on user/client delete.
+- F-06 (2026-08-23): single-offline-session admin surface — `GET /admin/offline-sessions` (filter `realm_id`/`user_id`/`client_id`, paginated `{items,total,limit,offset}`), `GET /admin/offline-sessions/{id}`, `DELETE /admin/offline-sessions/{id}` (`ACTIVE→EXPIRED`, idempotent 204). Verified by `bin/e2e-test.sh` Step 24c (two per-client grants, single revoke proves isolation, introspect/refresh, pagination).
+- Access-token bulk invalidation (`nbf`/`not-before` per user) deliberately deferred — `5m` access-token window accepted; short-lived tokens + per-`jti` blacklist already cover the MUST. Revisit if `F-19` cleanup or prod policy requires it.
 
 ## What landed with F-02 (2026-08-18)
 
@@ -11,9 +15,7 @@ physically removes the expired rows. So "revoke user X → X's offline tokens
 fail" already works through the admin API — see
 [#03](03-offline-token-support.md#admin-api-integration-solved-with-f-02-not-deferred).
 
-Still open (this issue): single-offline-session admin surface (list/revoke one
-session) and access-token bulk invalidation (jti registry or `nbf` enforcement,
-optional). The offline-sessions purge lives in the cleanup task (#05).
+Remainder closed by F-06; the offline-sessions purge lives in the cleanup task (#05).
 
 ## Situation
 
@@ -36,31 +38,23 @@ presupposed the Admin API CRUD track (users, sessions, offline sessions,
 realms/clients). That prerequisite is now met (`feat: admin crud api` +
 offline-access commit), so the remaining surface is no longer blocked.
 
-## Scope (when Admin API lands)
+## Scope (shipped)
 
-- Admin endpoint to revoke all sessions + logins for a user **and all of that
-  user's `offline_sessions`** (sets them all `EXPIRED`) — this is the real
-  "offline revocation", since offline tokens are independent of the SSO session.
-- Admin endpoint to revoke a single SSO session (expires the session + its
-  logins). `offline_sessions` are **not** affected — per-client, independent by
-  design.
-- Optional: access-token invalidation for already-issued access tokens (minted
-  from SSO or offline refresh) — either (a) store issued jtis per
-  session/offline session, or (b) add a `not-before-policy`/`nbf` claim per
-  user/session and enforce it at validation. Today tokens carry no `nbf`;
-  responses echo `not-before-policy: 0` but nothing enforces it.
-- Protected by the existing admin auth middleware + rate limiting.
+- Bulk revoke: `POST /admin/sessions/invalidate` revokes all sessions+logins **and** all `offline_sessions` for a user/client (`EXPIRED`). — F-02.
+- Single SSO session: `DELETE /admin/sessions/{id}` cascades logins; `offline_sessions` unaffected (per-client independence). — pre-existing.
+- Single offline session: `GET /admin/offline-sessions` + `GET /admin/offline-sessions/{id}` + `DELETE /admin/offline-sessions/{id}` — F-06.
+- Optional access-token bulk invalidation (jti registry vs `not-before`) — deferred (see status).
+
+All admin endpoints protected by `AdminMiddleware` + rate limiting.
 
 ## Ownership
 
 Admin API workstream (roadmap "Admin API"), **not** the OIDC protocol
 endpoints. Precondition met: admin CRUD for users, sessions and
-`offline_sessions` shipped (`feat: admin crud api`). The remainder is queued
-as ready in BACKLOG (F-06).
+`offline_sessions` shipped (`feat: admin crud api`). F-06 closes the remainder.
 
-## Acceptance (sketch)
+## Acceptance (verified)
 
-- Admin revokes user X → all X's active sessions, logins **and offline tokens**
-  fail (refresh → `invalid_grant`; introspection → `active: false`).
-- Admin revokes SSO session S → S's logins/tokens die; X's offline tokens stay
-  valid.
+- Admin bulk-invalidates user X → all X's active sessions, logins **and offline tokens** fail (refresh → `invalid_grant`; introspection → `active: false`). — F-02, `AdminCrudTest::testInvalidateExpiresOfflineSessionsAndUnblocksDeletion` + `e2e` Step 25.
+- Admin revokes SSO session S → S's logins/tokens die; X's offline tokens stay valid. — `SessionsController::delete`.
+- Admin lists offline sessions with `{items,total,limit,offset}` envelope, reads one, deletes one (`ACTIVE→EXPIRED` idempotent) → deleted refresh fails, sibling per-client grant stays valid, pagination `limit=1` respected. — `AdminOfflineSessionsTest` + `e2e` Step 24c.

@@ -30,6 +30,20 @@ interface OfflineSessionRepository
 
     public function setExpiredByClientId(string $clientId): int;
 
+    /**
+     * Filtered, paged listing. `total` counts all rows matching the filters,
+     * independent of limit/offset.
+     *
+     * @return array{items: \AuthServer\Models\OfflineSession[], total: int}
+     */
+    public function searchAll(
+        ?string $realmId,
+        ?string $userId,
+        ?string $clientId,
+        int $limit,
+        int $offset
+    ): array;
+
     public function deleteByUserId(string $userId): int;
 
     public function deleteByClientId(string $clientId): int;

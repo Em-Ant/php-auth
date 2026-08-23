@@ -44,4 +44,29 @@ trait ValidatesAdminInput
         }
         return $value;
     }
+
+    private function queryString(array $query, string $key): ?string
+    {
+        $value = $query[$key] ?? null;
+        if (!is_string($value) || trim($value) === '') {
+            return null;
+        }
+
+        return trim($value);
+    }
+
+    private function queryInt(array $query, string $key, int $default, int $min, ?int $max): int
+    {
+        $raw = $query[$key] ?? null;
+        if ($raw === null || $raw === '') {
+            return $default;
+        }
+
+        $value = filter_var($raw, FILTER_VALIDATE_INT);
+        if ($value === false || $value < $min || ($max !== null && $value > $max)) {
+            return $default;
+        }
+
+        return $value;
+    }
 }

@@ -29,7 +29,7 @@ place, but the offline token model is only partially explicit:
 | Access validation honors blacklist | `ValidateAccessToken` middleware | Done |
 | `offline_access` accepted per realm | validated against `realms.scope` (auth-code + client_credentials); `scope_supported` derived from it (`OidcController::sendConfig`) | Works by config, not explicit |
 | `offline_access` per-client allow-list | `clients.scope` | Missing — scopes PRD phase 2 (#02) |
-| Offline revocation (admin, no token present) | `POST /admin/sessions/invalidate` expires user/client `offline_sessions`; delete guards (409) on active offline grants | Partial — revoke-by-user done with F-02; single-session surface + token bulk-invalidation in #04 |
+| Offline revocation (admin, no token present) | `POST /admin/sessions/invalidate` (bulk) + `GET/DELETE /admin/offline-sessions` (single, paginated `{items,total,limit,offset}`) | Done — F-02 bulk + F-06 single (2026-08-23); `nbf` bulk-access invalidation deferred |
 | Blacklist + expired-session cleanup | — | TODO — admin-triggered maintenance task (Admin API) |
 
 ## The model
@@ -80,5 +80,5 @@ place, but the offline token model is only partially explicit:
 - [#01](issues/01-revocation-endpoint.md) — Revocation endpoint (RFC 7009) — DONE
 - [#02](issues/02-introspection-endpoint.md) — Introspection endpoint (RFC 7662) — DONE
 - [#03](issues/03-offline-token-support.md) — Offline access: long-living refresh token (realm-config TTL; per-client gating in scopes #02)
-- [#04](issues/04-offline-revocation.md) — Offline revocation (admin-initiated; deferred to Admin API)
+- [#04](issues/04-offline-revocation.md) — Offline revocation (admin-initiated) — DONE (F-02 + F-06)
 - [#05](issues/05-cleanup-job.md) — Cleanup task (blacklist + expired sessions) — admin-triggered, owned by Admin API

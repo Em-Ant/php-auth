@@ -17,12 +17,65 @@ SERVER_LOG="$E2E_LOG_DIR/server.log"
 PASS=0
 FAIL=0
 
+# Dev DB is disposable in development — wiping it is normal. E2E must be
+# hermetic: snapshot at start and restore on EXIT even on failure, so a
+# crashed run never leaves a 409-causing realm behind.
+E2E_DB_BACKUP="$E2E_LOG_DIR/data.db.bak"
+
+# Remove a realm and all dependent rows directly in sqlite. Realm ids come from
+# the DB itself (never from request input). Best-effort: every statement is
+# guarded, so a missing sqlite3 binary or DB never fails the run.
+sweep_realm_db() {
+    local realm_id="$1"
+    [[ -z "$realm_id" ]] && return 0
+    command -v sqlite3 >/dev/null 2>&1 || return 0
+    [[ -f db/data.db ]] || return 0
+    sqlite3 db/data.db "DELETE FROM offline_sessions WHERE realm_id='$realm_id';" 2>/dev/null || true
+    sqlite3 db/data.db "DELETE FROM sessions WHERE realm_id='$realm_id';" 2>/dev/null || true
+    local cid
+    for cid in $(sqlite3 db/data.db "SELECT id FROM clients WHERE realm_id='$realm_id';" 2>/dev/null || true); do
+        sqlite3 db/data.db "DELETE FROM logins WHERE client_id='$cid';" 2>/dev/null || true
+    done
+    sqlite3 db/data.db "DELETE FROM clients WHERE realm_id='$realm_id';" 2>/dev/null || true
+    sqlite3 db/data.db "DELETE FROM users WHERE realm_id='$realm_id';" 2>/dev/null || true
+    sqlite3 db/data.db "DELETE FROM realms WHERE id='$realm_id';" 2>/dev/null || true
+}
+
+# Sweep stale e2e-admin-realm rows left by a crashed run (no server needed).
+sweep_stale_realms_db() {
+    command -v sqlite3 >/dev/null 2>&1 || return 0
+    [[ -f db/data.db ]] || return 0
+    local stale_id
+    for stale_id in $(sqlite3 db/data.db "SELECT id FROM realms WHERE name='e2e-admin-realm';" 2>/dev/null || true); do
+        sweep_realm_db "$stale_id"
+    done
+}
+
+# Pre-sweep stale via sqlite BEFORE snapshot — ensures backup is clean even if
+# previous run crashed and left e2e-admin-realm (no server needed).
+sweep_stale_realms_db
+if [[ -f db/data.db ]]; then
+    cp db/data.db "$E2E_DB_BACKUP" 2>/dev/null || true
+fi
+
 cleanup() {
     local exit_code=$?
+    # Mandatory restoration: run even on failure, even if ADMIN_CREATED_* were
+    # never set. admin_cleanup covers API path; sqlite fallback covers FK-blocked
+    # or server-down cases.
     admin_cleanup 2>/dev/null || true
+    # Hard restore of dev DB snapshot — guarantees no stale e2e-admin-realm
+    # survives a crash. Safe in dev (db is disposable); no-op if no backup.
+    if [[ -f "$E2E_DB_BACKUP" ]]; then
+        cp "$E2E_DB_BACKUP" db/data.db 2>/dev/null || true
+        rm -f "$E2E_DB_BACKUP" 2>/dev/null || true
+    fi
+    # Post-restore sweep — if backup itself was dirty (should not happen after
+    # pre-sweep above), ensure stale is gone even after restore.
+    sweep_stale_realms_db
     rm -f "${ADMIN_OIDC_COOKIE:-}" "${ADMIN_OIDC_HEADERS:-}" 2>/dev/null || true
     [[ -n "${SERVER_PID:-}" ]] && kill "$SERVER_PID" 2>/dev/null || true
-    # Belt-and-braces: a crashed previous run can leave the PHP built-in server
+    # A crashed previous run can leave the PHP built-in server
     # (or a child) holding the port even after its PID is gone, so force-release
     # it. No-op when fuser is unavailable or the port is already free.
     fuser -k "${PORT}/tcp" 2>/dev/null || true
@@ -606,7 +659,20 @@ admin_cleanup() {
     [[ -n "${ADMIN_CREATED_USER_ID:-}" ]]  && curl -sf -X DELETE -H "$ADMIN_HDR" "$BASE/admin/users/$ADMIN_CREATED_USER_ID" >/dev/null 2>&1 || true
     [[ -n "${ADMIN_CREATED_CLIENT_ID:-}" ]] && curl -sf -X DELETE -H "$ADMIN_HDR" "$BASE/admin/clients/$ADMIN_CREATED_CLIENT_ID" >/dev/null 2>&1 || true
     [[ -n "${ADMIN_CREATED_REALM_ID:-}" ]] && curl -sf -X DELETE -H "$ADMIN_HDR" "$BASE/admin/realms/$ADMIN_CREATED_REALM_ID" >/dev/null 2>&1 || true
+    # Mandatory sweep for stale throwaway realm left by a previous crashed run
+    # where ADMIN_CREATED_REALM_ID was never set (early exit → 409 on next run).
+    # Must run even on failure; do not depend on variables.
+    local stale_id
+    stale_id=$(curl -sf -H "$ADMIN_HDR" "$BASE/admin/realms" 2>/dev/null | python3 -c "import sys,json; ds=json.load(sys.stdin).get('realms',[]); print(next((r['id'] for r in ds if r['name']=='e2e-admin-realm'),''))" 2>/dev/null || true)
+    if [[ -n "$stale_id" ]]; then
+        curl -sf -X DELETE -H "$ADMIN_HDR" "$BASE/admin/realms/$stale_id" >/dev/null 2>&1 || true
+        # FK-blocked or server-down fallback — sqlite is disposable in dev
+        sweep_realm_db "$stale_id"
+    fi
     [[ -n "${ADMIN_CREATED_KID:-}" ]]      && rm -rf "keys/$ADMIN_CREATED_KID" 2>/dev/null || true
+    # Keys leaked by a crash (ADMIN_CREATED_KID never set) — best-effort sweep
+    # of the single e2e key created this run is handled by DB restore above;
+    # filesystem orphans older than 1h are left for manual `rm -rf keys/*` in dev.
 }
 
 # ── Step 14: Admin auth ──────────────────────────────────────
@@ -1003,6 +1069,110 @@ OFFLINE_REVOKED_REFRESH=$(curl -sS -X POST \
 [[ "$OFFLINE_REVOKED_REFRESH" -gt 0 ]] && ok "Revoked offline refresh token rejected" || fail "Revoked offline refresh token was accepted"
 
 rm -f "$OFFLINE_COOKIE" "$OFFLINE_HEADERS"
+
+# ── Step 24c: Single offline-session admin surface (F-06) ──────
+echo ""
+echo "=== Step 24c: Offline single-session admin surface (F-06) ==="
+
+# Need two per-client offline grants for the same user to prove single-revoke granularity.
+OFFLINE_2_CLIENT_JSON=$(curl -sS -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"name":"e2e-offline-2","realm_id":"'"$ADMIN_CREATED_REALM_ID"'","uri":"https://e2e-2.example.com","require_auth":false}' \
+    "$BASE/admin/clients")
+OFFLINE_2_CLIENT_ID=$(echo "$OFFLINE_2_CLIENT_JSON" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
+OFFLINE_2_NAME="e2e-offline-2"
+[[ -n "$OFFLINE_2_CLIENT_ID" ]] && ok "Created second client for F-06: ${OFFLINE_2_CLIENT_ID:0:8}..." || { fail "No second client id"; exit 1; }
+
+issue_offline_grant() {
+    local _client_name="$1"
+    local _redirect_uri="${2:-$ADMIN_REDIRECT_URI}"
+    local _cookie
+    local _headers
+    local _auth
+    local _login_id
+    local _csrf
+    local _code
+    local _tokens
+    local _rt
+    _cookie=$(mktemp)
+    _headers=$(mktemp)
+    _auth=$(curl -sS -c "$_cookie" "$ADMIN_AUTH_BASE/auth?client_id=$_client_name&redirect_uri=$_redirect_uri&response_type=code&response_mode=query&scope=openid%20offline_access&state=f06&nonce=f06")
+    _login_id=$(echo "$_auth" | sed -n 's/.*action="[^"]*?q=\([^"]*\)".*/\1/p')
+    _csrf=$(echo "$_auth" | sed -n 's/.*name="csrf_token"\s*value="\([^"]*\)".*/\1/p')
+    curl -sS -c "$_cookie" -b "$_cookie" -D "$_headers" -o /dev/null -X POST -d "email=${ADMIN_EMAIL}&password=${ADMIN_PASSWORD}&csrf_token=${_csrf}" "$ADMIN_AUTH_BASE/login-actions/authenticate?q=${_login_id}" >/dev/null
+    _code=$(grep -i '^location:' "$_headers" | sed 's/.*location: //I' | sed 's/.*code=\([^&]*\).*/\1/' | tr -d '\r\n')
+    _tokens=$(curl -sS -X POST -d "grant_type=authorization_code&client_id=$_client_name&code=$_code&redirect_uri=$_redirect_uri" "$ADMIN_AUTH_BASE/token")
+    _rt=$(echo "$_tokens" | sed -n 's/.*"refresh_token":"\([^"]*\)".*/\1/p')
+    rm -f "$_cookie" "$_headers"
+    echo "$_rt"
+}
+
+# Reset rate limits before heavy F-06 offline flows
+sqlite3 db/data.db "DELETE FROM rate_limits;" 2>/dev/null || true
+
+OFFLINE_2_REDIRECT="https://e2e-2.example.com"
+F06_RT_A=$(issue_offline_grant "$ADMIN_CLIENT_NAME" "$ADMIN_REDIRECT_URI")
+F06_RT_B=$(issue_offline_grant "$OFFLINE_2_NAME" "$OFFLINE_2_REDIRECT")
+[[ -n "$F06_RT_A" && -n "$F06_RT_B" ]] && ok "Two offline grants issued (per-client)" || { fail "F-06: offline grants missing"; exit 1; }
+[[ "$F06_RT_A" != "$F06_RT_B" ]] && ok "Offline refresh tokens distinct" || fail "Offline tokens not distinct"
+
+# List via admin — paginated envelope {items,total,limit,offset}
+F06_LIST=$(curl -sS -H "$ADMIN_HDR" "$BASE/admin/offline-sessions?realm_id=$ADMIN_CREATED_REALM_ID&user_id=$ADMIN_CREATED_USER_ID")
+F06_TOTAL=$(echo "$F06_LIST" | python3 -c "import sys,json; print(json.load(sys.stdin).get('total',0))" 2>/dev/null || echo 0)
+echo "$F06_LIST" | grep -q '"items"' && ok "List offline-sessions returns envelope" || fail "List envelope missing items"
+[[ "$F06_TOTAL" -ge 2 ]] && ok "List offline-sessions total >=2 ($F06_TOTAL)" || { fail "List offline-sessions total=$F06_TOTAL"; echo "$F06_LIST"; }
+
+F06_HAS_LIMIT=$(echo "$F06_LIST" | grep -c '"limit"' || true)
+F06_HAS_OFFSET=$(echo "$F06_LIST" | grep -c '"offset"' || true)
+[[ "$F06_HAS_LIMIT" -gt 0 && "$F06_HAS_OFFSET" -gt 0 ]] && ok "List envelope has limit/offset" || fail "List envelope missing pagination"
+
+# Pull first id to revoke singly (filter by client to get deterministic id)
+F06_LIST_A=$(curl -sS -H "$ADMIN_HDR" "$BASE/admin/offline-sessions?client_id=$OFFLINE_2_CLIENT_ID")
+F06_ID_B=$(echo "$F06_LIST_A" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['items'][0]['id'] if d['items'] else '')" 2>/dev/null || true)
+[[ -n "$F06_ID_B" ]] && ok "Extracted offline session id for second client: ${F06_ID_B:0:8}..." || { fail "No offline session id for second client"; exit 1; }
+
+# Read single
+F06_READ=$(curl -sS -H "$ADMIN_HDR" "$BASE/admin/offline-sessions/$F06_ID_B")
+echo "$F06_READ" | grep -q "\"id\":\"$F06_ID_B\"" && ok "Read offline session returns correct id" || fail "Read offline session id mismatch"
+
+# 404 for unknown
+F06_404=$(curl -sS -o /dev/null -w "%{http_code}" -H "$ADMIN_HDR" "$BASE/admin/offline-sessions/nonexistent")
+[[ "$F06_404" = "404" ]] && ok "Read missing offline session returns 404" || fail "Expected 404, got $F06_404"
+
+# 401 without admin auth
+F06_401=$(curl -sS -o /dev/null -w "%{http_code}" "$BASE/admin/offline-sessions")
+[[ "$F06_401" = "401" ]] && ok "List without auth returns 401" || fail "Expected 401, got $F06_401"
+
+# Delete single (EXPIRED) — must not affect the other grant
+F06_DEL_CODE=$(curl -sS -o /dev/null -w "%{http_code}" -X DELETE -H "$ADMIN_HDR" "$BASE/admin/offline-sessions/$F06_ID_B")
+[[ "$F06_DEL_CODE" = "204" ]] && ok "Delete offline session returned 204" || { fail "Delete expected 204, got $F06_DEL_CODE"; exit 1; }
+
+# Second delete is idempotent by design (soft-expire): still 204
+F06_DEL2_CODE=$(curl -sS -o /dev/null -w "%{http_code}" -X DELETE -H "$ADMIN_HDR" "$BASE/admin/offline-sessions/$F06_ID_B")
+[[ "$F06_DEL2_CODE" = "204" ]] && ok "Second delete idempotent 204" || fail "Second delete expected 204, got $F06_DEL2_CODE"
+
+F06_READ_EXPIRED=$(curl -sS -H "$ADMIN_HDR" "$BASE/admin/offline-sessions/$F06_ID_B")
+echo "$F06_READ_EXPIRED" | grep -q '"status":"EXPIRED"' && ok "Deleted session shows EXPIRED" || fail "Status not EXPIRED after delete"
+
+# Revoked token must fail, the other client's token must still succeed
+F06_B_AFTER=$(curl -sS -X POST -d "grant_type=refresh_token&client_id=${OFFLINE_2_NAME}&refresh_token=${F06_RT_B}" "$ADMIN_AUTH_BASE/token" | grep -cE 'expired|invalid' || true)
+[[ "$F06_B_AFTER" -gt 0 ]] && ok "Revoked offline token rejected (single revoke)" || fail "Revoked offline token was accepted"
+
+F06_B_INTRO=$(curl -sS -X POST -d "token=${F06_RT_B}&client_id=${OFFLINE_2_NAME}" "$ADMIN_AUTH_BASE/token/introspect")
+echo "$F06_B_INTRO" | grep -q '"active":false' && ok "Revoked offline introspect active:false" || fail "Revoked introspect should be inactive"
+
+F06_A_AFTER=$(curl -sS -X POST -d "grant_type=refresh_token&client_id=${ADMIN_CLIENT_NAME}&refresh_token=${F06_RT_A}" "$ADMIN_AUTH_BASE/token")
+echo "$F06_A_AFTER" | grep -q '"access_token"' && ok "Other offline grant still valid after single revoke" || { fail "Other offline grant should still be valid"; echo "$F06_A_AFTER"; }
+
+# Pagination sanity — limit
+F06_PAGE=$(curl -sS -H "$ADMIN_HDR" "$BASE/admin/offline-sessions?realm_id=$ADMIN_CREATED_REALM_ID&limit=1&offset=0")
+echo "$F06_PAGE" | python3 -c "import sys,json; d=json.load(sys.stdin); assert d['limit']==1 and len(d['items'])==1" 2>/dev/null \
+    && ok "Pagination limit=1 respected" || fail "Pagination limit not respected"
+
+# Cleanup second client's offline row is EXPIRED, so client delete is not blocked — do it now
+# (Step 25 will delete the remaining realm/user/client; we just drop the second client early to keep counts clean)
+curl -sf -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" -d '{"user_id":"'"$ADMIN_CREATED_USER_ID"'"}' "$BASE/admin/sessions/invalidate" >/dev/null 2>&1 || true
+DEL_OFFLINE2_CLIENT=$(curl -sS -o /dev/null -w "%{http_code}" -X DELETE -H "$ADMIN_HDR" "$BASE/admin/clients/$OFFLINE_2_CLIENT_ID")
+[[ "$DEL_OFFLINE2_CLIENT" = "204" ]] && ok "Deleted second client (F-06) → 204" || fail "Delete second client expected 204, got $DEL_OFFLINE2_CLIENT"
 
 # ── Step 25: Admin delete cascade ────────────────────────────
 echo ""

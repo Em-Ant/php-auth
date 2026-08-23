@@ -35,6 +35,7 @@ use AuthServer\Controllers\Admin\ClientsController;
 use AuthServer\Controllers\Admin\KeysController;
 use AuthServer\Controllers\Admin\LoginsController;
 use AuthServer\Controllers\Admin\MigrationsController;
+use AuthServer\Controllers\Admin\OfflineSessionsController;
 use AuthServer\Controllers\Admin\RealmsController;
 use AuthServer\Controllers\Admin\SessionsController;
 use AuthServer\Controllers\Admin\UsersController;
@@ -213,6 +214,7 @@ class TestAppFactory
         $keysController = $container->get(KeysController::class);
         $sessionsController = $container->get(SessionsController::class);
         $loginsController = $container->get(LoginsController::class);
+        $offlineSessionsController = $container->get(OfflineSessionsController::class);
 
         $app->group('/admin', function (\Slim\Routing\RouteCollectorProxy $g) use (
             $realmsController,
@@ -220,7 +222,8 @@ class TestAppFactory
             $usersController,
             $keysController,
             $sessionsController,
-            $loginsController
+            $loginsController,
+            $offlineSessionsController
         ) {
             $g->post('/keys', [$keysController, 'generate']);
 
@@ -248,6 +251,10 @@ class TestAppFactory
 
             $g->get('/logins', [$loginsController, 'list']);
             $g->delete('/logins/{id}', [$loginsController, 'delete']);
+
+            $g->get('/offline-sessions', [$offlineSessionsController, 'list']);
+            $g->get('/offline-sessions/{id}', [$offlineSessionsController, 'read']);
+            $g->delete('/offline-sessions/{id}', [$offlineSessionsController, 'delete']);
         })->add($adminMw);
 
         // Adminer
