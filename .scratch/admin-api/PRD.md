@@ -48,6 +48,9 @@ All endpoints live under `/admin`, JSON in/out, protected by
 | POST | `/admin/sessions/invalidate` | Invalidate sessions by `user_id` or `client_id` (marks ACTIVE → EXPIRED) |
 | GET | `/admin/logins` | List logins (`?realm_id=`, `?client_id=` filter) |
 | DELETE | `/admin/logins/{id}` | Delete a single login |
+| GET | `/admin/offline-sessions` | List offline sessions (`?realm_id=`, `?user_id=`, `?client_id=`, `?limit=`, `?offset=` → `{items,total,limit,offset}`) |
+| GET | `/admin/offline-sessions/{id}` | Read offline session |
+| DELETE | `/admin/offline-sessions/{id}` | Expire offline session (`ACTIVE→EXPIRED`, idempotent 204) |
 
 ### Key assignment
 
@@ -115,7 +118,7 @@ logins can be deleted, as can a user with only expired sessions.
 - Audit log table + query (F-07)
 - Per-realm password policy (F-11)
 - Scope/role config surface (scopes #04)
-- Offline revocation (F-06) and blacklist/session cleanup (F-19)
+- Blacklist/session cleanup (F-19) — offline revocation was F-06, shipped 2026-08-23
 
 ## Issues
 

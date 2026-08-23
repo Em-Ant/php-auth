@@ -231,6 +231,7 @@ $usersController = $containerObj->get(Controllers\Admin\UsersController::class);
 $keysController = $containerObj->get(Controllers\Admin\KeysController::class);
 $sessionsController = $containerObj->get(Controllers\Admin\SessionsController::class);
 $loginsController = $containerObj->get(Controllers\Admin\LoginsController::class);
+$offlineSessionsController = $containerObj->get(Controllers\Admin\OfflineSessionsController::class);
 
 $app->group('/admin', function (\Slim\Routing\RouteCollectorProxy $group) use (
     $realmsController,
@@ -238,7 +239,8 @@ $app->group('/admin', function (\Slim\Routing\RouteCollectorProxy $group) use (
     $usersController,
     $keysController,
     $sessionsController,
-    $loginsController
+    $loginsController,
+    $offlineSessionsController
 ) {
     $group->post('/keys', [$keysController, 'generate']);
 
@@ -266,6 +268,10 @@ $app->group('/admin', function (\Slim\Routing\RouteCollectorProxy $group) use (
 
     $group->get('/logins', [$loginsController, 'list']);
     $group->delete('/logins/{id}', [$loginsController, 'delete']);
+
+    $group->get('/offline-sessions', [$offlineSessionsController, 'list']);
+    $group->get('/offline-sessions/{id}', [$offlineSessionsController, 'read']);
+    $group->delete('/offline-sessions/{id}', [$offlineSessionsController, 'delete']);
 })->add($adminMiddleware);
 
 // Adminer — DB browser UI (included directly, handles its own routing)

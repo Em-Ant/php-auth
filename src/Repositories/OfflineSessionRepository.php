@@ -222,6 +222,66 @@ class OfflineSessionRepository implements IRepo
         }
     }
 
+    /**
+     * Filtered, paged listing. `total` counts all rows matching the filters,
+     * independent of limit/offset (COUNT(*) OVER()); it is 0 only when the
+     * requested page itself is empty.
+     *
+     * @return array{items: OfflineSession[], total: int}
+     */
+    public function searchAll(
+        ?string $realmId,
+        ?string $userId,
+        ?string $clientId,
+        int $limit,
+        int $offset
+    ): array {
+        try {
+            $statement = $this->db->prepare(
+                "SELECT *, COUNT(*) OVER() AS result_total
+                 FROM offline_sessions
+                 WHERE (:realm_id IS NULL OR realm_id = :realm_id)
+                   AND (:user_id IS NULL OR user_id = :user_id)
+                   AND (:client_id IS NULL OR client_id = :client_id)
+                 ORDER BY created_at DESC
+                 LIMIT :limit OFFSET :offset"
+            );
+            self::bindFilterParams($statement, $realmId, $userId, $clientId);
+            $statement->bindValue(':limit', $limit, \PDO::PARAM_INT);
+            $statement->bindValue(':offset', $offset, \PDO::PARAM_INT);
+            $statement->execute();
+
+            $rows = $statement->fetchAll();
+
+            return [
+                'items' => array_map(
+                    fn(array $r) => self::buildFromData($r),
+                    $rows
+                ),
+                'total' => $rows === [] ? 0 : (int) $rows[0]['result_total'],
+            ];
+        } catch (\PDOException $e) {
+            throw new StorageFailed('failed to search offline sessions', 0, $e);
+        }
+    }
+
+    private static function bindFilterParams(
+        \PDOStatement $statement,
+        ?string $realmId,
+        ?string $userId,
+        ?string $clientId
+    ): void {
+        self::bindNullableString($statement, ':realm_id', $realmId);
+        self::bindNullableString($statement, ':user_id', $userId);
+        self::bindNullableString($statement, ':client_id', $clientId);
+    }
+
+    private static function bindNullableString(\PDOStatement $statement, string $key, ?string $value): void
+    {
+        $type = $value === null ? \PDO::PARAM_NULL : \PDO::PARAM_STR;
+        $statement->bindValue($key, $value, $type);
+    }
+
     private static function buildFromData(array $r): OfflineSession
     {
         return new OfflineSession(
