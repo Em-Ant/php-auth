@@ -21,7 +21,6 @@ Single source of truth for what to work on next. **Local by design** (3 machines
 | F-05 | feature | P1 | L | | scope↔role gating at issuance (`roles` tables shipped in F-04) | `scopes/issues/03-…` |
 | F-06 | feature | P1 | S | | offline revocation remainder: single-offline-session admin surface (list/revoke one session) + optional access-token bulk invalidation — revoke-by-user already shipped; admin CRUD exists, unblocked | `token-lifecycle/issues/04-…` |
 | R-04 | refactor | P2 | S | | Basic-auth block ×3 in controllers | `clean-code/issues/05-…` |
-| R-05 | refactor | P2 | S | | drop dead `InputValidator` DI entry (static conversion done) | `clean-code/issues/07-…` |
 | R-06 | refactor | P2 | M | | untyped getters, mixed naming | `clean-code/issues/06-…` |
 | F-07 | feature | P2 | M | | audit log table + query | `ROADMAP → Admin API` |
 | F-36 | fix | P2 | S | | `TokenService::createKeys` unchecked openssl/mkdir/file I/O (fail fast at `POST /admin/keys`) | `clean-code/issues/10-…` |

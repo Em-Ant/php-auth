@@ -42,7 +42,6 @@ use AuthServer\Services\ClientAuthenticator;
 use AuthServer\Services\Database;
 use AuthServer\Services\FilesystemKeyStore;
 use AuthServer\Services\HttpSessionCookieHandler;
-use AuthServer\Services\InputValidator;
 use AuthServer\Services\LoginStateMachine;
 use AuthServer\Services\MigrationRunner;
 use AuthServer\Services\OfflineSessionService;
@@ -148,7 +147,6 @@ final class Definitions
             TokenIntrospectionService::class => \DI\autowire(),
             OfflineSessionService::class => \DI\autowire(),
             UserAdminService::class => \DI\autowire(),
-            InputValidator::class => \DI\autowire(),
             LoginStateMachine::class => \DI\autowire(),
             ScopeResolver::class => \DI\autowire(),
             ClientAuthenticator::class => \DI\autowire(),
