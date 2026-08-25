@@ -10,20 +10,20 @@ use AuthServer\Exceptions\ValidationFailed;
 use AuthServer\Interfaces\SessionCookieHandler;
 use AuthServer\Models\Realm;
 use AuthServer\Response\JsonResponse;
-use AuthServer\Services\AuthenticationOrchestrator;
+use AuthServer\Services\LogoutService;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 
 class LogoutController
 {
-    private AuthenticationOrchestrator $authService;
+    private LogoutService $logoutService;
     private SessionCookieHandler $sessionCookie;
 
     public function __construct(
-        AuthenticationOrchestrator $service,
+        LogoutService $logoutService,
         SessionCookieHandler $sessionCookie,
     ) {
-        $this->authService = $service;
+        $this->logoutService = $logoutService;
         $this->sessionCookie = $sessionCookie;
     }
 
@@ -41,10 +41,10 @@ class LogoutController
                 return $response->withStatus(204);
             }
 
-            $this->authService->logout($idToken, $realm);
+            $this->logoutService->logout($idToken, $realm);
             $response = $this->sessionCookie->delete($realm, $response);
 
-            $redirectUri = $this->authService->validateLogoutRedirectUri(
+            $redirectUri = $this->logoutService->validateLogoutRedirectUri(
                 $idToken,
                 $postLogoutRedirectUri
             );

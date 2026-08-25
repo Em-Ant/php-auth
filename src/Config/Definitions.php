@@ -43,6 +43,7 @@ use AuthServer\Services\Database;
 use AuthServer\Services\FilesystemKeyStore;
 use AuthServer\Services\HttpSessionCookieHandler;
 use AuthServer\Services\LoginStateMachine;
+use AuthServer\Services\LogoutService;
 use AuthServer\Services\MigrationRunner;
 use AuthServer\Services\OfflineSessionService;
 use AuthServer\Services\RateLimiter;
@@ -142,6 +143,7 @@ final class Definitions
 
             SessionOrchestrator::class => \DI\autowire(),
             AuthenticationOrchestrator::class => \DI\autowire(),
+            LogoutService::class => \DI\autowire(),
             TokenGrantService::class => \DI\autowire(),
             TokenRevocationService::class => \DI\autowire(),
             TokenIntrospectionService::class => \DI\autowire(),
