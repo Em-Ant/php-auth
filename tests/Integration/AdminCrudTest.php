@@ -5,16 +5,16 @@ declare(strict_types=1);
 namespace AuthServer\Tests\Integration;
 
 use AuthServer\Services\SecretsService;
+use AuthServer\Tests\Support\AdminApiTrait;
 use AuthServer\Tests\Support\TestAppFactory;
 use PHPUnit\Framework\TestCase;
-use Psr\Http\Message\ResponseInterface;
-use Psr\Http\Message\ServerRequestInterface;
-use Slim\Psr7\Factory\ServerRequestFactory;
 
 use function AuthServer\get_guid;
 
 class AdminCrudTest extends TestCase
 {
+    use AdminApiTrait;
+
     private const TEST_REALM = 'c03aa58c-2888-4f40-821c-4aadf5c58f6f';
     private const WEB_REALM = '84be68b8-7936-4422-bb4d-b741d2292a9f';
     private const TEST_CLIENT = 'a540c566-dfbf-430a-9941-fb8531c022d4';
@@ -62,47 +62,6 @@ class AdminCrudTest extends TestCase
             }
         }
         rmdir($dir);
-    }
-
-    private function createRequest(
-        string $method,
-        string $path,
-        array $body = [],
-        array $query = [],
-        ?string $auth = null
-    ): ServerRequestInterface {
-        $uri = $path;
-        if (!empty($query)) {
-            $uri .= '?' . http_build_query($query);
-        }
-        $request = (new ServerRequestFactory())->createServerRequest($method, $uri);
-        if (!empty($body)) {
-            $request->getBody()->write(json_encode($body));
-            $request->getBody()->rewind();
-        }
-        $request = $request->withHeader('Content-Type', 'application/json');
-        if ($auth !== null) {
-            $request = $request->withHeader('Authorization', 'Bearer ' . $auth);
-        }
-        return $request;
-    }
-
-    private function handle(ServerRequestInterface $request): ResponseInterface
-    {
-        return self::$app->handle($request);
-    }
-
-    private function assertStatus(int $expected, ServerRequestInterface $request): array
-    {
-        $response = $this->handle($request);
-        self::assertSame($expected, $response->getStatusCode());
-        $body = (string) $response->getBody();
-        return $body === '' ? [] : json_decode($body, true) ?? [];
-    }
-
-    private function adminRequest(string $method, string $path, array $body = [], array $query = []): ServerRequestInterface
-    {
-        return $this->createRequest($method, $path, $body, $query, self::$adminKey);
     }
 
     // ── Auth ──────────────────────────────────────────────────

@@ -105,50 +105,37 @@ class UserRepository implements IUser
 
     public function findById(string $id): ?User
     {
-        try {
-            $statement = $this->db->prepare(
-                "SELECT * FROM users WHERE id = :id"
-            );
-            $statement->bindValue(':id', $id);
+        $r = $this->fetchOne(
+            "SELECT * FROM users WHERE id = :id",
+            [':id' => $id],
+            "failed to load user by id $id"
+        );
 
-            $statement->execute();
-
-            $r = $statement->fetch();
-
-            if (!$r) {
-                return null;
-            }
-
-            return $this->buildFromData($r);
-        } catch (\PDOException $e) {
-            throw new StorageFailed("failed to load user by id $id", 0, $e);
-        }
+        return $r === null ? null : $this->buildFromData($r);
     }
 
     public function findByEmailAndRealmId(string $email, string $realm_id): ?User
     {
-        try {
-            $statement = $this->db->prepare(
-                "SELECT * FROM users WHERE email = :email AND realm_id = :realm_id"
-            );
-            $statement->bindValue(':email', $email);
-            $statement->bindValue(':realm_id', $realm_id);
+        $r = $this->fetchOne(
+            "SELECT * FROM users WHERE email = :email AND realm_id = :realm_id",
+            [':email' => $email, ':realm_id' => $realm_id],
+            "failed to load user by email $email and realm $realm_id"
+        );
 
-            $statement->execute();
+        return $r === null ? null : $this->buildFromData($r);
+    }
+
+    private function fetchOne(string $sql, array $params, string $errorMessage): ?array
+    {
+        try {
+            $statement = $this->db->prepare($sql);
+            $statement->execute($params);
 
             $r = $statement->fetch();
 
-            if (!$r) {
-                return null;
-            }
-
-            return $this->buildFromData($r);
+            return $r === false ? null : $r;
         } catch (\PDOException $e) {
-            throw new StorageFailed(
-                "failed to load user by email $email and realm $realm_id",
-                0,
-                $e
-            );
+            throw new StorageFailed($errorMessage, 0, $e);
         }
     }
 

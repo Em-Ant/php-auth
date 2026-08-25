@@ -54,3 +54,36 @@ helpers), following the existing `TestAppFactory` conventions.
 ## Blocked by
 
 None - can start immediately.
+
+## Comments
+
+### 2026-08-25 — done
+
+Verified state first: partially handled already (`OfflineSessionRepository::fetchBy`,
+`LoginRepository::findBy`, `IntrospectionTest` on `IntegrationFlowTrait`) — this pass
+finished the rest.
+
+**Repositories** — per-class private helpers, no shared base:
+- `fetchOne(sql, params, errorMessage)` added to `UserRepository`,
+  `ClientRepository`, `RealmRepository`, `LoginRepository`; `findById`/
+  `findByEmailAndRealmId`/`findByName`/`findBy` all delegate now
+  (`LoginRepository::findById` previously ignored its own `findBy`).
+- `count(sql, params, errorMessage)` added to `LoginRepository`,
+  `SessionRepository`, `OfflineSessionRepository` for their identical ×2 pairs.
+- Repositories with only single copies of an idiom left alone.
+
+**Tests** — extracted byte-identical helper sets from `AdminCrudTest` +
+`SessionLoginManagementTest` into `tests/Support/AdminApiTrait`
+(createRequest/handle/assertStatus/adminRequest). `RateLimitingTest` left as-is:
+its createRequest is genuinely different (REMOTE_ADDR server params, no body/auth).
+
+**Acceptance criteria:** no repo has two fetch-one/count copies ✓; dup %s down
+(scanner proxy: User/Client/Realm/AdminCrud dropped off the top list, LoginRepository
+26%→ remaining dup is the *persist-transition* INSERT/UPDATE idiom, which was never
+in scope — candidate follow-up); no base repository class ✓; stan/cs/phpunit 493 ✓,
+e2e 171 ✓.
+
+Scanner notes: S2077 hits on the new helpers are false positives (all `$sql`
+args are internal literals, values bound via execute()); S2068 hits in
+SessionLoginManagementTest are fixture passwords, pre-existing. Row removed
+from BACKLOG queue.
