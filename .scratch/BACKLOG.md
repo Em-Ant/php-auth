@@ -19,7 +19,6 @@ Single source of truth for what to work on next. **Local by design** (3 machines
 | R-03 | refactor | P1 | L | | AuthOrchestrator: 9 deps, 10 jobs | `clean-code/issues/03-…` |
 | A-03 | fix | P1 | M | | admin list endpoints unbounded — pagination + `{items,total,limit,offset}` envelope (users/clients/sessions/logins); auth paths unaffected, API has no consumers yet | `admin-api/issues/03-…` |
 | F-05 | feature | P1 | L | | scope↔role gating at issuance (`roles` tables shipped in F-04) | `scopes/issues/03-…` |
-| R-04 | refactor | P2 | S | | Basic-auth block ×3 in controllers | `clean-code/issues/05-…` |
 | R-06 | refactor | P2 | M | | untyped getters, mixed naming | `clean-code/issues/06-…` |
 | F-07 | feature | P2 | M | | audit log table + query | `ROADMAP → Admin API` |
 | F-36 | fix | P2 | S | | `TokenService::createKeys` unchecked openssl/mkdir/file I/O (fail fast at `POST /admin/keys`) | `clean-code/issues/10-…` |

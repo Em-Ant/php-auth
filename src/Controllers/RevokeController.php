@@ -7,6 +7,7 @@ namespace AuthServer\Controllers;
 use AuthServer\Exceptions\AuthenticationFailed;
 use AuthServer\Models\Realm;
 use AuthServer\Response\JsonResponse;
+use AuthServer\Services\ClientCredentials;
 use AuthServer\Services\TokenRevocationService;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -23,18 +24,10 @@ class RevokeController
 
     public function revoke(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
-        $body = $request->getParsedBody() ?? [];
-
-        $authHeader = $request->getHeaderLine('Authorization');
-        if (str_starts_with($authHeader, 'Basic ')) {
-            $cred = explode(':', base64_decode(substr($authHeader, 6)));
-            if (!isset($body['client_id'])) {
-                $body['client_id'] = $cred[0];
-            }
-            if (!isset($body['client_secret'])) {
-                $body['client_secret'] = $cred[1] ?? null;
-            }
-        }
+        $body = ClientCredentials::mergeFromBasicHeader(
+            $request->getParsedBody() ?? [],
+            $request->getHeaderLine('Authorization')
+        );
 
         /** @var Realm */
         $realm = $request->getAttribute(Realm::class);
