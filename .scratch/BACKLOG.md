@@ -38,6 +38,7 @@ Single source of truth for what to work on next. **Local by design** (3 machines
 | R-10 | refactor | P3 | M | | named args + match expressions | `ROADMAP → PHP 8` |
 | R-11 | refactor | P3 | L | | PHPStan 5→6→7→8→9 | `ROADMAP → PHPStan` |
 | R-13 | refactor | P3 | S | | PSR12 for `tests/` (ROADMAP "PSR12 compliance throughout" was never queued) — 198 auto-fixable violations in 25 files; run phpcbf then widen `composer cs_check` scope | `ROADMAP → PHP 8` |
+| R-14 | refactor | P3 | S–M | best alongside F-08/F-09/F-39 (login-lifecycle work) | `Login` model: raw setters → intention-revealing transition methods (`markAuthenticated/markActive/markRefreshed/markExpired`), single serialization home; invariants over metric (S1448 stays, dismiss) | `login-split/PRD.md` |
 | F-14 | feature | P3 | S | | fallback full-page login form | `ROADMAP → Login Form` |
 | F-15 | feature | P3 | L | | social login (Google/GitHub/GitLab) | `ROADMAP → Login Methods` |
 | F-16 | feature | P3 | L | | 2FA/TOTP | `ROADMAP → Login Methods` |
