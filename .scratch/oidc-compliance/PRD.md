@@ -101,6 +101,11 @@ validation; introspect `invalid_client` 401 + `active:false` for garbage;
 | F-40 | **Drop `nonce` from access/refresh tokens.** | Access/refresh tokens have no `nonce`. |
 | P-07…P-09 | **Deferred**: `login_hint`/`max_age`/`ui_locales`; `WWW-Authenticate` on 401; `X-Powered-By` removal — batch with a future hardening pass. | — |
 
+> **ID collision note:** this table's F-35…F-40 numbering predates the BACKLOG's.
+> These items are tracked in `.scratch/keycloak-parity/PRD.md` as
+> F-37/F-38/F-39/F-40/F-41/F-42 (+F-43 for the deferred batch) — the queue rows
+> point there. Do not file duplicates under the ids above.
+
 ## Non-goals / consciously deferred
 
 - **Implicit & hybrid flows** (`response_type=token`, `id_token`, `code token`,

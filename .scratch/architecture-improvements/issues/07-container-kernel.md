@@ -1,5 +1,12 @@
 # Container-driven kernel + remove DataSource singleton
 
+status: **DONE** — shipped as `src/Config/Definitions.php` (PHP-DI, autowiring,
+shared `\PDO` factory), `DataSource` deleted, all repositories take `\PDO`,
+`TestAppFactory` owns the test bootstrap. ROADMAP "Refactor (Wave 2)" was
+already checked; this file just lacked the stamp. Residual: `index.php` and
+`TestAppFactory` still duplicate route wiring — tracked as R-07
+(`clean-code/issues/01-duplicate-app-wiring.md`).
+
 **Issue**: 07  
 **PRD**: Wave 2  
 **Risk**: Medium (touches every file that creates services or repositories)  
