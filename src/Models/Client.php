@@ -38,23 +38,23 @@ class Client implements \JsonSerializable
             \DateTime::createFromFormat('Y-m-d H:i:s', $created_at, $utc);
     }
 
-    public function getId()
+    public function getId(): string
     {
         return $this->id;
     }
-    public function getName()
+    public function getName(): string
     {
         return $this->name;
     }
-    public function getRealmId()
+    public function getRealmId(): string
     {
         return $this->realm_id;
     }
-    public function getUri()
+    public function getUri(): string
     {
         return $this->uri;
     }
-    public function getClientSecret()
+    public function getClientSecret(): ?string
     {
         return $this->client_secret;
     }

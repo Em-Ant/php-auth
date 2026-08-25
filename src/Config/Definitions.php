@@ -175,7 +175,7 @@ final class Definitions
             // ── Controllers ──
 
             AuthorizationController::class => \DI\autowire()
-                ->constructorParameter('mount_path', \DI\get('base_path')),
+                ->constructorParameter('mountPath', \DI\get('base_path')),
             TokenController::class => \DI\autowire(),
             LogoutController::class => \DI\autowire(),
             OidcController::class => \DI\autowire()

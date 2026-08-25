@@ -25,13 +25,13 @@ class RealmProvider implements MiddlewareInterface
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
         $route = $request->getAttribute(RouteContext::ROUTE);
-        $realm_name = $route !== null ? $route->getArgument('realm') : null;
+        $realmName = $route !== null ? $route->getArgument('realm') : null;
 
-        if ($realm_name === null) {
+        if ($realmName === null) {
             throw new HttpNotFoundException($request, 'realm parameter missing');
         }
 
-        $realm = $this->realms->findByName($realm_name);
+        $realm = $this->realms->findByName($realmName);
 
         if (!$realm) {
             throw new HttpNotFoundException($request, 'realm not found');

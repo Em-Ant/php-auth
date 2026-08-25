@@ -50,15 +50,15 @@ class Realm implements \JsonSerializable
             \DateTime::createFromFormat('Y-m-d H:i:s', $created_at, $utc);
     }
 
-    public function getId()
+    public function getId(): string
     {
         return $this->id;
     }
-    public function getName()
+    public function getName(): string
     {
         return $this->name;
     }
-    public function getKeysId()
+    public function getKeysId(): string
     {
         return $this->keys_id;
     }

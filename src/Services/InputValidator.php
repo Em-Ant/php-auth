@@ -24,9 +24,9 @@ class InputValidator
      * - a zero-length path after the slash matches;
      * - sibling paths and cross-origin URIs are rejected.
      */
-    public static function validateRedirectUri(Client $client, string $redirect_uri): void
+    public static function validateRedirectUri(Client $client, string $redirectUri): void
     {
-        if (!self::uriMatches($client->getUri(), $redirect_uri)) {
+        if (!self::uriMatches($client->getUri(), $redirectUri)) {
             throw new ValidationFailed('invalid redirect_uri');
         }
     }
@@ -125,29 +125,29 @@ class InputValidator
 
     public static function validateQueryParams(array $query): void
     {
-        $required_fields = [
+        $requiredFields = [
             'scope',
             'client_id',
             'response_type',
             'redirect_uri',
         ];
 
-        $code_challenge_method = $query['code_challenge_method'] ?? null;
-        if ($code_challenge_method !== null) {
-            if ($code_challenge_method !== 'S256') {
+        $codeChallengeMethod = $query['code_challenge_method'] ?? null;
+        if ($codeChallengeMethod !== null) {
+            if ($codeChallengeMethod !== 'S256') {
                 throw new ValidationFailed('unsupported code challenge method');
             }
-            $required_fields[] = 'code_challenge';
+            $requiredFields[] = 'code_challenge';
         }
 
-        self::validateParams($query, $required_fields);
+        self::validateParams($query, $requiredFields);
 
         if (($query['response_type'] ?? '') !== 'code') {
             throw OAuth2Error::unsupportedResponseType('unsupported response_type');
         }
 
-        $response_mode = $query['response_mode'] ?? 'query';
-        if (!in_array($response_mode, ['fragment', 'query'])) {
+        $responseMode = $query['response_mode'] ?? 'query';
+        if (!in_array($responseMode, ['fragment', 'query'])) {
             throw new ValidationFailed('invalid response mode');
         }
 
@@ -158,12 +158,12 @@ class InputValidator
 
     public static function validateTokenParams(array $query): void
     {
-        $required_fields = [
+        $requiredFields = [
             'grant_type',
             'client_id',
         ];
 
-        self::validateParams($query, $required_fields);
+        self::validateParams($query, $requiredFields);
 
         $grantType = GrantType::tryFrom($query['grant_type']);
         if ($grantType === null) {
@@ -181,30 +181,30 @@ class InputValidator
         }
     }
 
-    public static function validateCodeChallenge(?string $code_challenge, ?string $code_verifier): void
+    public static function validateCodeChallenge(?string $codeChallenge, ?string $codeVerifier): void
     {
-        if ($code_verifier === null) {
+        if ($codeVerifier === null) {
             throw OAuth2Error::invalidGrant('invalid code_verifier');
         }
-        if ($code_challenge !== Base64Utils::b64UrlEncode(hash('sha256', $code_verifier, true))) {
+        if ($codeChallenge !== Base64Utils::b64UrlEncode(hash('sha256', $codeVerifier, true))) {
             throw OAuth2Error::invalidGrant('code_verifier does not match code_challenge');
         }
     }
 
-    private static function validateParams(array $params, array $required_fields): void
+    private static function validateParams(array $params, array $requiredFields): void
     {
         $missing = [];
 
-        foreach ($required_fields as $f) {
+        foreach ($requiredFields as $f) {
             if (!isset($params[$f]) || $params[$f] === ' ') {
                 $missing[] = $f;
             }
         }
 
         if (count($missing) > 0) {
-            $missing_str = implode(', ', $missing);
+            $missingStr = implode(', ', $missing);
             $s = count($missing) > 1 ? 's' : '';
-            throw new ValidationFailed("missing required parameter$s ($missing_str)");
+            throw new ValidationFailed("missing required parameter$s ($missingStr)");
         }
     }
 }

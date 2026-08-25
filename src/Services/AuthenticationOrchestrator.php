@@ -54,56 +54,56 @@ class AuthenticationOrchestrator
 
     public function validateRequiredLoginScope(
         Realm $realm,
-        string $client_name,
-        string $required_scope
+        string $clientName,
+        string $requiredScope
     ): void {
-        $client = $this->clientRepository->findByName($client_name);
+        $client = $this->clientRepository->findByName($clientName);
         if ($client === null) {
             throw new ValidationFailed('invalid client id');
         }
-        $this->scopeResolver->resolve($required_scope, $client, $realm, true);
+        $this->scopeResolver->resolve($requiredScope, $client, $realm, true);
     }
 
     public function initializeLogin(
-        string $realm_id,
+        string $realmId,
         array $query
     ): array {
-        $client_name = $query['client_id'];
-        $this->logger->info("initializing login for client $client_name");
+        $clientName = $query['client_id'];
+        $this->logger->info("initializing login for client $clientName");
 
         InputValidator::validateQueryParams($query);
 
-        $client = $this->ensureValidClient($client_name, $realm_id, $query['redirect_uri']);
+        $client = $this->ensureValidClient($clientName, $realmId, $query['redirect_uri']);
 
-        $csrf_token = $this->secretsService->generateCode();
+        $csrfToken = $this->secretsService->generateCode();
 
         $login = $this->loginRepository->createPending(
             ...$this->loginFields($query),
             client_id: $client->getId(),
             code_challenge: $query['code_challenge'] ?? null,
-            csrf_token: $csrf_token
+            csrf_token: $csrfToken
         );
 
         if ($login === null) {
-            $msg = "unable to create pending login for $client_name";
+            $msg = "unable to create pending login for $clientName";
             $this->logger->error($msg);
             throw new StorageFailed($msg);
         }
 
-        $login_id = $login->getId();
-        $this->logger->info("pending login $login_id created");
+        $loginId = $login->getId();
+        $this->logger->info("pending login $loginId created");
 
         return [
-            'login_id' => $login_id,
-            'csrf_token' => $csrf_token,
+            'login_id' => $loginId,
+            'csrf_token' => $csrfToken,
         ];
     }
 
-    public function validateCsrfToken(string $login_id, string $csrf_token): void
+    public function validateCsrfToken(string $loginId, string $csrfToken): void
     {
-        $login = $this->loginRepository->findById($login_id);
-        if ($login === null || $login->getCsrfToken() !== $csrf_token) {
-            $this->logger->info("CSRF validation failed for login $login_id");
+        $login = $this->loginRepository->findById($loginId);
+        if ($login === null || $login->getCsrfToken() !== $csrfToken) {
+            $this->logger->info("CSRF validation failed for login $loginId");
             throw new ValidationFailed('CSRF validation failed');
         }
     }
@@ -113,20 +113,20 @@ class AuthenticationOrchestrator
         Realm $realm,
         array $query
     ): Login {
-        $client_name = $query['client_id'];
-        $this->logger->info("creating authorized login for client $client_name");
+        $clientName = $query['client_id'];
+        $this->logger->info("creating authorized login for client $clientName");
 
         InputValidator::validateQueryParams($query);
 
-        $client = $this->ensureValidClient($client_name, $realm->getId(), $query['redirect_uri']);
+        $client = $this->ensureValidClient($clientName, $realm->getId(), $query['redirect_uri']);
 
-        $user_id = $session->getUserId();
-        $user = $this->userRepository->findById($user_id);
+        $userId = $session->getUserId();
+        $user = $this->userRepository->findById($userId);
 
-        $session_id = $session->getId();
+        $sessionId = $session->getId();
         if ($user === null) {
             throw new AuthenticationFailed(
-                "invalid user $user_id for session $session_id"
+                "invalid user $userId for session $sessionId"
             );
         }
         $this->scopeResolver->resolve($query['scope'], $client, $realm, true);
@@ -136,14 +136,14 @@ class AuthenticationOrchestrator
         $login = $this->loginRepository->createAuthenticated(
             ...$this->loginFields($query),
             client_id: $client->getId(),
-            session_id: $session_id,
+            session_id: $sessionId,
             code: $code,
             code_challenge: $query['code_challenge'] ?? null
         );
 
         if ($login === null) {
             throw new StorageFailed(
-                "unable to create authenticated login for session $session_id"
+                "unable to create authenticated login for session $sessionId"
             );
         }
 
@@ -153,7 +153,7 @@ class AuthenticationOrchestrator
     }
 
     public function ensureValidCredentials(
-        string $realm_id,
+        string $realmId,
         string $email,
         string $password
     ): array {
@@ -168,17 +168,17 @@ class AuthenticationOrchestrator
         }
 
         $error = false;
-        $user = $this->userRepository->findByEmailAndRealmId($email, $realm_id);
+        $user = $this->userRepository->findByEmailAndRealmId($email, $realmId);
         if ($user === null) {
             $error = 'email not found';
         } elseif (!$user->getValid()) {
             $error = 'user is disabled';
         } else {
-            $valid_pwd = $this->secretsService->validatePassword(
+            $validPwd = $this->secretsService->validatePassword(
                 $password,
                 $user->getPassword()
             );
-            if (!$valid_pwd) {
+            if (!$validPwd) {
                 $error = 'invalid password';
             }
         }
@@ -199,21 +199,21 @@ class AuthenticationOrchestrator
     }
 
     public function authenticateLogin(
-        string $login_id,
+        string $loginId,
         User $user,
         Realm $realm
     ): array {
-        $this->logger->info("authenticating user for login $login_id");
+        $this->logger->info("authenticating user for login $loginId");
 
-        $login = $this->loginRepository->findById($login_id);
+        $login = $this->loginRepository->findById($loginId);
         if (!$login) {
-            throw new StorageFailed("unable to find login $login_id");
+            throw new StorageFailed("unable to find login $loginId");
         }
 
         $scope = $login->getScope();
         $client = $this->clientRepository->findById($login->getClientId());
         if ($client === null) {
-            throw new StorageFailed("invalid client for login $login_id");
+            throw new StorageFailed("invalid client for login $loginId");
         }
         $this->scopeResolver->resolve($scope, $client, $realm, true);
 
@@ -239,32 +239,32 @@ class AuthenticationOrchestrator
         ];
     }
 
-    public function logout(string $id_token, Realm $realm): bool
+    public function logout(string $idToken, Realm $realm): bool
     {
         $this->logger->info("logging out for id token");
-        $claims = $this->tokenValidator->validateIdTokenHint($id_token, $realm);
+        $claims = $this->tokenValidator->validateIdTokenHint($idToken, $realm);
         if ($claims === null) {
             throw new ValidationFailed('invalid id_token');
         }
 
-        $session_id = $claims['sid'] ?? '';
-        if ($session_id === '') {
+        $sessionId = $claims['sid'] ?? '';
+        if ($sessionId === '') {
             throw new ValidationFailed('invalid id_token');
         }
 
-        $this->logger->info("token contains session id $session_id");
+        $this->logger->info("token contains session id $sessionId");
 
-        $this->sessionOrchestrator->expire($session_id);
-        $this->logger->info("session $session_id set to expired - logout ok");
+        $this->sessionOrchestrator->expire($sessionId);
+        $this->logger->info("session $sessionId set to expired - logout ok");
         return true;
     }
 
-    public function getClientUri(string $client_id): string
+    public function getClientUri(string $clientId): string
     {
-        $this->logger->info("getting uri for client $client_id to enable cors on origin");
-        $client = $this->clientRepository->findByName($client_id);
+        $this->logger->info("getting uri for client $clientId to enable cors on origin");
+        $client = $this->clientRepository->findByName($clientId);
         if ($client === null) {
-            $this->logger->error("client $client_id not found");
+            $this->logger->error("client $clientId not found");
             throw new ValidationFailed('invalid client_id');
         }
 
@@ -284,16 +284,16 @@ class AuthenticationOrchestrator
      */
     public function validateCheckSessionOrigin(
         Realm $realm,
-        string $client_id,
+        string $clientId,
         string $origin
     ): void {
-        $client = $this->clientRepository->findByName($client_id);
+        $client = $this->clientRepository->findByName($clientId);
         if ($client === null) {
-            $this->logger->error("client $client_id not found for check-session init");
+            $this->logger->error("client $clientId not found for check-session init");
             throw new ValidationFailed('invalid client id');
         }
         if ($client->getRealmId() !== $realm->getId()) {
-            $this->logger->error("client $client_id not in realm {$realm->getName()}");
+            $this->logger->error("client $clientId not in realm {$realm->getName()}");
             throw new ValidationFailed('invalid client for realm');
         }
 
@@ -312,35 +312,35 @@ class AuthenticationOrchestrator
     }
 
     public function validateLogoutRedirectUri(
-        string $id_token,
-        string $post_logout_redirect_uri
+        string $idToken,
+        string $postLogoutRedirectUri
     ): ?string {
-        if (trim($post_logout_redirect_uri) === '') {
+        if (trim($postLogoutRedirectUri) === '') {
             return null;
         }
 
-        $payload = $this->tokenValidator->decodeClaimsOnly($id_token);
+        $payload = $this->tokenValidator->decodeClaimsOnly($idToken);
         if ($payload === null) {
             return null;
         }
 
-        $client_name = $payload['azp'] ?? $payload['aud'] ?? null;
-        if (!is_string($client_name) || $client_name === '') {
+        $clientName = $payload['azp'] ?? $payload['aud'] ?? null;
+        if (!is_string($clientName) || $clientName === '') {
             return null;
         }
 
-        $client = $this->clientRepository->findByName($client_name);
+        $client = $this->clientRepository->findByName($clientName);
         if ($client === null) {
             return null;
         }
 
         try {
-            InputValidator::validateRedirectUri($client, $post_logout_redirect_uri);
+            InputValidator::validateRedirectUri($client, $postLogoutRedirectUri);
         } catch (ValidationFailed) {
             return null;
         }
 
-        return $post_logout_redirect_uri;
+        return $postLogoutRedirectUri;
     }
 
     /**
@@ -373,20 +373,20 @@ class AuthenticationOrchestrator
     }
 
     public function ensureValidClient(
-        string $client_name,
-        string $realm_id,
-        string $redirect_uri
+        string $clientName,
+        string $realmId,
+        string $redirectUri
     ): Client {
-        $client = $this->clientRepository->findByName($client_name);
+        $client = $this->clientRepository->findByName($clientName);
         if ($client === null) {
-            $this->logger->error("client matching $client_name not found for realm");
+            $this->logger->error("client matching $clientName not found for realm");
             throw new ValidationFailed('invalid client id');
         }
-        if ($client->getRealmId() !== $realm_id) {
-            $this->logger->error("client $client_name realm id {$client->getRealmId()} doesn't match $realm_id");
-            throw new ValidationFailed("invalid client for realm $realm_id");
+        if ($client->getRealmId() !== $realmId) {
+            $this->logger->error("client $clientName realm id {$client->getRealmId()} doesn't match $realmId");
+            throw new ValidationFailed("invalid client for realm $realmId");
         }
-        InputValidator::validateRedirectUri($client, $redirect_uri);
+        InputValidator::validateRedirectUri($client, $redirectUri);
 
         return $client;
     }

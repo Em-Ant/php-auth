@@ -6,7 +6,7 @@ namespace AuthServer\Services;
 
 class Base64Utils
 {
-    public static function b64UrlEncode($data): string
+    public static function b64UrlEncode(string $data): string
     {
         return str_replace(
             ['+', '/', '='],
@@ -15,7 +15,7 @@ class Base64Utils
         );
     }
 
-    public static function b64UrlDecode(string $data)
+    public static function b64UrlDecode(string $data): string
     {
         $b64 = str_replace(['-', '_'], ['+', '/'], $data);
 

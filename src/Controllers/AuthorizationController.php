@@ -22,9 +22,9 @@ use Psr\Log\LoggerInterface;
 
 class AuthorizationController
 {
-    private AuthenticationOrchestrator $auth_service;
+    private AuthenticationOrchestrator $authService;
     private SessionOrchestrator $sessionOrchestrator;
-    private string $mount_path;
+    private string $mountPath;
     private SessionCookieHandler $sessionCookie;
     private ViewRenderer $view;
     private LoggerInterface $logger;
@@ -32,14 +32,14 @@ class AuthorizationController
     public function __construct(
         AuthenticationOrchestrator $service,
         SessionOrchestrator $sessionOrchestrator,
-        string $mount_path,
+        string $mountPath,
         SessionCookieHandler $sessionCookie,
         ViewRenderer $view,
         LoggerInterface $logger,
     ) {
-        $this->auth_service = $service;
+        $this->authService = $service;
         $this->sessionOrchestrator = $sessionOrchestrator;
-        $this->mount_path = $mount_path;
+        $this->mountPath = $mountPath;
         $this->sessionCookie = $sessionCookie;
         $this->view = $view;
         $this->logger = $logger;
@@ -49,8 +49,8 @@ class AuthorizationController
     {
         /** @var Realm */
         $realm = $request->getAttribute(Realm::class);
-        $realm_name = $realm->getName();
-        $current_session_id = $this->sessionCookie->read($request, $realm_name);
+        $realmName = $realm->getName();
+        $currentSessionId = $this->sessionCookie->read($request, $realmName);
 
         try {
             $query = $request->getQueryParams();
@@ -58,29 +58,29 @@ class AuthorizationController
             $scope = $query['scope'];
             $prompt = $query['prompt'] ?? '';
 
-            $this->auth_service->validateRequiredLoginScope(
+            $this->authService->validateRequiredLoginScope(
                 $realm,
                 $query['client_id'],
                 $scope
             );
 
             $session = null;
-            if ($current_session_id && $prompt !== 'login') {
+            if ($currentSessionId && $prompt !== 'login') {
                 $session = $this->sessionOrchestrator->ensureValidSession(
-                    $current_session_id,
+                    $currentSessionId,
                     $realm->getSessionExpiresIn(),
                     $realm->getIdleSessionExpiresIn()
                 );
             }
 
             if ($session !== null) {
-                $login = $this->auth_service->createAuthorizedLogin(
+                $login = $this->authService->createAuthorizedLogin(
                     $session,
                     $realm,
                     $query
                 );
 
-                $redirect_uri = new RedirectUri(
+                $redirectUri = new RedirectUri(
                     $login->getRedirectUri(),
                     $login->getResponseMode(),
                     [
@@ -92,13 +92,13 @@ class AuthorizationController
 
                 $response = $this->sessionCookie->write($realm, $session->getId(), $response);
                 return $response
-                    ->withHeader('Location', (string) $redirect_uri)
+                    ->withHeader('Location', (string) $redirectUri)
                     ->withStatus(302);
             } elseif ($prompt === 'none') {
                 return $this->handlePromptNone($response, $realm, $query);
             }
 
-            $pending = $this->auth_service->initializeLogin(
+            $pending = $this->authService->initializeLogin(
                 $realm->getId(),
                 $query
             );
@@ -107,7 +107,7 @@ class AuthorizationController
                 'title' => 'Login',
                 'login_id' => $pending['login_id'],
                 'csrf_token' => $pending['csrf_token'],
-                'realm' => $realm_name,
+                'realm' => $realmName,
                 'email' => '',
                 'password' => '',
                 'error' => false,
@@ -132,11 +132,11 @@ class AuthorizationController
         $email = $body['email'] ?? '';
         $password = $body['password'] ?? '';
 
-        $login_id = $query['q'] ?? '';
-        $csrf_token = $body['csrf_token'] ?? '';
+        $loginId = $query['q'] ?? '';
+        $csrfToken = $body['csrf_token'] ?? '';
 
         try {
-            $this->auth_service->validateCsrfToken($login_id, $csrf_token);
+            $this->authService->validateCsrfToken($loginId, $csrfToken);
         } catch (ValidationFailed $e) {
             return JsonResponse::error(
                 $response,
@@ -146,7 +146,7 @@ class AuthorizationController
             );
         }
 
-        $result = $this->auth_service->ensureValidCredentials(
+        $result = $this->authService->ensureValidCredentials(
             $realm->getId(),
             $email,
             $password,
@@ -155,8 +155,8 @@ class AuthorizationController
         if ($result['error']) {
             return $this->view->render($response, 'login_form.php', [
                 'title' => 'Login',
-                'login_id' => $login_id,
-                'csrf_token' => $csrf_token,
+                'login_id' => $loginId,
+                'csrf_token' => $csrfToken,
                 'realm' => $realm->getName(),
                 'email' => $email,
                 'password' => $password,
@@ -165,29 +165,29 @@ class AuthorizationController
         }
 
         try {
-            $data = $this->auth_service->authenticateLogin(
-                $login_id,
+            $data = $this->authService->authenticateLogin(
+                $loginId,
                 $result['user'],
                 $realm
             );
 
-            $session_id = (string) $data['session']->getId();
+            $sessionId = (string) $data['session']->getId();
             /** @var \AuthServer\Models\Login */
             $login = $data['login'];
-            $redirect_uri = new RedirectUri(
+            $redirectUri = new RedirectUri(
                 $login->getRedirectUri(),
                 $login->getResponseMode(),
                 [
                     'code' => $login->getCode(),
                     'state' => $login->getState(),
-                    'session_state' => $session_id,
+                    'session_state' => $sessionId,
                 ]
             );
 
-            $response = $this->sessionCookie->write($realm, $session_id, $response);
+            $response = $this->sessionCookie->write($realm, $sessionId, $response);
 
             return $response
-                ->withHeader('Location', (string) $redirect_uri)
+                ->withHeader('Location', (string) $redirectUri)
                 ->withStatus(302);
         } catch (AuthenticationFailed $e) {
             return $this->redirectToError($response, $realm->getName(), $e->getMessage());
@@ -205,7 +205,7 @@ class AuthorizationController
         $realm = $request->getAttribute(Realm::class);
 
         try {
-            $this->auth_service->validateCheckSessionOrigin(
+            $this->authService->validateCheckSessionOrigin(
                 $realm,
                 $query['client_id'] ?? '',
                 $query['origin'] ?? ''
@@ -223,7 +223,7 @@ class AuthorizationController
         array $query
     ): ResponseInterface {
         try {
-            $this->auth_service->ensureValidClient(
+            $this->authService->ensureValidClient(
                 $query['client_id'],
                 $realm->getId(),
                 $query['redirect_uri']
@@ -232,7 +232,7 @@ class AuthorizationController
             return $this->redirectToError($response, $realm->getName(), $e->getMessage());
         }
 
-        $redirect_uri = new RedirectUri(
+        $redirectUri = new RedirectUri(
             $query['redirect_uri'],
             $query['response_mode'] ?? 'query',
             [
@@ -242,17 +242,17 @@ class AuthorizationController
         );
 
         return $response
-            ->withHeader('Location', (string) $redirect_uri)
+            ->withHeader('Location', (string) $redirectUri)
             ->withStatus(302);
     }
 
     private function redirectToError(
         ResponseInterface $response,
-        string $realm_name,
+        string $realmName,
         string $message
     ): ResponseInterface {
-        $sub = $this->mount_path ?: '';
-        $url = "$sub/realms/$realm_name/protocol/openid-connect/error?e=" . urlencode($message);
+        $sub = $this->mountPath ?: '';
+        $url = "$sub/realms/$realmName/protocol/openid-connect/error?e=" . urlencode($message);
         return $response
             ->withHeader('Location', $url)
             ->withStatus(302);

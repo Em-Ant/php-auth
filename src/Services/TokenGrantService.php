@@ -65,54 +65,54 @@ class TokenGrantService
 
         InputValidator::validateTokenParams($params);
 
-        $client_id = $params['client_id'];
-        $grant_type = $params['grant_type'];
+        $clientId = $params['client_id'];
+        $grantType = $params['grant_type'];
         $code = $params['code'] ?? '';
-        $redirect_uri = $params['redirect_uri'] ?? '';
-        $refresh_token = $params['refresh_token'] ?? '';
-        $code_verifier = $params['code_verifier'] ?? null;
+        $redirectUri = $params['redirect_uri'] ?? '';
+        $refreshToken = $params['refresh_token'] ?? '';
+        $codeVerifier = $params['code_verifier'] ?? null;
 
-        $client = $this->clientAuthenticator->authenticate($client_id, $params);
+        $client = $this->clientAuthenticator->authenticate($clientId, $params);
         if ($client === null) {
             $this->logger->info(
-                "client $client_id authentication failed while generating tokens"
+                "client $clientId authentication failed while generating tokens"
             );
             throw OAuth2Error::invalidClient('invalid client');
         }
 
-        if ($grant_type === GrantType::AuthorizationCode->value) {
+        if ($grantType === GrantType::AuthorizationCode->value) {
             return $this->getTokensByCode(
                 $code,
-                $redirect_uri,
+                $redirectUri,
                 $realm,
                 $client,
-                $code_verifier
+                $codeVerifier
             );
         }
 
-        if ($grant_type === GrantType::RefreshToken->value) {
+        if ($grantType === GrantType::RefreshToken->value) {
             return $this->getTokensByRefreshToken(
-                $refresh_token,
+                $refreshToken,
                 $realm,
                 $client
             );
         }
 
-        if ($grant_type === GrantType::ClientCredentials->value) {
+        if ($grantType === GrantType::ClientCredentials->value) {
             $scope = $params['scope'] ?? '';
             return $this->getClientCredentialsTokens($realm, $client, $scope);
         }
 
-        $this->logger->error("unsupported token flow $grant_type");
+        $this->logger->error("unsupported token flow $grantType");
         throw OAuth2Error::unsupportedGrantType('unsupported flow');
     }
 
     private function getTokensByCode(
         string $code,
-        string $redirect_uri,
+        string $redirectUri,
         Realm $realm,
         Client $client,
-        ?string $code_verifier
+        ?string $codeVerifier
     ): array {
         $this->logger->info("generating tokens from authorization code $code");
         $login = $this->loginRepository->findByCode($code, $realm->getId());
@@ -129,27 +129,27 @@ class TokenGrantService
             throw OAuth2Error::invalidGrant('invalid_grant');
         }
 
-        if ($login->getRedirectUri() !== $redirect_uri) {
+        if ($login->getRedirectUri() !== $redirectUri) {
             $this->logger->error("authorization code not bound to redirect_uri");
             throw OAuth2Error::invalidGrant('invalid_grant');
         }
 
-        $code_challenge = $login->getCodeChallenge();
-        if ($code_verifier !== null || $code_challenge !== null) {
-            InputValidator::validateCodeChallenge($code_challenge, $code_verifier);
+        $codeChallenge = $login->getCodeChallenge();
+        if ($codeVerifier !== null || $codeChallenge !== null) {
+            InputValidator::validateCodeChallenge($codeChallenge, $codeVerifier);
         }
         if ($login->getStatus() !== LoginStatus::Authenticated) {
             $this->logger->error("code $code is expired");
             throw OAuth2Error::invalidGrant('code is expired');
         }
 
-        $session_id = $login->getSessionId();
-        if ($session_id === null) {
+        $sessionId = $login->getSessionId();
+        if ($sessionId === null) {
             throw new StorageFailed('invalid session');
         }
-        $session = $this->sessionRepository->findById($session_id);
+        $session = $this->sessionRepository->findById($sessionId);
         if ($session === null) {
-            throw new StorageFailed("invalid session $session_id");
+            throw new StorageFailed("invalid session $sessionId");
         }
 
         $user = $this->activeSessionUser($session, $realm);
@@ -164,7 +164,7 @@ class TokenGrantService
             );
         }
 
-        $token_bundle = $this->tokenService->createTokenBundle(
+        $tokenBundle = $this->tokenService->createTokenBundle(
             $realm,
             $session,
             $login,
@@ -176,30 +176,30 @@ class TokenGrantService
             $login,
             LoginEvent::Activate,
             $realm,
-            ['refresh_token' => $token_bundle['refresh_token']],
+            ['refresh_token' => $tokenBundle['refresh_token']],
         );
-        $this->sessionOrchestrator->refresh($session_id);
+        $this->sessionOrchestrator->refresh($sessionId);
 
-        return $token_bundle;
+        return $tokenBundle;
     }
 
     private function getTokensByRefreshToken(
-        string $refresh_token,
+        string $refreshToken,
         Realm $realm,
         Client $client
     ): array {
         $this->logger->info("generating tokens from refresh token");
 
-        $claims = $this->tokenValidator->decodeClaimsOnly($refresh_token);
+        $claims = $this->tokenValidator->decodeClaimsOnly($refreshToken);
         if (($claims['typ'] ?? '') === 'Offline') {
             return $this->offlineSessionService->refreshOfflineGrant(
-                $refresh_token,
+                $refreshToken,
                 $realm,
                 $client
             );
         }
 
-        $login = $this->loginRepository->findByRefreshToken($refresh_token, $realm->getId());
+        $login = $this->loginRepository->findByRefreshToken($refreshToken, $realm->getId());
         if ($login === null) {
             $this->logger->error("invalid refresh token");
             throw OAuth2Error::invalidGrant('invalid refresh token');
@@ -217,28 +217,28 @@ class TokenGrantService
 
         $login = $this->loginStateMachine->transition($login, LoginEvent::CheckExpiry, $realm);
 
-        $valid = $this->tokenValidator->validate($refresh_token, $realm, 'Refresh');
+        $valid = $this->tokenValidator->validate($refreshToken, $realm, 'Refresh');
         if ($valid === null) {
             $this->logger->error("refresh token failed validation");
             throw OAuth2Error::invalidGrant('refresh_token is expired');
         }
 
-        $session_id = $login->getSessionId();
-        if ($session_id === null) {
+        $sessionId = $login->getSessionId();
+        if ($sessionId === null) {
             throw new StorageFailed('invalid session');
         }
-        $session = $this->sessionRepository->findById($session_id);
+        $session = $this->sessionRepository->findById($sessionId);
         if ($session === null) {
-            throw new StorageFailed("invalid session $session_id");
+            throw new StorageFailed("invalid session $sessionId");
         }
         if ($session->getStatus() !== SessionStatus::Active) {
-            $this->logger->error("invalid status for session $session_id - not active");
+            $this->logger->error("invalid status for session $sessionId - not active");
             throw OAuth2Error::invalidGrant('invalid session status');
         }
 
         $user = $this->activeSessionUser($session, $realm);
 
-        $token_bundle = $this->tokenService->createTokenBundle(
+        $tokenBundle = $this->tokenService->createTokenBundle(
             $realm,
             $session,
             $login,
@@ -250,11 +250,11 @@ class TokenGrantService
             $login,
             LoginEvent::Refresh,
             $realm,
-            ['refresh_token' => $token_bundle['refresh_token']],
+            ['refresh_token' => $tokenBundle['refresh_token']],
         );
-        $this->sessionOrchestrator->refresh($session_id);
+        $this->sessionOrchestrator->refresh($sessionId);
 
-        return $token_bundle;
+        return $tokenBundle;
     }
 
     private function activeSessionUser(Session $session, Realm $realm): User
@@ -265,15 +265,15 @@ class TokenGrantService
             $realm->getIdleSessionExpiresIn()
         );
         if (!$expiryCheck) {
-            $session_id = $session->getId();
-            $this->logger->error("session $session_id expired");
+            $sessionId = $session->getId();
+            $this->logger->error("session $sessionId expired");
             throw OAuth2Error::invalidGrant('session expired');
         }
 
         $user = $this->userRepository->findById($session->getUserId());
         if ($user === null) {
-            $session_id = $session->getId();
-            $this->logger->error("invalid user for active session $session_id");
+            $sessionId = $session->getId();
+            $this->logger->error("invalid user for active session $sessionId");
             throw new StorageFailed('invalid session');
         }
         return $user;
@@ -293,7 +293,7 @@ class TokenGrantService
             "generating tokens via client_credentials grant for {$client->getName()}"
         );
 
-        $granted_scope = $this->scopeResolver->resolve(
+        $grantedScope = $this->scopeResolver->resolve(
             $scope === '' ? null : $scope,
             $client,
             $realm,
@@ -303,7 +303,7 @@ class TokenGrantService
         return $this->tokenService->createClientCredentialsToken(
             $realm,
             $client,
-            $granted_scope
+            $grantedScope
         );
     }
 }
