@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AuthServer\Tests\Unit\Services;
 
+use AuthServer\Exceptions\ValidationFailed;
 use AuthServer\Interfaces\KeyStore;
 use AuthServer\Interfaces\RoleRepository;
 use AuthServer\Models\KeySet;
@@ -12,6 +13,7 @@ use AuthServer\Repositories\TokenBlacklistRepository;
 use AuthServer\Services\TokenService;
 use AuthServer\Services\TokenValidator;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\NullLogger;
 
 class TokenValidatorTest extends TestCase
 {
@@ -53,6 +55,7 @@ class TokenValidatorTest extends TestCase
             self::ISSUER,
             $this->tokenService,
             $this->blacklist,
+            new NullLogger(),
         );
 
         $this->realm = new Realm(
@@ -186,6 +189,7 @@ class TokenValidatorTest extends TestCase
             self::ISSUER,
             $this->tokenService,
             $this->blacklist,
+            new NullLogger(),
         );
 
         self::assertNull(
@@ -246,5 +250,36 @@ class TokenValidatorTest extends TestCase
         $payload['iss'] = 'https://evil.example/realms/test';
 
         self::assertNull($this->validator->validateIdTokenHint($this->createToken($payload), $this->realm));
+    }
+
+    // ── parseValidToken ───────────────────────────────────────
+
+    public function testParseValidTokenReturnsClaims(): void
+    {
+        $claims = $this->validator->parseValidToken(
+            $this->createToken($this->validPayload()),
+            $this->realm
+        );
+
+        self::assertSame('user-1', $claims['sub']);
+    }
+
+    public function testParseValidTokenThrowsForTamperedToken(): void
+    {
+        $token = $this->createToken($this->validPayload());
+        $parts = explode('.', $token);
+        $tampered = $parts[0] . '.' . $parts[1] . '.invalidsignature';
+
+        $this->expectException(ValidationFailed::class);
+        $this->validator->parseValidToken($tampered, $this->realm);
+    }
+
+    public function testParseValidTokenThrowsForExpiredToken(): void
+    {
+        $payload = $this->validPayload();
+        $payload['exp'] = time() - 1;
+
+        $this->expectException(ValidationFailed::class);
+        $this->validator->parseValidToken($this->createToken($payload), $this->realm);
     }
 }

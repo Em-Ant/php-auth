@@ -143,7 +143,7 @@ class TestAppFactory
                 $logoutController = $container->get(LogoutController::class);
                 $oidcController = $container->get(OidcController::class);
                 $errorController = $container->get(ErrorController::class);
-                $authOrchestrator = $container->get(\AuthServer\Services\AuthenticationOrchestrator::class);
+                $tokenValidator = $container->get(\AuthServer\Services\TokenValidator::class);
 
                 $group->get('/auth', [$authController, 'authorize']);
                 $group->post('/login-actions/authenticate', [$authController, 'login']);
@@ -154,7 +154,7 @@ class TestAppFactory
                 $group->get('/error', [$errorController, 'error']);
                 $group->get('/certs', [$oidcController, 'sendKeys']);
                 $group->get('/userinfo', [$oidcController, 'sendUserInfo'])
-                    ->add(new ValidateAccessToken($authOrchestrator));
+                    ->add(new ValidateAccessToken($tokenValidator));
 
                 $group->get('/login-status-iframe.html', function (ServerRequestInterface $request, ResponseInterface $response) {
                     $response->getBody()->write(file_get_contents(__DIR__ . '/../../src/views/login-iframe.html'));

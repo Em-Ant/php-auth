@@ -7,7 +7,7 @@ namespace AuthServer\Middleware;
 use AuthServer\Exceptions\ValidationFailed;
 use AuthServer\Models\Realm;
 use AuthServer\Response\JsonResponse;
-use AuthServer\Services\AuthenticationOrchestrator;
+use AuthServer\Services\TokenValidator;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
@@ -16,12 +16,12 @@ use Slim\Psr7\Response;
 
 class ValidateAccessToken implements MiddlewareInterface
 {
-    private AuthenticationOrchestrator $authService;
+    private TokenValidator $tokenValidator;
 
     public function __construct(
-        AuthenticationOrchestrator $authService
+        TokenValidator $tokenValidator
     ) {
-        $this->authService = $authService;
+        $this->tokenValidator = $tokenValidator;
     }
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
@@ -43,7 +43,7 @@ class ValidateAccessToken implements MiddlewareInterface
         $token = str_replace('Bearer ', '', $authHeader);
 
         try {
-            $parsed = $this->authService->parseValidToken($token, $realm);
+            $parsed = $this->tokenValidator->parseValidToken($token, $realm);
 
             $request = $request->withAttribute('accessTokenParsed', $parsed);
             return $handler->handle($request);

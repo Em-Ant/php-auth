@@ -18,6 +18,11 @@ use AuthServer\Models\Session;
 use AuthServer\Models\User;
 use Psr\Log\LoggerInterface;
 
+/**
+ * Drives the OIDC code-flow login lifecycle: client/redirect gating,
+ * login initialization and CSRF validation, credential checks, and
+ * login/session creation on authentication.
+ */
 class AuthenticationOrchestrator
 {
     private SessionOrchestrator $sessionOrchestrator;
@@ -26,7 +31,6 @@ class AuthenticationOrchestrator
     private ILoginRepo $loginRepository;
     private LoginStateMachine $loginStateMachine;
     private SecretsService $secretsService;
-    private TokenValidator $tokenValidator;
     private ScopeResolver $scopeResolver;
     private LoggerInterface $logger;
 
@@ -37,7 +41,6 @@ class AuthenticationOrchestrator
         ILoginRepo $loginRepo,
         LoginStateMachine $loginStateMachine,
         SecretsService $secretsService,
-        TokenValidator $tokenValidator,
         ScopeResolver $scopeResolver,
         LoggerInterface $logger
     ) {
@@ -47,7 +50,6 @@ class AuthenticationOrchestrator
         $this->loginRepository = $loginRepo;
         $this->loginStateMachine = $loginStateMachine;
         $this->secretsService = $secretsService;
-        $this->tokenValidator = $tokenValidator;
         $this->scopeResolver = $scopeResolver;
         $this->logger = $logger;
     }
@@ -239,26 +241,6 @@ class AuthenticationOrchestrator
         ];
     }
 
-    public function logout(string $idToken, Realm $realm): bool
-    {
-        $this->logger->info("logging out for id token");
-        $claims = $this->tokenValidator->validateIdTokenHint($idToken, $realm);
-        if ($claims === null) {
-            throw new ValidationFailed('invalid id_token');
-        }
-
-        $sessionId = $claims['sid'] ?? '';
-        if ($sessionId === '') {
-            throw new ValidationFailed('invalid id_token');
-        }
-
-        $this->logger->info("token contains session id $sessionId");
-
-        $this->sessionOrchestrator->expire($sessionId);
-        $this->logger->info("session $sessionId set to expired - logout ok");
-        return true;
-    }
-
     public function getClientUri(string $clientId): string
     {
         $this->logger->info("getting uri for client $clientId to enable cors on origin");
@@ -298,49 +280,6 @@ class AuthenticationOrchestrator
         }
 
         InputValidator::validateClientOrigin($client, $origin);
-    }
-
-    public function parseValidToken(string $token, Realm $realm): array
-    {
-        $claims = $this->tokenValidator->validate($token, $realm, 'Bearer');
-        if ($claims === null) {
-            $this->logger->error("invalid or expired access token");
-            throw new ValidationFailed('Token verification failed');
-        }
-
-        return $claims;
-    }
-
-    public function validateLogoutRedirectUri(
-        string $idToken,
-        string $postLogoutRedirectUri
-    ): ?string {
-        if (trim($postLogoutRedirectUri) === '') {
-            return null;
-        }
-
-        $payload = $this->tokenValidator->decodeClaimsOnly($idToken);
-        if ($payload === null) {
-            return null;
-        }
-
-        $clientName = $payload['azp'] ?? $payload['aud'] ?? null;
-        if (!is_string($clientName) || $clientName === '') {
-            return null;
-        }
-
-        $client = $this->clientRepository->findByName($clientName);
-        if ($client === null) {
-            return null;
-        }
-
-        try {
-            InputValidator::validateRedirectUri($client, $postLogoutRedirectUri);
-        } catch (ValidationFailed) {
-            return null;
-        }
-
-        return $postLogoutRedirectUri;
     }
 
     /**

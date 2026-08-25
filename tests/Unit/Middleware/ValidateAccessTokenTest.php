@@ -7,7 +7,7 @@ namespace AuthServer\Tests\Unit\Middleware;
 use AuthServer\Exceptions\ValidationFailed;
 use AuthServer\Middleware\ValidateAccessToken;
 use AuthServer\Models\Realm;
-use AuthServer\Services\AuthenticationOrchestrator;
+use AuthServer\Services\TokenValidator;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -15,15 +15,15 @@ use Psr\Http\Server\RequestHandlerInterface;
 
 class ValidateAccessTokenTest extends TestCase
 {
-    private AuthenticationOrchestrator $authService;
+    private TokenValidator $tokenValidator;
     private ValidateAccessToken $middleware;
     private Realm $realm;
 
     protected function setUp(): void
     {
-        $this->authService = $this->createMock(AuthenticationOrchestrator::class);
+        $this->tokenValidator = $this->createMock(TokenValidator::class);
         $this->middleware = new ValidateAccessToken(
-            $this->authService,
+            $this->tokenValidator,
         );
         $this->realm = new Realm(
             'r-id', 'test', 'k-id', 1800, 300, 300, 300, 86400, 1800,
@@ -65,7 +65,7 @@ class ValidateAccessTokenTest extends TestCase
         $request->method('getAttribute')->with(Realm::class)->willReturn($this->realm);
         $request->method('getHeaderLine')->with('Authorization')->willReturn('Bearer invalid-token');
 
-        $this->authService->method('parseValidToken')
+        $this->tokenValidator->method('parseValidToken')
             ->willThrowException(new ValidationFailed('Token verification failed'));
 
         $handler = $this->createMock(RequestHandlerInterface::class);
@@ -82,7 +82,7 @@ class ValidateAccessTokenTest extends TestCase
         $request->method('getHeaderLine')->with('Authorization')->willReturn('Bearer valid-token');
 
         $parsed = ['sub' => 'u-id', 'preferred_username' => 'emant', 'jti' => 'jti-1'];
-        $this->authService->method('parseValidToken')->willReturn($parsed);
+        $this->tokenValidator->method('parseValidToken')->willReturn($parsed);
 
         $request->expects(self::once())
             ->method('withAttribute')
@@ -104,7 +104,7 @@ class ValidateAccessTokenTest extends TestCase
         $request->method('getHeaderLine')->with('Authorization')->willReturn('Bearer v-tok');
 
         $parsed = ['sub' => 'u-1', 'jti' => 'jti-2'];
-        $this->authService->method('parseValidToken')->willReturn($parsed);
+        $this->tokenValidator->method('parseValidToken')->willReturn($parsed);
 
         $enrichedRequest = $this->createMock(ServerRequestInterface::class);
         $request->method('withAttribute')->willReturn($enrichedRequest);

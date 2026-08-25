@@ -4,23 +4,28 @@ declare(strict_types=1);
 
 namespace AuthServer\Services;
 
+use AuthServer\Exceptions\ValidationFailed;
 use AuthServer\Models\Realm;
 use AuthServer\Repositories\TokenBlacklistRepository;
+use Psr\Log\LoggerInterface;
 
 class TokenValidator
 {
     private string $issuer;
     private TokenService $tokenService;
     private TokenBlacklistRepository $tokenBlacklistRepository;
+    private LoggerInterface $logger;
 
     public function __construct(
         string $issuer,
         TokenService $tokenService,
-        TokenBlacklistRepository $tokenBlacklistRepository
+        TokenBlacklistRepository $tokenBlacklistRepository,
+        LoggerInterface $logger
     ) {
         $this->issuer = $issuer;
         $this->tokenService = $tokenService;
         $this->tokenBlacklistRepository = $tokenBlacklistRepository;
+        $this->logger = $logger;
     }
 
     public function decodeClaimsOnly(string $token): ?array
@@ -81,6 +86,22 @@ class TokenValidator
         $jti = (string) ($claims['jti'] ?? '');
         if ($jti !== '' && $this->tokenBlacklistRepository->exists($jti)) {
             return null;
+        }
+
+        return $claims;
+    }
+
+    /**
+     * Validates a Bearer access token and returns its claims, throwing when
+     * the token is invalid or expired — for callers that treat an invalid
+     * token as a request error rather than an expected outcome.
+     */
+    public function parseValidToken(string $token, Realm $realm): array
+    {
+        $claims = $this->validate($token, $realm, 'Bearer');
+        if ($claims === null) {
+            $this->logger->error("invalid or expired access token");
+            throw new ValidationFailed('Token verification failed');
         }
 
         return $claims;
