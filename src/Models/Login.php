@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace AuthServer\Models;
 
 use DateTime;
-use DateTimeZone;
+
+use function AuthServer\format_sql_datetime;
+use function AuthServer\parse_sql_datetime;
 
 class Login implements \JsonSerializable
 {
@@ -56,16 +58,9 @@ class Login implements \JsonSerializable
         $this->code_challenge = $code_challenge;
         $this->csrf_token = $csrf_token;
         $this->refresh_token = $refresh_token;
-        $utc = new DateTimeZone('UTC');
-        $this->created_at = is_null($created_at) ?
-            date_create() :
-            \DateTime::createFromFormat('Y-m-d H:i:s', $created_at, $utc);
-        $this->updated_at = is_null($updated_at)
-            ? null
-            : (\DateTime::createFromFormat('Y-m-d H:i:s', $updated_at, $utc) ?: null);
-        $this->authenticated_at = is_null($authenticated_at)
-            ? null
-            : (\DateTime::createFromFormat('Y-m-d H:i:s', $authenticated_at, $utc) ?: null);
+        $this->created_at = parse_sql_datetime($created_at) ?? date_create();
+        $this->updated_at = parse_sql_datetime($updated_at);
+        $this->authenticated_at = parse_sql_datetime($authenticated_at);
         $this->status = LoginStatus::from($status ?? 'PENDING');
     }
 
@@ -176,9 +171,9 @@ class Login implements \JsonSerializable
             'redirect_uri' => $this->redirect_uri,
             'response_mode' => $this->response_mode,
             'status' => $this->status->value,
-            'created_at' => $this->created_at->format('Y-m-d H:i:s'),
-            'authenticated_at' => $this->authenticated_at?->format('Y-m-d H:i:s'),
-            'updated_at' => $this->updated_at?->format('Y-m-d H:i:s'),
+            'created_at' => format_sql_datetime($this->created_at),
+            'authenticated_at' => format_sql_datetime($this->authenticated_at),
+            'updated_at' => format_sql_datetime($this->updated_at),
         ];
     }
 }

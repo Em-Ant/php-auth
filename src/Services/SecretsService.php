@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace AuthServer\Services;
 
-use function AuthServer\get_guid;
+use function AuthServer\getGuid;
 
 class SecretsService
 {
@@ -17,7 +17,7 @@ class SecretsService
 
     public function generateCode(): string
     {
-        return join('.', [get_guid(), get_guid(), get_guid()]);
+        return join('.', [getGuid(), getGuid(), getGuid()]);
     }
 
     public function hashPassword(string $password): string

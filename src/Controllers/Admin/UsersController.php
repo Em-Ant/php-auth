@@ -19,7 +19,9 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Slim\Exception\HttpNotFoundException;
 
-use function AuthServer\get_guid;
+use function AuthServer\format_sql_datetime;
+use function AuthServer\sql_now;
+use function AuthServer\getGuid;
 
 class UsersController
 {
@@ -73,12 +75,12 @@ class UsersController
             $realmRoles = self::splitRoles($this->optionalString($body, 'realm_roles', null) ?? self::DEFAULT_ROLES);
 
             $user = new User(
-                get_guid(),
+                getGuid(),
                 $realmId,
                 $this->optionalString($body, 'name', null) ?? '',
                 $email,
                 $this->secretsService->hashPassword($password),
-                gmdate('Y-m-d H:i:s'),
+                sql_now(),
                 $this->optionalBool($body, 'valid', true)
             );
 
@@ -123,7 +125,7 @@ class UsersController
                 $this->optionalString($body, 'name', null) ?? $existing->getName(),
                 $email,
                 $this->updatedPassword($body, $existing),
-                $existing->getCreatedAt()->format('Y-m-d H:i:s'),
+                format_sql_datetime($existing->getCreatedAt()),
                 $this->optionalBool($body, 'valid', $existing->getValid())
             );
 
@@ -202,7 +204,7 @@ class UsersController
             'name' => $user->getName(),
             'email' => $user->getEmail(),
             'valid' => $user->getValid(),
-            'created_at' => $user->getCreatedAt()->format('Y-m-d H:i:s'),
+            'created_at' => format_sql_datetime($user->getCreatedAt()),
         ];
     }
 }

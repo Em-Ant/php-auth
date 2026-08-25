@@ -17,7 +17,7 @@ use AuthServer\Models\Session;
 use AuthServer\Models\User;
 use Psr\Log\LoggerInterface;
 
-use function AuthServer\get_guid;
+use function AuthServer\getGuid;
 
 /**
  * Owns the offline_access lifecycle. Offline grants are per-client records in
@@ -60,7 +60,7 @@ class OfflineSessionService
         User $user
     ): array {
         $offlineSession = new OfflineSession(
-            get_guid(),
+            getGuid(),
             $realm->getId(),
             $user->getId(),
             $client->getId(),

@@ -25,6 +25,8 @@ use Psr\Log\LoggerInterface;
  */
 class AuthenticationOrchestrator
 {
+    private const ERR_INVALID_CLIENT = 'invalid client id';
+
     private SessionOrchestrator $sessionOrchestrator;
     private IClientRepo $clientRepository;
     private IUserRepo $userRepository;
@@ -61,7 +63,7 @@ class AuthenticationOrchestrator
     ): void {
         $client = $this->clientRepository->findByName($clientName);
         if ($client === null) {
-            throw new ValidationFailed('invalid client id');
+            throw new ValidationFailed(self::ERR_INVALID_CLIENT);
         }
         $this->scopeResolver->resolve($requiredScope, $client, $realm, true);
     }
@@ -272,7 +274,7 @@ class AuthenticationOrchestrator
         $client = $this->clientRepository->findByName($clientId);
         if ($client === null) {
             $this->logger->error("client $clientId not found for check-session init");
-            throw new ValidationFailed('invalid client id');
+            throw new ValidationFailed(self::ERR_INVALID_CLIENT);
         }
         if ($client->getRealmId() !== $realm->getId()) {
             $this->logger->error("client $clientId not in realm {$realm->getName()}");
@@ -319,7 +321,7 @@ class AuthenticationOrchestrator
         $client = $this->clientRepository->findByName($clientName);
         if ($client === null) {
             $this->logger->error("client matching $clientName not found for realm");
-            throw new ValidationFailed('invalid client id');
+            throw new ValidationFailed(self::ERR_INVALID_CLIENT);
         }
         if ($client->getRealmId() !== $realmId) {
             $this->logger->error("client $clientName realm id {$client->getRealmId()} doesn't match $realmId");

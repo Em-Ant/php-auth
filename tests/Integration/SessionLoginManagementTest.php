@@ -8,7 +8,7 @@ use AuthServer\Tests\Support\AdminApiTrait;
 use AuthServer\Tests\Support\TestAppFactory;
 use PHPUnit\Framework\TestCase;
 
-use function AuthServer\get_guid;
+use function AuthServer\getGuid;
 
 class SessionLoginManagementTest extends TestCase
 {
@@ -48,8 +48,8 @@ class SessionLoginManagementTest extends TestCase
     {
         $pdo = self::$app->getContainer()->get(\PDO::class);
 
-        $sessionId = get_guid();
-        $loginId = get_guid();
+        $sessionId = getGuid();
+        $loginId = getGuid();
         $stmt = $pdo->prepare(
             "INSERT INTO sessions (id, realm_id, user_id, acr, status)
              VALUES (:id, :realm, :user, '0', 'ACTIVE')"
@@ -80,20 +80,20 @@ class SessionLoginManagementTest extends TestCase
     public function testInvalidateByUserIdRemovesAllSessionsAndLogins(): void
     {
         $pdo = self::$app->getContainer()->get(\PDO::class);
-        $userId = get_guid();
+        $userId = getGuid();
 
         // Create a user first to satisfy FK
         $hash = password_hash('pass', PASSWORD_BCRYPT, ['cost' => 4]);
         $pdo->exec("INSERT INTO users (id, realm_id, name, email, password, valid)
-                     VALUES ('$userId', '" . self::TEST_REALM . "', 'Temp', 'temp-".get_guid()."@example.com', '$hash', 'TRUE')");
+                     VALUES ('$userId', '" . self::TEST_REALM . "', 'Temp', 'temp-".getGuid()."@example.com', '$hash', 'TRUE')");
 
-        $s1 = get_guid();
-        $s2 = get_guid();
+        $s1 = getGuid();
+        $s2 = getGuid();
         $pdo->exec("INSERT INTO sessions (id, realm_id, user_id, acr, status) VALUES ('$s1', '" . self::TEST_REALM . "', '$userId', '0', 'ACTIVE')");
         $pdo->exec("INSERT INTO sessions (id, realm_id, user_id, acr, status) VALUES ('$s2', '" . self::TEST_REALM . "', '$userId', '0', 'ACTIVE')");
 
-        $l1 = get_guid();
-        $l2 = get_guid();
+        $l1 = getGuid();
+        $l2 = getGuid();
         $pdo->exec("INSERT INTO logins (id, client_id, session_id, state, nonce, scope, redirect_uri, response_mode, status) VALUES ('$l1', '" . self::TEST_CLIENT . "', '$s1', 'st', 'nc', 'openid', 'https://example.com', 'query', 'ACTIVE')");
         $pdo->exec("INSERT INTO logins (id, client_id, session_id, state, nonce, scope, redirect_uri, response_mode, status) VALUES ('$l2', '" . self::TEST_CLIENT . "', '$s2', 'st', 'nc', 'openid', 'https://example.com', 'query', 'ACTIVE')");
 
@@ -110,13 +110,13 @@ class SessionLoginManagementTest extends TestCase
     public function testInvalidateByClientIdRemovesSessionsAndLogins(): void
     {
         $pdo = self::$app->getContainer()->get(\PDO::class);
-        $userId = get_guid();
-        $sessionId = get_guid();
-        $loginId = get_guid();
+        $userId = getGuid();
+        $sessionId = getGuid();
+        $loginId = getGuid();
 
         $hash = password_hash('pass', PASSWORD_BCRYPT, ['cost' => 4]);
         $pdo->exec("INSERT INTO users (id, realm_id, name, email, password, valid)
-                     VALUES ('$userId', '" . self::TEST_REALM . "', 'Temp', 'cid-".get_guid()."@example.com', '$hash', 'TRUE')");
+                     VALUES ('$userId', '" . self::TEST_REALM . "', 'Temp', 'cid-".getGuid()."@example.com', '$hash', 'TRUE')");
         $pdo->exec("INSERT INTO sessions (id, realm_id, user_id, acr, status) VALUES ('$sessionId', '" . self::TEST_REALM . "', '$userId', '0', 'ACTIVE')");
         $pdo->exec("INSERT INTO logins (id, client_id, session_id, state, nonce, scope, redirect_uri, response_mode, status) VALUES ('$loginId', '" . self::TEST_CLIENT . "', '$sessionId', 'st', 'nc', 'openid', 'https://example.com', 'query', 'ACTIVE')");
 
@@ -152,7 +152,7 @@ class SessionLoginManagementTest extends TestCase
     public function testDeleteLoginReturns204(): void
     {
         $pdo = self::$app->getContainer()->get(\PDO::class);
-        $loginId = get_guid();
+        $loginId = getGuid();
 
         $pdo->exec("INSERT INTO logins (id, client_id, state, nonce, scope, redirect_uri, response_mode, status)
                      VALUES ('$loginId', '" . self::TEST_CLIENT . "', 'st', 'nc', 'openid', 'https://example.com', 'query', 'PENDING')");
@@ -174,7 +174,7 @@ class SessionLoginManagementTest extends TestCase
     {
         $pdo = self::$app->getContainer()->get(\PDO::class);
 
-        $userId = get_guid();
+        $userId = getGuid();
         $email = 'disabled-' . $userId . '@example.com';
         $hash = password_hash('testpass', PASSWORD_BCRYPT, ['cost' => 4]);
         $pdo->exec("INSERT INTO users (id, realm_id, name, email, password, valid)
@@ -222,8 +222,8 @@ class SessionLoginManagementTest extends TestCase
     {
         $pdo = self::$app->getContainer()->get(\PDO::class);
 
-        $userId = get_guid();
-        $email = 'enabled-' . get_guid() . '@example.com';
+        $userId = getGuid();
+        $email = 'enabled-' . getGuid() . '@example.com';
         $hash = password_hash('testpass', PASSWORD_BCRYPT, ['cost' => 4]);
         $pdo->exec("INSERT INTO users (id, realm_id, name, email, password, valid)
                      VALUES ('$userId', '" . self::TEST_REALM . "', 'Enabled User', '$email', '$hash', 'TRUE')");
@@ -271,26 +271,26 @@ class SessionLoginManagementTest extends TestCase
     {
         $kid = $this->assertStatus(201, $this->adminRequest('POST', '/admin/keys'))['kid'];
         $realm = $this->assertStatus(201, $this->adminRequest('POST', '/admin/realms', [
-            'name' => 'delete-test-' . get_guid(),
+            'name' => 'delete-test-' . getGuid(),
             'keys_id' => $kid,
         ]));
 
         $client = $this->assertStatus(201, $this->adminRequest('POST', '/admin/clients', [
-            'name' => 'del-client-' . get_guid(),
+            'name' => 'del-client-' . getGuid(),
             'realm_id' => $realm['id'],
             'uri' => 'https://del.example.com',
         ]));
 
         $user = $this->assertStatus(201, $this->adminRequest('POST', '/admin/users', [
             'realm_id' => $realm['id'],
-            'email' => 'del-' . get_guid() . '@example.com',
+            'email' => 'del-' . getGuid() . '@example.com',
             'password' => 'pass',
         ]));
 
         // Create active session + login
         $pdo = self::$app->getContainer()->get(\PDO::class);
-        $sid = get_guid();
-        $lid = get_guid();
+        $sid = getGuid();
+        $lid = getGuid();
         $pdo->exec("INSERT INTO sessions (id, realm_id, user_id, acr, status) VALUES ('$sid', '{$realm['id']}', '{$user['id']}', '0', 'ACTIVE')");
         $pdo->exec("INSERT INTO logins (id, client_id, session_id, state, nonce, scope, redirect_uri, response_mode, status) VALUES ('$lid', '{$client['id']}', '$sid', 'st', 'nc', 'openid', 'https://del.example.com', 'query', 'ACTIVE')");
 
@@ -313,12 +313,12 @@ class SessionLoginManagementTest extends TestCase
     {
         $user = $this->assertStatus(201, $this->adminRequest('POST', '/admin/users', [
             'realm_id' => self::TEST_REALM,
-            'email' => 'sess-block-' . get_guid() . '@example.com',
+            'email' => 'sess-block-' . getGuid() . '@example.com',
             'password' => 'pass',
         ]));
 
         $pdo = self::$app->getContainer()->get(\PDO::class);
-        $sid = get_guid();
+        $sid = getGuid();
         $pdo->exec("INSERT INTO sessions (id, realm_id, user_id, acr, status) VALUES ('$sid', '" . self::TEST_REALM . "', '{$user['id']}', '0', 'ACTIVE')");
 
         // Delete should be blocked
@@ -337,13 +337,13 @@ class SessionLoginManagementTest extends TestCase
     public function testDeleteClientBlockedByActiveLogins(): void
     {
         $client = $this->assertStatus(201, $this->adminRequest('POST', '/admin/clients', [
-            'name' => 'login-block-' . get_guid(),
+            'name' => 'login-block-' . getGuid(),
             'realm_id' => self::TEST_REALM,
             'uri' => 'https://block.example.com',
         ]));
 
         $pdo = self::$app->getContainer()->get(\PDO::class);
-        $lid = get_guid();
+        $lid = getGuid();
         $pdo->exec("INSERT INTO logins (id, client_id, state, nonce, scope, redirect_uri, response_mode, status)
                      VALUES ('$lid', '{$client['id']}', 'st', 'nc', 'openid', 'https://block.example.com', 'query', 'ACTIVE')");
 

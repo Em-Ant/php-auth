@@ -102,11 +102,9 @@ class InputValidator
             return true;
         }
 
-        $wildcardMatch = str_ends_with($registered, '*')
+        return str_ends_with($registered, '*')
             && self::originOf($registered) === self::originOf($requested)
             && self::pathMatches($registered, $requested);
-
-        return $wildcardMatch;
     }
 
     private static function pathMatches(string $registered, string $requested): bool
@@ -201,7 +199,7 @@ class InputValidator
             }
         }
 
-        if (count($missing) > 0) {
+        if (!empty($missing)) {
             $missingStr = implode(', ', $missing);
             $s = count($missing) > 1 ? 's' : '';
             throw new ValidationFailed("missing required parameter$s ($missingStr)");

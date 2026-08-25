@@ -87,8 +87,8 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-ok()   { PASS=$((PASS+1)); echo "  ✓ $1"; }
-fail() { FAIL=$((FAIL+1)); echo "  ✗ $1"; }
+ok()   { local msg="$1"; PASS=$((PASS+1)); echo "  ✓ $msg"; }
+fail() { local msg="$1"; FAIL=$((FAIL+1)); echo "  ✗ $msg" >&2; }
 
 # ── Start dev server ──────────────────────────────────────────
 echo "=== Starting dev server ==="

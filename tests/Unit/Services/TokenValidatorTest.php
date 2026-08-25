@@ -14,6 +14,7 @@ use AuthServer\Services\TokenService;
 use AuthServer\Services\TokenValidator;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
+use AuthServer\Services\ScopeResolver;
 
 class TokenValidatorTest extends TestCase
 {
@@ -47,6 +48,7 @@ class TokenValidatorTest extends TestCase
             self::ISSUER,
             $keyStore,
             $this->createMock(RoleRepository::class),
+            new ScopeResolver(new NullLogger()),
         );
         $this->blacklist = $this->createMock(TokenBlacklistRepository::class);
         $this->blacklist->method('exists')->willReturn(false);

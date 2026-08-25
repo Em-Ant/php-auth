@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AuthServer\Services;
 
+use AuthServer\Exceptions\MigrationFailed;
 use AuthServer\Repositories\MigrationRepository;
 
 class MigrationRunner
@@ -37,10 +38,7 @@ class MigrationRunner
 
         foreach ($lastBatch as $row) {
             $version = (int) $row['version'];
-            $m = $this->findMigration($version);
-            if ($m === null) {
-                throw new \RuntimeException("Migration file for version {$version} not found");
-            }
+            $m = $this->findMigrationOrFail($version);
             $this->runDown($m);
             $rolled[] = $m;
         }
@@ -136,10 +134,7 @@ class MigrationRunner
             if ($version <= $minVersion) {
                 break;
             }
-            $m = $this->findMigration($version);
-            if ($m === null) {
-                throw new \RuntimeException("Migration file for version {$version} not found");
-            }
+            $m = $this->findMigrationOrFail($version);
             $this->runDown($m);
             $rolled[] = $m;
         }
@@ -151,7 +146,7 @@ class MigrationRunner
     {
         $sql = file_get_contents($m->upFile);
         if ($sql === false) {
-            throw new \RuntimeException("Cannot read {$m->upFile}");
+            throw new MigrationFailed("Cannot read {$m->upFile}");
         }
 
         $checksum = hash('sha256', $sql);
@@ -165,7 +160,7 @@ class MigrationRunner
             $this->repo->getDb()->commit();
         } catch (\Throwable $e) {
             $this->repo->getDb()->rollBack();
-            throw new \RuntimeException(
+            throw new MigrationFailed(
                 "Migration {$m->version}-{$m->name} failed: " . $e->getMessage(),
                 0,
                 $e
@@ -176,14 +171,14 @@ class MigrationRunner
     private function runDown(Migration $m): void
     {
         if ($m->downFile === null) {
-            throw new \RuntimeException(
+            throw new MigrationFailed(
                 "Migration {$m->version}-{$m->name} has no down file — cannot rollback"
             );
         }
 
         $sql = file_get_contents($m->downFile);
         if ($sql === false) {
-            throw new \RuntimeException("Cannot read {$m->downFile}");
+            throw new MigrationFailed("Cannot read {$m->downFile}");
         }
 
         try {
@@ -193,7 +188,7 @@ class MigrationRunner
             $this->repo->getDb()->commit();
         } catch (\Throwable $e) {
             $this->repo->getDb()->rollBack();
-            throw new \RuntimeException(
+            throw new MigrationFailed(
                 "Rollback {$m->version}-{$m->name} failed: " . $e->getMessage(),
                 0,
                 $e
@@ -209,6 +204,15 @@ class MigrationRunner
             }
         }
         return null;
+    }
+
+    private function findMigrationOrFail(int $version): Migration
+    {
+        $m = $this->findMigration($version);
+        if ($m === null) {
+            throw new MigrationFailed("Migration file for version {$version} not found");
+        }
+        return $m;
     }
 
     private function parseMigrations(): array

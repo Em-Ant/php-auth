@@ -10,7 +10,7 @@ use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 
-use function AuthServer\get_guid;
+use function AuthServer\getGuid;
 
 class AdminOfflineSessionsTest extends TestCase
 {
@@ -49,7 +49,7 @@ class AdminOfflineSessionsTest extends TestCase
     private function seedClient(): string
     {
         $client = $this->assertStatus(201, $this->adminRequest('POST', '/admin/clients', [], [
-            'name' => 'offline-sessions-client-' . get_guid(),
+            'name' => 'offline-sessions-client-' . getGuid(),
             'realm_id' => self::TEST_REALM,
             'uri' => 'https://offline-sessions.example.com',
             'require_auth' => false,
@@ -74,7 +74,7 @@ class AdminOfflineSessionsTest extends TestCase
     private function seedOfflineSession(string $clientId, string $refreshToken): string
     {
         $pdo = self::$app->getContainer()->get(\PDO::class);
-        $id = get_guid();
+        $id = getGuid();
 
         $stmt = $pdo->prepare(
             "INSERT INTO offline_sessions (id, realm_id, user_id, client_id, acr, scope, nonce, refresh_token, status)
@@ -93,7 +93,7 @@ class AdminOfflineSessionsTest extends TestCase
 
     public function testListReturnsPaginatedEnvelope(): void
     {
-        $this->seedOfflineSession(self::TEST_CLIENT_A, 'rt-env-' . get_guid());
+        $this->seedOfflineSession(self::TEST_CLIENT_A, 'rt-env-' . getGuid());
 
         $data = $this->assertStatus(200, $this->adminRequest('GET', '/admin/offline-sessions'));
 
@@ -106,9 +106,9 @@ class AdminOfflineSessionsTest extends TestCase
 
     public function testListFilteredByClientReturnsOnlyMatchingRows(): void
     {
-        $idA = $this->seedOfflineSession(self::TEST_CLIENT_A, 'rt-a-' . get_guid());
+        $idA = $this->seedOfflineSession(self::TEST_CLIENT_A, 'rt-a-' . getGuid());
         $otherClientId = $this->seedClient();
-        $this->seedOfflineSession($otherClientId, 'rt-b-' . get_guid());
+        $this->seedOfflineSession($otherClientId, 'rt-b-' . getGuid());
 
         $data = $this->assertStatus(200, $this->adminRequest('GET', '/admin/offline-sessions', [
             'client_id' => self::TEST_CLIENT_A,
@@ -124,7 +124,7 @@ class AdminOfflineSessionsTest extends TestCase
 
     public function testListCombinedRealmAndUserFilters(): void
     {
-        $this->seedOfflineSession(self::TEST_CLIENT_A, 'rt-c-' . get_guid());
+        $this->seedOfflineSession(self::TEST_CLIENT_A, 'rt-c-' . getGuid());
 
         $data = $this->assertStatus(200, $this->adminRequest('GET', '/admin/offline-sessions', [
             'realm_id' => self::TEST_REALM,
@@ -140,8 +140,8 @@ class AdminOfflineSessionsTest extends TestCase
 
     public function testListPaginationLimitAndOffset(): void
     {
-        $this->seedOfflineSession(self::TEST_CLIENT_A, 'rt-p1-' . get_guid());
-        $this->seedOfflineSession(self::TEST_CLIENT_A, 'rt-p2-' . get_guid());
+        $this->seedOfflineSession(self::TEST_CLIENT_A, 'rt-p1-' . getGuid());
+        $this->seedOfflineSession(self::TEST_CLIENT_A, 'rt-p2-' . getGuid());
 
         $page1 = $this->assertStatus(200, $this->adminRequest('GET', '/admin/offline-sessions', [
             'client_id' => self::TEST_CLIENT_A,
@@ -174,7 +174,7 @@ class AdminOfflineSessionsTest extends TestCase
 
     public function testReadSingleOmitsSecretFields(): void
     {
-        $id = $this->seedOfflineSession(self::TEST_CLIENT_A, 'rt-read-' . get_guid());
+        $id = $this->seedOfflineSession(self::TEST_CLIENT_A, 'rt-read-' . getGuid());
 
         $data = $this->assertStatus(200, $this->adminRequest('GET', '/admin/offline-sessions/' . $id));
 
@@ -192,8 +192,8 @@ class AdminOfflineSessionsTest extends TestCase
     public function testDeleteExpiresOnlyTargetedSessionAndIsIdempotent(): void
     {
         $pdo = self::$app->getContainer()->get(\PDO::class);
-        $idA = $this->seedOfflineSession(self::TEST_CLIENT_A, 'rt-del-a-' . get_guid());
-        $siblingId = $this->seedOfflineSession(self::TEST_CLIENT_A, 'rt-del-b-' . get_guid());
+        $idA = $this->seedOfflineSession(self::TEST_CLIENT_A, 'rt-del-a-' . getGuid());
+        $siblingId = $this->seedOfflineSession(self::TEST_CLIENT_A, 'rt-del-b-' . getGuid());
 
         $response = $this->handle($this->adminRequest('DELETE', '/admin/offline-sessions/' . $idA));
         self::assertSame(204, $response->getStatusCode());

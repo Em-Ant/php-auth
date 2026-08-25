@@ -54,6 +54,9 @@ use Slim\Routing\RouteCollectorProxy;
 final class AppBuilder
 {
     private const PROJECT_ROOT = __DIR__ . '/../..';
+    private const REALMS_ID_ROUTE = '/realms/{id}';
+    private const CLIENTS_ID_ROUTE = '/clients/{id}';
+    private const USERS_ID_ROUTE = '/users/{id}';
 
     public static function create(
         ContainerInterface $container,
@@ -317,21 +320,21 @@ final class AppBuilder
 
             $group->get('/realms', [$realmsController, 'list']);
             $group->post('/realms', [$realmsController, 'create']);
-            $group->get('/realms/{id}', [$realmsController, 'read']);
-            $group->put('/realms/{id}', [$realmsController, 'update']);
-            $group->delete('/realms/{id}', [$realmsController, 'delete']);
+            $group->get(self::REALMS_ID_ROUTE, [$realmsController, 'read']);
+            $group->put(self::REALMS_ID_ROUTE, [$realmsController, 'update']);
+            $group->delete(self::REALMS_ID_ROUTE, [$realmsController, 'delete']);
 
             $group->get('/clients', [$clientsController, 'list']);
             $group->post('/clients', [$clientsController, 'create']);
-            $group->get('/clients/{id}', [$clientsController, 'read']);
-            $group->put('/clients/{id}', [$clientsController, 'update']);
-            $group->delete('/clients/{id}', [$clientsController, 'delete']);
+            $group->get(self::CLIENTS_ID_ROUTE, [$clientsController, 'read']);
+            $group->put(self::CLIENTS_ID_ROUTE, [$clientsController, 'update']);
+            $group->delete(self::CLIENTS_ID_ROUTE, [$clientsController, 'delete']);
 
             $group->get('/users', [$usersController, 'list']);
             $group->post('/users', [$usersController, 'create']);
-            $group->get('/users/{id}', [$usersController, 'read']);
-            $group->put('/users/{id}', [$usersController, 'update']);
-            $group->delete('/users/{id}', [$usersController, 'delete']);
+            $group->get(self::USERS_ID_ROUTE, [$usersController, 'read']);
+            $group->put(self::USERS_ID_ROUTE, [$usersController, 'update']);
+            $group->delete(self::USERS_ID_ROUTE, [$usersController, 'delete']);
 
             $group->get('/sessions', [$sessionsController, 'list']);
             $group->delete('/sessions/{id}', [$sessionsController, 'delete']);

@@ -8,7 +8,8 @@ use AuthServer\Exceptions\StorageFailed;
 use AuthServer\Interfaces\LoginRepository as IRepo;
 use AuthServer\Models\Login;
 
-use function AuthServer\get_guid;
+use function AuthServer\getGuid;
+use function AuthServer\sql_now;
 
 class LoginRepository implements IRepo
 {
@@ -82,7 +83,7 @@ class LoginRepository implements IRepo
         ?string $csrf_token
     ): ?Login {
         try {
-            $uid = get_guid();
+            $uid = getGuid();
 
             $q = $this->db->prepare(
                 "INSERT INTO logins (
@@ -124,7 +125,7 @@ class LoginRepository implements IRepo
         ?string $code_challenge
     ): ?Login {
         try {
-            $uid = get_guid();
+            $uid = getGuid();
 
             $q = $this->db->prepare(
                 "INSERT INTO logins (
@@ -132,7 +133,7 @@ class LoginRepository implements IRepo
           'redirect_uri', 'response_mode', 'code', 'code_challenge', 'status', authenticated_at
         ) VALUES (
           :id, :client_id, :session_id, :state, :nonce, :scope,
-          :redirect_uri, :response_mode, :code, :code_challenge, 'AUTHENTICATED', :timestamp
+          :redirect_uri, :response_mode, :code, :code_challenge, 'AUTHENTICATED', :authenticated_at
         )"
             );
 
@@ -144,7 +145,7 @@ class LoginRepository implements IRepo
             $q->bindValue(':scope', $scope);
             $q->bindValue(':redirect_uri', $redirect_uri);
             $q->bindValue(':response_mode', $response_mode);
-            $q->bindValue(':timestamp', gmdate('Y-m-d H:i:s'));
+            $q->bindValue(':authenticated_at', sql_now());
             $q->bindValue(':code', $code);
             $q->bindValue(':code_challenge', $code_challenge);
 
@@ -165,13 +166,13 @@ class LoginRepository implements IRepo
             $q = $this->db->prepare(
                 "UPDATE logins
       SET session_id=:session_id, code=:code,
-        authenticated_at=:timestamp,
+        authenticated_at=:authenticated_at,
         status='AUTHENTICATED'
       WHERE id = :id"
             );
             $q->bindValue(':code', $code);
             $q->bindValue(':session_id', $session_id);
-            $q->bindValue(':timestamp', gmdate('Y-m-d H:i:s'));
+            $q->bindValue(':authenticated_at', sql_now());
             $q->bindValue(':id', $id);
 
             return $q->execute();
@@ -187,11 +188,11 @@ class LoginRepository implements IRepo
         try {
             $q = $this->db->prepare(
                 "UPDATE logins
-      SET refresh_token=:refresh_token, status='ACTIVE', updated_at=:timestamp
+      SET refresh_token=:refresh_token, status='ACTIVE', updated_at=:updated_at
       WHERE id = :id"
             );
             $q->bindValue(':refresh_token', $refresh_token);
-            $q->bindValue(':timestamp', gmdate('Y-m-d H:i:s'));
+            $q->bindValue(':updated_at', sql_now());
             $q->bindValue(':id', $id);
 
             return $q->execute();
@@ -211,7 +212,7 @@ class LoginRepository implements IRepo
       WHERE id=:id"
             );
             $q->bindValue(':token', $token);
-            $q->bindValue(':updated_at', gmdate('Y-m-d H:i:s'));
+            $q->bindValue(':updated_at', sql_now());
             $q->bindValue(':id', $id);
 
             return $q->execute();

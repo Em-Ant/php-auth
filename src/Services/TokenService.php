@@ -8,28 +8,34 @@ use AuthServer\Interfaces\KeyStore;
 use AuthServer\Interfaces\RoleRepository;
 use AuthServer\Exceptions\StorageFailed;
 use AuthServer\Models\Client;
+use AuthServer\Models\GrantContext;
 use AuthServer\Models\Login;
 use AuthServer\Models\OfflineSession;
 use AuthServer\Models\Realm;
+use AuthServer\Models\RefreshTokenKind;
+use AuthServer\Models\RoleClaims;
 use AuthServer\Models\Session;
 use AuthServer\Models\User;
 
-use function AuthServer\get_guid;
+use function AuthServer\getGuid;
 
 class TokenService
 {
     private string $issuer;
     private KeyStore $keyStore;
     private RoleRepository $roles;
+    private ScopeResolver $scopeResolver;
 
     public function __construct(
         string $issuer,
         KeyStore $keyStore,
-        RoleRepository $roles
+        RoleRepository $roles,
+        ScopeResolver $scopeResolver
     ) {
         $this->issuer = $issuer;
         $this->keyStore = $keyStore;
         $this->roles = $roles;
+        $this->scopeResolver = $scopeResolver;
     }
 
     public function verifySignature(string $token, Realm $realm): bool
@@ -159,7 +165,7 @@ class TokenService
         if ($details === false || !isset($details['key'], $details['rsa']['n'], $details['rsa']['e'])) {
             throw new StorageFailed('failed to extract key details');
         }
-        $kid = $kid ?? get_guid();
+        $kid = $kid ?? getGuid();
         $keys = [
             "keys" => [
                 [
@@ -201,8 +207,15 @@ class TokenService
     public function createClientCredentialsToken(
         Realm $realm,
         Client $client,
-        string $scope
+        string $requestedScope
     ): array {
+        $scope = $this->scopeResolver->resolve(
+            $requestedScope === '' ? null : $requestedScope,
+            $client,
+            $realm,
+            false
+        );
+
         $now = time();
         $kid = $realm->getKeysId();
 
@@ -210,7 +223,7 @@ class TokenService
             [
                 "exp" => $now + $realm->getAccessTokenExpiresIn(),
                 "iat" => $now,
-                "jti" => get_guid(),
+                "jti" => getGuid(),
                 "iss" => $this->issuer . "/realms/" . $realm->getName(),
                 "aud" => $client->getName(),
                 "sub" => $client->getName(),
@@ -245,25 +258,12 @@ class TokenService
         Client $client,
         User $user
     ): array {
-        $now = time();
-        $context = [
-            'subject' => $offlineSession->getUserId(),
-            'auth_time' => $offlineSession->getAuthenticatedAt() !== null
-                ? date_timestamp_get($offlineSession->getAuthenticatedAt())
-                : $now,
-            'acr' => $offlineSession->getAcr(),
-            'sid' => $offlineSession->getId(),
-            'nonce' => $offlineSession->getNonce(),
-            'scope' => $offlineSession->getScope(),
-        ];
-
         return $this->createTokenBundleFromContext(
             $realm,
-            $context,
+            GrantContext::fromOfflineSession($offlineSession),
             $client,
             $user,
-            $realm->getOfflineRefreshTokenExpiresIn(),
-            'Offline'
+            RefreshTokenKind::Offline
         );
     }
 
@@ -274,89 +274,41 @@ class TokenService
         Client $client,
         User $user
     ): array {
-        $context = [
-            'subject' => $session->getUserId(),
-            'auth_time' => date_timestamp_get($login->getAuthenticatedAt()),
-            'acr' => $session->getAcr(),
-            'sid' => $session->getId(),
-            'nonce' => $login->getNonce(),
-            'scope' => $login->getScope(),
-        ];
-
         return $this->createTokenBundleFromContext(
             $realm,
-            $context,
+            GrantContext::fromSession($session, $login),
             $client,
             $user,
-            $realm->getRefreshTokenExpiresIn(),
-            'Refresh'
+            RefreshTokenKind::Sso
         );
     }
 
     /**
      * Assembles the access/id/refresh triple from a shared grant context.
-     *
-     * @param array{
-     *     subject: string,
-     *     auth_time: int,
-     *     acr: string,
-     *     sid: string,
-     *     nonce: string|null,
-     *     scope: string
-     * } $context
      */
     private function createTokenBundleFromContext(
         Realm $realm,
-        array $context,
+        GrantContext $context,
         Client $client,
         User $user,
-        int $refreshExpiresIn,
-        string $refreshTyp
+        RefreshTokenKind $refreshKind
     ): array {
         $now = time();
-        $kid = $realm->getKeysId();
+        $refreshExpiresIn = $refreshKind->expiresIn($realm);
 
         // Role claims are read once per issuance, straight from the roles
         // tables — the User model carries no authorization state.
-        $roleClaims = [
-            'realm' => $this->roles->findRealmRoleNamesByUserId(
+        $roleClaims = new RoleClaims(
+            realmRoles: $this->roles->findRealmRoleNamesByUserId(
                 $user->getId(),
                 $user->getRealmId()
             ),
-            'resource' => $this->resourceAccessClaim($user, $client),
-        ];
+            resourceAccess: $this->resourceAccessClaim($user, $client),
+        );
 
-        $accessToken = $this->createAccessToken(
-            $now,
-            $realm->getAccessTokenExpiresIn(),
-            $realm->getName(),
-            $context,
-            $client,
-            $user,
-            $roleClaims,
-            $kid
-        );
-        $idToken = $this->createIdToken(
-            $now,
-            $realm->getAccessTokenExpiresIn(),
-            $realm->getName(),
-            $context,
-            $client,
-            $user,
-            $accessToken,
-            $kid
-        );
-        $refreshToken = $this->createRefreshToken(
-            $now,
-            $refreshExpiresIn,
-            $realm->getName(),
-            $context,
-            $client,
-            $user,
-            $roleClaims,
-            $kid,
-            $refreshTyp
-        );
+        $accessToken = $this->createAccessToken($now, $realm, $context, $client, $user, $roleClaims);
+        $idToken = $this->createIdToken($now, $realm, $context, $client, $user, $accessToken);
+        $refreshToken = $this->createRefreshToken($now, $realm, $context, $client, $user, $roleClaims, $refreshKind);
 
         return [
             "access_token" => $accessToken,
@@ -366,143 +318,119 @@ class TokenService
             "token_type" => "Bearer",
             "id_token" => $idToken,
             "not-before-policy" => 0,
-            "session_state" => $context['sid'],
-            "scope" => $context['scope'],
+            "session_state" => $context->sid,
+            "scope" => $context->scope,
         ];
     }
 
-    /**
-     * Role claims shared across the bundle's tokens.
-     *
-     * @param array{realm: list<string>, resource: array<string, array<string, list<string>>>|null} $roleClaims
-     */
     private function createRefreshToken(
         int $now,
-        int $validity,
-        string $realmName,
-        array $context,
+        Realm $realm,
+        GrantContext $context,
         Client $client,
         User $user,
-        array $roleClaims,
-        string $keysId,
-        string $typ = 'Refresh'
+        RoleClaims $roleClaims,
+        RefreshTokenKind $kind
     ): string {
-        $exp = $now + $validity;
-        $claims = [
-            "exp" => $exp,
-            "iat" => $now,
-            "jti" => get_guid(),
-            "iss" => $this->issuer . "/realms/$realmName",
-            "aud" => $this->issuer,
-            "sub" => $context['subject'],
-            "typ" => $typ,
-            "azp" => $client->getName(),
-            "nonce" => $context['nonce'],
-            "session_state" => $context['sid'],
-            "realm_access" => [
-                "roles" => $roleClaims['realm']
-            ],
-            "scope" => $context['scope'],
-            "sid" => $context['sid']
-        ];
-        if ($roleClaims['resource'] !== null) {
-            $claims["resource_access"] = $roleClaims['resource'];
+        $claims = array_merge(
+            $this->baseClaims($now, $now + $kind->expiresIn($realm), $realm, $context, $client),
+            [
+                "aud" => $this->issuer,
+                "typ" => $kind->value,
+                "realm_access" => [
+                    "roles" => $roleClaims->realmRoles
+                ],
+                "scope" => $context->scope,
+                "sid" => $context->sid
+            ]
+        );
+        if ($roleClaims->resourceAccess !== null) {
+            $claims["resource_access"] = $roleClaims->resourceAccess;
         }
-        return $this->createToken($claims, $keysId);
+        return $this->createToken($claims, $realm->getKeysId());
     }
 
     /**
-     * @param array{
-     *     subject: string,
-     *     auth_time: int,
-     *     acr: string,
-     *     sid: string,
-     *     nonce: string|null,
-     *     scope: string
-     * } $context
-     * @param array{realm: list<string>, resource: array<string, array<string, list<string>>>|null} $roleClaims
+     * Registered claims shared by every token of an issuance. Each caller
+     * adds its own `aud`, `typ` and token-specific claims on top.
      */
+    private function baseClaims(
+        int $now,
+        int $exp,
+        Realm $realm,
+        GrantContext $context,
+        Client $client
+    ): array {
+        return [
+            "exp" => $exp,
+            "iat" => $now,
+            "jti" => getGuid(),
+            "iss" => $this->issuerFor($realm),
+            "sub" => $context->subject,
+            "azp" => $client->getName(),
+            "nonce" => $context->nonce,
+            "session_state" => $context->sid,
+        ];
+    }
+
     private function createAccessToken(
         int $now,
-        int $validity,
-        string $realmName,
-        array $context,
+        Realm $realm,
+        GrantContext $context,
         Client $client,
         User $user,
-        array $roleClaims,
-        string $keysId
+        RoleClaims $roleClaims
     ): string {
-        $exp = $now + $validity;
-        $claims = [
-            "exp" => $exp,
-            "iat" => $now,
-            "auth_time" => $context['auth_time'],
-            "jti" => get_guid(),
-            "iss" => $this->issuer . "/realms/$realmName",
-            "aud" => $client->getName(),
-            "sub" => $context['subject'],
-            "typ" => "Bearer",
-            "azp" => $client->getName(),
-            "nonce" => $context['nonce'],
-            "session_state" => $context['sid'],
-            "acr" => $context['acr'],
-            "allowed-origins" => [
-                $client->getUri()
-            ],
-            "realm_access" => [
-                "roles" => $roleClaims['realm']
-            ],
-            "scope" => $context['scope'],
-            "sid" => $context['sid'],
-            "preferred_username" => $user->getName()
-        ];
-        if ($roleClaims['resource'] !== null) {
-            $claims["resource_access"] = $roleClaims['resource'];
+        $claims = array_merge(
+            $this->baseClaims($now, $now + $realm->getAccessTokenExpiresIn(), $realm, $context, $client),
+            [
+                "aud" => $client->getName(),
+                "typ" => "Bearer",
+                "auth_time" => $context->authTime,
+                "acr" => $context->acr,
+                "allowed-origins" => [
+                    $client->getUri()
+                ],
+                "realm_access" => [
+                    "roles" => $roleClaims->realmRoles
+                ],
+                "scope" => $context->scope,
+                "sid" => $context->sid,
+                "preferred_username" => $user->getName()
+            ]
+        );
+        if ($roleClaims->resourceAccess !== null) {
+            $claims["resource_access"] = $roleClaims->resourceAccess;
         }
-        return $this->createToken($claims, $keysId);
+        return $this->createToken($claims, $realm->getKeysId());
     }
 
-    /**
-     * @param array{
-     *     subject: string,
-     *     auth_time: int,
-     *     acr: string,
-     *     sid: string,
-     *     nonce: string|null,
-     *     scope: string
-     * } $context
-     */
     private function createIdToken(
         int $now,
-        int $validity,
-        string $realmName,
-        array $context,
+        Realm $realm,
+        GrantContext $context,
         Client $client,
         User $user,
-        string $accessToken,
-        string $keysId
+        string $accessToken
     ): string {
-        $exp = $now + $validity;
-        return $this->createToken(
+        $claims = array_merge(
+            $this->baseClaims($now, $now + $realm->getAccessTokenExpiresIn(), $realm, $context, $client),
             [
-                "exp" => $exp,
-                "iat" => $now,
-                "auth_time" => $context['auth_time'],
-                "jti" => get_guid(),
-                "iss" => $this->issuer . "/realms/$realmName",
                 "aud" => $client->getName(),
-                "sub" => $context['subject'],
                 "typ" => "ID",
-                "azp" => $client->getName(),
-                "nonce" => $context['nonce'],
-                "session_state" => $context['sid'],
+                "auth_time" => $context->authTime,
                 "at_hash" => self::calculateAtHash($accessToken),
-                "acr" => $context['acr'],
-                "sid" => $context['sid'],
+                "acr" => $context->acr,
+                "sid" => $context->sid,
                 "preferred_username" => $user->getName()
-            ],
-            $keysId
+            ]
         );
+        return $this->createToken($claims, $realm->getKeysId());
+    }
+
+    private function issuerFor(Realm $realm): string
+    {
+        return $this->issuer . '/realms/' . $realm->getName();
     }
 
     /**
