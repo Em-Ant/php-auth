@@ -21,7 +21,6 @@ Single source of truth for what to work on next. **Local by design** (3 machines
 | F-05 | feature | P1 | L | | scope↔role gating at issuance (`roles` tables shipped in F-04) | `scopes/issues/03-…` |
 | R-06 | refactor | P2 | M | | untyped getters, mixed naming | `clean-code/issues/06-…` |
 | F-07 | feature | P2 | M | | audit log table + query | `ROADMAP → Admin API` |
-| F-36 | fix | P2 | S | | `TokenService::createKeys` unchecked openssl/mkdir/file I/O (fail fast at `POST /admin/keys`) | `clean-code/issues/10-…` |
 | F-08 | feature | P2 | S | | ROPC grant | `ROADMAP → Login Methods` |
 | F-09 | feature | P2 | M | | email magic link | `ROADMAP → Login Methods` |
 | F-10 | feature | P2 | M | | consent screen (`offline_access`) — delayed by design; client gating (scopes #02) is the control until then | `ROADMAP → Token Lifecycle` |

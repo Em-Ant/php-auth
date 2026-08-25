@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AuthServer\Tests\Unit\Services;
 
+use AuthServer\Exceptions\StorageFailed;
 use AuthServer\Interfaces\KeyStore;
 use AuthServer\Interfaces\RoleRepository;
 use AuthServer\Models\KeySet;
@@ -355,5 +356,44 @@ class TokenServiceTest extends TestCase
         self::assertTrue($this->tokenService->verifySignature($bundle['access_token'], $this->realm));
         self::assertTrue($this->tokenService->verifySignature($bundle['id_token'], $this->realm));
         self::assertTrue($this->tokenService->verifySignature($bundle['refresh_token'], $this->realm));
+    }
+
+    // ── createKeys ────────────────────────────────────────────
+
+    public function testCreateKeysWritesAllArtifactsAndReturnsKid(): void
+    {
+        $keysRoot = sys_get_temp_dir() . '/keys-test-' . uniqid();
+        mkdir($keysRoot);
+
+        try {
+            $kid = TokenService::createKeys(keysRoot: $keysRoot);
+
+            foreach (['public_key.pem', 'private_key.pem', 'cert.pem', 'keys.json'] as $file) {
+                self::assertFileExists("$keysRoot/$kid/$file");
+            }
+            $jwks = json_decode((string)file_get_contents("$keysRoot/$kid/keys.json"), true);
+            self::assertSame($kid, $jwks['keys'][0]['kid']);
+            self::assertSame('RSA', $jwks['keys'][0]['kty']);
+        } finally {
+            shell_exec('rm -rf ' . escapeshellarg($keysRoot));
+        }
+    }
+
+    public function testCreateKeysFailsFastOnUnwritableKeysRoot(): void
+    {
+        if (function_exists('posix_geteuid') && posix_geteuid() === 0) {
+            self::markTestSkipped('cannot simulate an unwritable directory as root');
+        }
+
+        $keysRoot = sys_get_temp_dir() . '/keys-ro-' . uniqid();
+        mkdir($keysRoot, 0555);
+
+        try {
+            $this->expectException(StorageFailed::class);
+            $this->expectExceptionMessage('failed to create keys directory');
+            TokenService::createKeys(keysRoot: $keysRoot);
+        } finally {
+            rmdir($keysRoot);
+        }
     }
 }

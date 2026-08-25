@@ -6,6 +6,7 @@ namespace AuthServer\Services;
 
 use AuthServer\Interfaces\KeyStore;
 use AuthServer\Interfaces\RoleRepository;
+use AuthServer\Exceptions\StorageFailed;
 use AuthServer\Models\Client;
 use AuthServer\Models\Login;
 use AuthServer\Models\OfflineSession;
@@ -126,8 +127,15 @@ class TokenService
         ), $dn);
 
         $new_key_pair = openssl_pkey_new($config);
+        if ($new_key_pair === false) {
+            throw new StorageFailed('failed to generate RSA key pair');
+        }
 
         $csr = openssl_csr_new($dn, $new_key_pair, $config);
+        if ($csr === false) {
+            throw new StorageFailed('failed to create CSR');
+        }
+
         $cert = openssl_csr_sign(
             $csr,
             null,
@@ -136,12 +144,21 @@ class TokenService
             $config,
             0
         );
+        if ($cert === false) {
+            throw new StorageFailed('failed to sign certificate');
+        }
 
-        openssl_x509_export($cert, $x509);
-        openssl_pkey_export($new_key_pair, $private_key_pem);
+        if (!openssl_x509_export($cert, $x509)) {
+            throw new StorageFailed('failed to export certificate');
+        }
+        if (!openssl_pkey_export($new_key_pair, $private_key_pem)) {
+            throw new StorageFailed('failed to export private key');
+        }
 
         $details = openssl_pkey_get_details($new_key_pair);
-        $public_key_pem = $details['key'];
+        if ($details === false || !isset($details['key'], $details['rsa']['n'], $details['rsa']['e'])) {
+            throw new StorageFailed('failed to extract key details');
+        }
         $kid = $kid ?? get_guid();
         $keys = [
             "keys" => [
@@ -162,12 +179,21 @@ class TokenService
         ];
 
         $dir = "$keysRoot/$kid";
-        mkdir($dir);
+        if (!@mkdir($dir) && !is_dir($dir)) {
+            throw new StorageFailed("failed to create keys directory $dir");
+        }
 
-        file_put_contents("$dir/public_key.pem", $public_key_pem);
-        file_put_contents("$dir/private_key.pem", $private_key_pem);
-        file_put_contents("$dir/cert.pem", $x509);
-        file_put_contents("$dir/keys.json", json_encode($keys, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+        $files = [
+            'public_key.pem' => $details['key'],
+            'private_key.pem' => $private_key_pem,
+            'cert.pem' => $x509,
+            'keys.json' => json_encode($keys, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES),
+        ];
+        foreach ($files as $name => $content) {
+            if (file_put_contents("$dir/$name", $content) === false) {
+                throw new StorageFailed("failed to write $name for keys $kid");
+            }
+        }
 
         return $kid;
     }
