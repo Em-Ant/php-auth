@@ -16,7 +16,9 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Slim\Exception\HttpNotFoundException;
 
-use function AuthServer\get_guid;
+use function AuthServer\format_sql_datetime;
+use function AuthServer\getGuid;
+use function AuthServer\sql_now;
 
 class RealmsController
 {
@@ -61,7 +63,7 @@ class RealmsController
             $this->assertKeysExist($keysId);
 
             $realm = new Realm(
-                get_guid(),
+                getGuid(),
                 $name,
                 $keysId,
                 $this->optionalInt($body, 'refresh_token_expires_in', self::DEFAULT_TTL),
@@ -71,7 +73,7 @@ class RealmsController
                 $this->optionalInt($body, 'session_expires_in', self::DEFAULT_SESSION_TTL),
                 $this->optionalInt($body, 'idle_session_expires_in', self::DEFAULT_TTL),
                 $this->optionalString($body, 'scope', null) ?? self::DEFAULT_SCOPE,
-                gmdate('Y-m-d H:i:s'),
+                sql_now(),
                 $this->optionalInt($body, 'offline_refresh_token_expires_in', self::DEFAULT_OFFLINE_TTL)
             );
 
@@ -120,7 +122,7 @@ class RealmsController
                 $this->optionalInt($body, 'session_expires_in', $existing->getSessionExpiresIn()),
                 $this->optionalInt($body, 'idle_session_expires_in', $existing->getIdleSessionExpiresIn()),
                 $this->optionalString($body, 'scope', null) ?? implode(' ', $existing->getScope()),
-                $existing->getCreatedAt()->format('Y-m-d H:i:s'),
+                format_sql_datetime($existing->getCreatedAt()),
                 $this->optionalInt(
                     $body,
                     'offline_refresh_token_expires_in',
@@ -139,7 +141,7 @@ class RealmsController
     public function delete(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
         $id = $request->getAttribute('id');
-        $realm = $this->findRealmOrFail($request, $id);
+        $this->findRealmOrFail($request, $id);
 
         if ($this->clients->countByRealmId($id) > 0 || $this->users->countByRealmId($id) > 0) {
             throw new ConflictException("realm '$id' still has clients or users");
@@ -182,7 +184,7 @@ class RealmsController
             'idle_session_expires_in' => $realm->getIdleSessionExpiresIn(),
             'offline_refresh_token_expires_in' => $realm->getOfflineRefreshTokenExpiresIn(),
             'scope' => implode(' ', $realm->getScope()),
-            'created_at' => $realm->getCreatedAt()->format('Y-m-d H:i:s'),
+            'created_at' => format_sql_datetime($realm->getCreatedAt()),
         ];
     }
 }

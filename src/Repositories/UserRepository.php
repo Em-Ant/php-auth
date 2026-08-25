@@ -8,7 +8,7 @@ use AuthServer\Exceptions\StorageFailed;
 use AuthServer\Interfaces\UserRepository as IUser;
 use AuthServer\Models\User;
 
-use function AuthServer\get_guid;
+use function AuthServer\getGuid;
 
 class UserRepository implements IUser
 {
@@ -44,7 +44,7 @@ class UserRepository implements IUser
     public function create(User $user): User
     {
         try {
-            $id = $user->getId() !== '' ? $user->getId() : get_guid();
+            $id = $user->getId() !== '' ? $user->getId() : getGuid();
 
             $statement = $this->db->prepare(
                 "INSERT INTO users (id, realm_id, name, email, password, valid)
@@ -70,9 +70,7 @@ class UserRepository implements IUser
                     valid = :valid
                 WHERE id = :id"
             );
-            $ok = $statement->execute(self::userParams($user, $user->getId()));
-
-            return $ok;
+            return $statement->execute(self::userParams($user, $user->getId()));
         } catch (\PDOException $e) {
             throw new StorageFailed('failed to update user', 0, $e);
         }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AuthServer\Controllers\Admin;
 
+use AuthServer\Exceptions\MigrationFailed;
 use AuthServer\Response\JsonResponse;
 use AuthServer\Services\MigrationRunner;
 use Psr\Http\Message\ResponseInterface;
@@ -22,7 +23,7 @@ class MigrationsController
     {
         try {
             $applied = $this->runner->migrate();
-        } catch (\RuntimeException $e) {
+        } catch (MigrationFailed $e) {
             return JsonResponse::error($response, 'migration_failed', $e->getMessage(), 500);
         }
 
@@ -42,7 +43,7 @@ class MigrationsController
 
         try {
             $rolled = $this->runner->rollback($steps);
-        } catch (\RuntimeException $e) {
+        } catch (MigrationFailed $e) {
             return JsonResponse::error($response, 'rollback_failed', $e->getMessage(), 400);
         }
 
@@ -71,7 +72,7 @@ class MigrationsController
 
         try {
             $result = $this->runner->go($target);
-        } catch (\RuntimeException $e) {
+        } catch (MigrationFailed $e) {
             return JsonResponse::error($response, 'migration_failed', $e->getMessage(), 400);
         }
 

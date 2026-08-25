@@ -11,6 +11,8 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Slim\Exception\HttpNotFoundException;
 
+use function AuthServer\format_sql_datetime;
+
 class LoginsController
 {
     use ValidatesAdminInput;
@@ -55,9 +57,9 @@ class LoginsController
             'session_id' => $login->getSessionId(),
             'scope' => $login->getScope(),
             'status' => $login->getStatus()->value,
-            'created_at' => $login->getCreatedAt()->format('Y-m-d H:i:s'),
-            'authenticated_at' => $login->getAuthenticatedAt()?->format('Y-m-d H:i:s'),
-            'updated_at' => $login->getUpdatedAt()?->format('Y-m-d H:i:s'),
+            'created_at' => format_sql_datetime($login->getCreatedAt()),
+            'authenticated_at' => format_sql_datetime($login->getAuthenticatedAt()),
+            'updated_at' => format_sql_datetime($login->getUpdatedAt()),
         ];
     }
 }

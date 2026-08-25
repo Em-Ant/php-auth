@@ -8,7 +8,7 @@ use AuthServer\Exceptions\StorageFailed;
 use AuthServer\Interfaces\RoleRepository as IRoleRepo;
 use AuthServer\Models\Role;
 
-use function AuthServer\get_guid;
+use function AuthServer\getGuid;
 
 class RoleRepository implements IRoleRepo
 {
@@ -64,7 +64,7 @@ class RoleRepository implements IRoleRepo
     public function create(Role $role): Role
     {
         try {
-            $id = $role->getId() !== '' ? $role->getId() : get_guid();
+            $id = $role->getId() !== '' ? $role->getId() : getGuid();
 
             $stmt = $this->db->prepare(
                 'INSERT INTO roles (id, realm_id, client_id, name, description)
@@ -206,7 +206,7 @@ class RoleRepository implements IRoleRepo
              VALUES (:id, :realm_id, NULL, :name)'
         );
         $insert->execute([
-            ':id' => get_guid(),
+            ':id' => getGuid(),
             ':realm_id' => $realmId,
             ':name' => $roleName,
         ]);

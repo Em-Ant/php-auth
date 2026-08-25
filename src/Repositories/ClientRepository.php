@@ -8,7 +8,7 @@ use AuthServer\Exceptions\StorageFailed;
 use AuthServer\Interfaces\ClientRepository as IRepo;
 use AuthServer\Models\Client;
 
-use function AuthServer\get_guid;
+use function AuthServer\getGuid;
 
 class ClientRepository implements IRepo
 {
@@ -44,7 +44,7 @@ class ClientRepository implements IRepo
     public function create(Client $client): Client
     {
         try {
-            $id = $client->getId() !== '' ? $client->getId() : get_guid();
+            $id = $client->getId() !== '' ? $client->getId() : getGuid();
 
             $statement = $this->db->prepare(
                 "INSERT INTO clients (id, name, realm_id, client_secret, uri, require_auth, scope)

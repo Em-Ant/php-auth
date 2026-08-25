@@ -16,6 +16,8 @@ use AuthServer\Models\User;
 use AuthServer\Services\Base64Utils;
 use AuthServer\Services\TokenService;
 use PHPUnit\Framework\TestCase;
+use AuthServer\Services\ScopeResolver;
+use Psr\Log\NullLogger;
 
 class TokenServiceTest extends TestCase
 {
@@ -54,7 +56,7 @@ class TokenServiceTest extends TestCase
         $this->roles->method('findRealmRoleNamesByUserId')->willReturn(['admin', 'basic']);
         $this->roles->method('findClientRoleNamesByUserId')->willReturn([]);
 
-        $this->tokenService = new TokenService(self::ISSUER, $this->keyStore, $this->roles);
+        $this->tokenService = new TokenService(self::ISSUER, $this->keyStore, $this->roles, new ScopeResolver(new NullLogger()));
 
         $this->realm = new Realm(
             id: 'r-id',
@@ -262,7 +264,7 @@ class TokenServiceTest extends TestCase
         $roles->method('findRealmRoleNamesByUserId')->willReturn(['admin', 'basic']);
         $roles->method('findClientRoleNamesByUserId')->willReturn($clientRolesForUser);
 
-        $this->tokenService = new TokenService(self::ISSUER, $this->keyStore, $roles);
+        $this->tokenService = new TokenService(self::ISSUER, $this->keyStore, $roles, new ScopeResolver(new NullLogger()));
 
         return new User(
             id: 'user-1',

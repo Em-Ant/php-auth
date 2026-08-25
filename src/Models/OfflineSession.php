@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace AuthServer\Models;
 
 use DateTime;
-use DateTimeZone;
+
+use function AuthServer\format_sql_datetime;
+use function AuthServer\parse_sql_datetime;
+use function AuthServer\sql_now;
 
 class OfflineSession implements \JsonSerializable
 {
@@ -44,16 +47,9 @@ class OfflineSession implements \JsonSerializable
         $this->acr = $acr ?? '0';
         $this->nonce = $nonce;
         $this->refresh_token = $refresh_token;
-        $utc = new DateTimeZone('UTC');
-        $this->created_at = is_null($created_at) ?
-            date_create() :
-            \DateTime::createFromFormat('Y-m-d H:i:s', $created_at, $utc);
-        $this->authenticated_at = $authenticated_at === null
-            ? null
-            : (\DateTime::createFromFormat('Y-m-d H:i:s', $authenticated_at, $utc) ?: null);
-        $this->updated_at = $updated_at === null
-            ? null
-            : (\DateTime::createFromFormat('Y-m-d H:i:s', $updated_at, $utc) ?: null);
+        $this->created_at = parse_sql_datetime($created_at) ?? date_create();
+        $this->authenticated_at = parse_sql_datetime($authenticated_at);
+        $this->updated_at = parse_sql_datetime($updated_at);
         $this->status = OfflineSessionStatus::from($status ?? 'ACTIVE');
     }
 
@@ -131,9 +127,9 @@ class OfflineSession implements \JsonSerializable
             'acr' => $this->acr,
             'scope' => $this->scope,
             'status' => $this->status->value,
-            'created_at' => $this->created_at->format('Y-m-d H:i:s'),
-            'authenticated_at' => $this->authenticated_at?->format('Y-m-d H:i:s'),
-            'updated_at' => $this->updated_at?->format('Y-m-d H:i:s'),
+            'created_at' => format_sql_datetime($this->created_at),
+            'authenticated_at' => format_sql_datetime($this->authenticated_at),
+            'updated_at' => format_sql_datetime($this->updated_at),
         ];
     }
 }

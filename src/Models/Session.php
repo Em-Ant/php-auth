@@ -6,6 +6,9 @@ namespace AuthServer\Models;
 
 use DateTime;
 
+use function AuthServer\format_sql_datetime;
+use function AuthServer\parse_sql_datetime;
+
 class Session implements \JsonSerializable
 {
     private string $id;
@@ -29,13 +32,8 @@ class Session implements \JsonSerializable
         $this->realm_id = $realm_id;
         $this->acr = $acr;
         $this->user_id = $user_id;
-        $utc = new \DateTimeZone('UTC');
-        $this->created_at = is_null($created_at) ?
-            date_create() :
-            \DateTime::createFromFormat('Y-m-d H:i:s', $created_at, $utc);
-        $this->updated_at = is_null($updated_at)
-            ? null
-            : (\DateTime::createFromFormat('Y-m-d H:i:s', $updated_at, $utc) ?: null);
+        $this->created_at = parse_sql_datetime($created_at) ?? date_create();
+        $this->updated_at = parse_sql_datetime($updated_at);
         $this->status = SessionStatus::from($status ?? 'ACTIVE');
     }
 
@@ -76,8 +74,8 @@ class Session implements \JsonSerializable
             'user_id' => $this->user_id,
             'acr' => $this->acr,
             'status' => $this->status->value,
-            'created_at' => $this->created_at->format('Y-m-d H:i:s'),
-            'updated_at' => $this->updated_at?->format('Y-m-d H:i:s'),
+            'created_at' => format_sql_datetime($this->created_at),
+            'updated_at' => format_sql_datetime($this->updated_at),
         ];
     }
 }

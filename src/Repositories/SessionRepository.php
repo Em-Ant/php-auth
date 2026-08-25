@@ -8,7 +8,7 @@ use AuthServer\Exceptions\StorageFailed;
 use AuthServer\Interfaces\SessionRepository as IRepo;
 use AuthServer\Models\Session;
 
-use function AuthServer\get_guid;
+use function AuthServer\getGuid;
 
 class SessionRepository implements IRepo
 {
@@ -47,7 +47,7 @@ class SessionRepository implements IRepo
         string $acr
     ): ?Session {
         try {
-            $uid = get_guid();
+            $uid = getGuid();
 
             $q = $this->db->prepare(
                 "INSERT INTO sessions (

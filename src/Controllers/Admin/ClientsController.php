@@ -17,7 +17,9 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Slim\Exception\HttpNotFoundException;
 
-use function AuthServer\get_guid;
+use function AuthServer\format_sql_datetime;
+use function AuthServer\getGuid;
+use function AuthServer\sql_now;
 
 class ClientsController
 {
@@ -66,13 +68,13 @@ class ClientsController
             }
 
             $client = new Client(
-                get_guid(),
+                getGuid(),
                 $name,
                 $realmId,
                 $clientSecret,
                 $uri,
                 $this->optionalBool($body, 'require_auth', false),
-                gmdate('Y-m-d H:i:s'),
+                sql_now(),
                 $this->optionalString($body, 'scope', null)
             );
 
@@ -121,7 +123,7 @@ class ClientsController
                 $clientSecret,
                 $uri,
                 $this->optionalBool($body, 'require_auth', $existing->requiresAuth()),
-                $existing->getCreatedAt()->format('Y-m-d H:i:s'),
+                format_sql_datetime($existing->getCreatedAt()),
                 $this->optionalString($body, 'scope', $existing->getScopeString())
             );
 
@@ -198,7 +200,7 @@ class ClientsController
             'require_auth' => $client->requiresAuth(),
             'scope' => $client->getScopeString(),
             'has_secret' => $client->getClientSecret() !== null && $client->getClientSecret() !== '',
-            'created_at' => $client->getCreatedAt()->format('Y-m-d H:i:s'),
+            'created_at' => format_sql_datetime($client->getCreatedAt()),
         ];
     }
 }

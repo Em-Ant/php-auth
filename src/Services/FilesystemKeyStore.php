@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AuthServer\Services;
 
+use AuthServer\Exceptions\StorageFailed;
 use AuthServer\Interfaces\KeyStore;
 use AuthServer\Models\KeySet;
 
@@ -33,7 +34,7 @@ class FilesystemKeyStore implements KeyStore
         $content = @file_get_contents($path);
 
         if ($content === false) {
-            throw new \RuntimeException("File not found: $path");
+            throw new StorageFailed("key file not found: $path");
         }
 
         return $content;

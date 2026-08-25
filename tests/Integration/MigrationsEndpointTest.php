@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AuthServer\Tests\Integration;
 
 use AuthServer\Middleware\AdminMiddleware;
+use AuthServer\Exceptions\MigrationFailed;
 use AuthServer\Repositories\MigrationRepository;
 use AuthServer\Services\Database;
 use AuthServer\Services\MigrationRunner;
@@ -253,7 +254,7 @@ class MigrationsEndpointTest extends TestCase
             #[\Override]
             public function migrate(): array
             {
-                throw new \RuntimeException('Migration 5-roles failed: simulated');
+                throw new MigrationFailed('Migration 5-roles failed: simulated');
             }
         };
         $controller = new MigrationsController($failingRunner);

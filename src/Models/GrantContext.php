@@ -1,0 +1,48 @@
+<?php
+
+declare(strict_types=1);
+
+namespace AuthServer\Models;
+
+/**
+ * Identity and authentication context a token bundle is issued from —
+ * shared by every token in the bundle.
+ */
+final class GrantContext
+{
+    public function __construct(
+        public readonly string $subject,
+        public readonly int $authTime,
+        public readonly string $acr,
+        public readonly string $sid,
+        public readonly ?string $nonce,
+        public readonly string $scope,
+    ) {
+    }
+
+    public static function fromSession(Session $session, Login $login): self
+    {
+        return new self(
+            subject: $session->getUserId(),
+            authTime: date_timestamp_get($login->getAuthenticatedAt()),
+            acr: $session->getAcr(),
+            sid: $session->getId(),
+            nonce: $login->getNonce(),
+            scope: $login->getScope(),
+        );
+    }
+
+    public static function fromOfflineSession(OfflineSession $offlineSession): self
+    {
+        $authenticatedAt = $offlineSession->getAuthenticatedAt();
+
+        return new self(
+            subject: $offlineSession->getUserId(),
+            authTime: $authenticatedAt !== null ? date_timestamp_get($authenticatedAt) : time(),
+            acr: $offlineSession->getAcr(),
+            sid: $offlineSession->getId(),
+            nonce: $offlineSession->getNonce(),
+            scope: $offlineSession->getScope(),
+        );
+    }
+}

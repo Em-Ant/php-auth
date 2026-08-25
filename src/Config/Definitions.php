@@ -38,6 +38,7 @@ use AuthServer\Repositories\SessionRepository;
 use AuthServer\Repositories\TokenBlacklistRepository;
 use AuthServer\Repositories\UserRepository;
 use AuthServer\Services\AuthenticationOrchestrator;
+use AuthServer\Services\ActiveSessionResolver;
 use AuthServer\Services\ClientAuthenticator;
 use AuthServer\Services\Database;
 use AuthServer\Services\FilesystemKeyStore;
@@ -150,6 +151,7 @@ final class Definitions
             OfflineSessionService::class => \DI\autowire(),
             UserAdminService::class => \DI\autowire(),
             LoginStateMachine::class => \DI\autowire(),
+            ActiveSessionResolver::class => \DI\autowire(),
             ScopeResolver::class => \DI\autowire(),
             ClientAuthenticator::class => \DI\autowire(),
             RateLimiter::class => \DI\autowire(),
