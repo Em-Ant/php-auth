@@ -25,3 +25,5 @@ Backlog of clean-code smells found during the codebase assessment (session ses_0
 10. [Repository + test duplication (Sonar dup-lines)](issues/11-repository-and-test-duplication.md)
 
 Done so far: #02, #04, #05, #06, #07, #08, #09, #10, #11 (stamped in their files; R-03/#03 done 2026-08-25). Only [#01](issues/01-duplicate-app-wiring.md) remains queued (R-07).
+
+**UPDATE 2026-08-25:** [#01](issues/01-duplicate-app-wiring.md) also done (R-07, `src/App/AppBuilder`). The clean-code backlog is fully closed.

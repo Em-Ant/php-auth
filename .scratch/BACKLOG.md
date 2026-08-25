@@ -33,7 +33,6 @@ Single source of truth for what to work on next. **Local by design** (3 machines
 | F-40 | fix | P2 | S | | `acr` default `"1"` for password login (verified live) | `keycloak-parity/PRD.md` |
 | F-41 | fix | P2 | M | | userinfo claims per scope (`profile`/`email`) | `keycloak-parity/PRD.md` |
 | F-42 | fix | P2 | S | | drop `nonce` from access/refresh tokens (ID token only) | `keycloak-parity/PRD.md` |
-| R-07 | refactor | P3 | L | | duplicate Slim wiring `index.php`/`TestAppFactory` | `clean-code/issues/01-…` |
 | R-08 | refactor | P3 | S | | remaining domain enums (`ResponseMode`) | `ROADMAP → PHP 8` |
 | R-09 | refactor | P3 | M | | readonly props + constructor promotion | `ROADMAP → PHP 8` |
 | R-10 | refactor | P3 | M | | named args + match expressions | `ROADMAP → PHP 8` |

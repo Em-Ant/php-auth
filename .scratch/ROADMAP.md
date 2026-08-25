@@ -66,6 +66,7 @@ See [token-lifecycle/PRD.md](token-lifecycle/PRD.md) for the detailed situation.
 
 - [x] **Container kernel + remove DataSource** ([#07](issues/07-container-kernel.md))
 - [x] **Split AuthorizeService** into InputValidator + SessionOrchestrator + AuthenticationOrchestrator
+- [x] **Unified Slim wiring** — `src/App/AppBuilder` shared by entrypoint and TestAppFactory (clean-code #01, 2026-08-25)
 
 ## PHP 8 / PHPStan
 
