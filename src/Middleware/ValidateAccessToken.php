@@ -16,12 +16,12 @@ use Slim\Psr7\Response;
 
 class ValidateAccessToken implements MiddlewareInterface
 {
-    private AuthenticationOrchestrator $auth_service;
+    private AuthenticationOrchestrator $authService;
 
     public function __construct(
-        AuthenticationOrchestrator $auth_service
+        AuthenticationOrchestrator $authService
     ) {
-        $this->auth_service = $auth_service;
+        $this->authService = $authService;
     }
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
@@ -43,7 +43,7 @@ class ValidateAccessToken implements MiddlewareInterface
         $token = str_replace('Bearer ', '', $authHeader);
 
         try {
-            $parsed = $this->auth_service->parseValidToken($token, $realm);
+            $parsed = $this->authService->parseValidToken($token, $realm);
 
             $request = $request->withAttribute('accessTokenParsed', $parsed);
             return $handler->handle($request);

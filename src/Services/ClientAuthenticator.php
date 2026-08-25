@@ -29,24 +29,24 @@ class ClientAuthenticator
      * unknown or its secret (if required) does not match — callers decide
      * how to translate a failed authentication.
      */
-    public function authenticate(string $client_id, array $params): ?Client
+    public function authenticate(string $clientId, array $params): ?Client
     {
-        $client = $this->clientRepository->findByName($client_id);
+        $client = $this->clientRepository->findByName($clientId);
         if ($client === null) {
-            $this->logger->info("client $client_id not found");
+            $this->logger->info("client $clientId not found");
             return null;
         }
 
         if ($client->requiresAuth()) {
-            $client_secret = $params['client_secret'] ?? '';
+            $clientSecret = $params['client_secret'] ?? '';
             if (
-                $client_secret === ''
+                $clientSecret === ''
                 || !$this->secretsService->validatePassword(
-                    $client_secret,
+                    $clientSecret,
                     $client->getClientSecret()
                 )
             ) {
-                $this->logger->info("invalid client secret for $client_id");
+                $this->logger->info("invalid client secret for $clientId");
                 return null;
             }
         }

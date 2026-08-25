@@ -16,14 +16,14 @@ use Psr\Http\Message\ServerRequestInterface;
 
 class LogoutController
 {
-    private AuthenticationOrchestrator $auth_service;
+    private AuthenticationOrchestrator $authService;
     private SessionCookieHandler $sessionCookie;
 
     public function __construct(
         AuthenticationOrchestrator $service,
         SessionCookieHandler $sessionCookie,
     ) {
-        $this->auth_service = $service;
+        $this->authService = $service;
         $this->sessionCookie = $sessionCookie;
     }
 
@@ -32,28 +32,28 @@ class LogoutController
         /** @var Realm */
         $realm = $request->getAttribute(Realm::class);
         $query = $request->getQueryParams();
-        $post_logout_redirect_uri = $query['post_logout_redirect_uri'] ?? '';
-        $id_token = $query['id_token_hint'] ?? '';
+        $postLogoutRedirectUri = $query['post_logout_redirect_uri'] ?? '';
+        $idToken = $query['id_token_hint'] ?? '';
 
         try {
-            if ($id_token === '') {
+            if ($idToken === '') {
                 $response = $this->sessionCookie->delete($realm, $response);
                 return $response->withStatus(204);
             }
 
-            $this->auth_service->logout($id_token, $realm);
+            $this->authService->logout($idToken, $realm);
             $response = $this->sessionCookie->delete($realm, $response);
 
-            $redirect_uri = $this->auth_service->validateLogoutRedirectUri(
-                $id_token,
-                $post_logout_redirect_uri
+            $redirectUri = $this->authService->validateLogoutRedirectUri(
+                $idToken,
+                $postLogoutRedirectUri
             );
-            if ($redirect_uri === null) {
+            if ($redirectUri === null) {
                 return $response->withStatus(204);
             }
 
             return $response
-                ->withHeader('Location', $redirect_uri)
+                ->withHeader('Location', $redirectUri)
                 ->withStatus(302);
         } catch (OAuth2Error $e) {
             return JsonResponse::errorFromOAuth2Error($response, $e);

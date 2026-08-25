@@ -31,15 +31,15 @@ class TokenValidator
     public function validate(
         string $token,
         Realm $realm,
-        ?string $expected_typ = null,
-        ?string $expected_aud = null
+        ?string $expectedTyp = null,
+        ?string $expectedAud = null
     ): ?array {
         $claims = $this->verify($token, $realm);
         if ($claims === null) {
             return null;
         }
 
-        if ($expected_typ !== null && ($claims['typ'] ?? null) !== $expected_typ) {
+        if ($expectedTyp !== null && ($claims['typ'] ?? null) !== $expectedTyp) {
             return null;
         }
 
@@ -47,9 +47,9 @@ class TokenValidator
             return null;
         }
 
-        if ($expected_aud !== null) {
+        if ($expectedAud !== null) {
             $aud = (string) ($claims['aud'] ?? $claims['azp'] ?? '');
-            if ($aud !== $expected_aud) {
+            if ($aud !== $expectedAud) {
                 return null;
             }
         }

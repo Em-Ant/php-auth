@@ -36,7 +36,7 @@ class TokenService
     {
         $kid = $realm->getKeysId();
         $keySet = $this->keyStore->findKeys($kid);
-        $public_key = $keySet->publicKey;
+        $publicKey = $keySet->publicKey;
 
         $parts = explode('.', $token);
         if (count($parts) !== 3) {
@@ -54,22 +54,22 @@ class TokenService
         $result = openssl_verify(
             $data,
             $signature,
-            $public_key,
+            $publicKey,
             "sha256WithRSAEncryption"
         );
 
         return $result === 1;
     }
 
-    public function createToken(array $payload, string $keys_id): string
+    public function createToken(array $payload, string $keysId): string
     {
-        $keySet = $this->keyStore->findKeys($keys_id);
-        $private_key = $keySet->privateKey;
+        $keySet = $this->keyStore->findKeys($keysId);
+        $privateKey = $keySet->privateKey;
 
         $header = json_encode([
             'typ' => 'JWT',
             'alg' => 'RS256',
-            'kid' => $keys_id
+            'kid' => $keysId
         ]);
 
         $base64UrlHeader = Base64Utils::b64UrlEncode($header);
@@ -78,7 +78,7 @@ class TokenService
         openssl_sign(
             $base64UrlHeader . "." . $base64UrlPayload,
             $signature,
-            $private_key,
+            $privateKey,
             'sha256WithRSAEncryption'
         );
 
@@ -108,7 +108,7 @@ class TokenService
     public static function createKeys(
         ?string $kid = null,
         ?array $dn = [],
-        ?int $cert_duration = 365,
+        ?int $certDuration = 365,
         string $keysRoot = 'keys'
     ): string {
         $config = array(
@@ -126,12 +126,12 @@ class TokenService
             "emailAddress"              => "test@example.com"
         ), $dn);
 
-        $new_key_pair = openssl_pkey_new($config);
-        if ($new_key_pair === false) {
+        $newKeyPair = openssl_pkey_new($config);
+        if ($newKeyPair === false) {
             throw new StorageFailed('failed to generate RSA key pair');
         }
 
-        $csr = openssl_csr_new($dn, $new_key_pair, $config);
+        $csr = openssl_csr_new($dn, $newKeyPair, $config);
         if ($csr === false) {
             throw new StorageFailed('failed to create CSR');
         }
@@ -139,8 +139,8 @@ class TokenService
         $cert = openssl_csr_sign(
             $csr,
             null,
-            $new_key_pair,
-            $cert_duration,
+            $newKeyPair,
+            $certDuration,
             $config,
             0
         );
@@ -151,11 +151,11 @@ class TokenService
         if (!openssl_x509_export($cert, $x509)) {
             throw new StorageFailed('failed to export certificate');
         }
-        if (!openssl_pkey_export($new_key_pair, $private_key_pem)) {
+        if (!openssl_pkey_export($newKeyPair, $privateKeyPem)) {
             throw new StorageFailed('failed to export private key');
         }
 
-        $details = openssl_pkey_get_details($new_key_pair);
+        $details = openssl_pkey_get_details($newKeyPair);
         if ($details === false || !isset($details['key'], $details['rsa']['n'], $details['rsa']['e'])) {
             throw new StorageFailed('failed to extract key details');
         }
@@ -185,7 +185,7 @@ class TokenService
 
         $files = [
             'public_key.pem' => $details['key'],
-            'private_key.pem' => $private_key_pem,
+            'private_key.pem' => $privateKeyPem,
             'cert.pem' => $x509,
             'keys.json' => json_encode($keys, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES),
         ];
@@ -206,7 +206,7 @@ class TokenService
         $now = time();
         $kid = $realm->getKeysId();
 
-        $access_token = $this->createToken(
+        $accessToken = $this->createToken(
             [
                 "exp" => $now + $realm->getAccessTokenExpiresIn(),
                 "iat" => $now,
@@ -226,7 +226,7 @@ class TokenService
         );
 
         return [
-            "access_token" => $access_token,
+            "access_token" => $accessToken,
             "expires_in" => $realm->getAccessTokenExpiresIn(),
             "token_type" => "Bearer",
             "scope" => $scope,
@@ -326,7 +326,7 @@ class TokenService
             'resource' => $this->resourceAccessClaim($user, $client),
         ];
 
-        $access_token = $this->createAccessToken(
+        $accessToken = $this->createAccessToken(
             $now,
             $realm->getAccessTokenExpiresIn(),
             $realm->getName(),
@@ -336,17 +336,17 @@ class TokenService
             $roleClaims,
             $kid
         );
-        $id_token = $this->createIdToken(
+        $idToken = $this->createIdToken(
             $now,
             $realm->getAccessTokenExpiresIn(),
             $realm->getName(),
             $context,
             $client,
             $user,
-            $access_token,
+            $accessToken,
             $kid
         );
-        $refresh_token = $this->createRefreshToken(
+        $refreshToken = $this->createRefreshToken(
             $now,
             $refreshExpiresIn,
             $realm->getName(),
@@ -359,12 +359,12 @@ class TokenService
         );
 
         return [
-            "access_token" => $access_token,
+            "access_token" => $accessToken,
             "expires_in" => $realm->getAccessTokenExpiresIn(),
             "refresh_expires_in" => $refreshExpiresIn,
-            "refresh_token" => $refresh_token,
+            "refresh_token" => $refreshToken,
             "token_type" => "Bearer",
-            "id_token" => $id_token,
+            "id_token" => $idToken,
             "not-before-policy" => 0,
             "session_state" => $context['sid'],
             "scope" => $context['scope'],
@@ -379,12 +379,12 @@ class TokenService
     private function createRefreshToken(
         int $now,
         int $validity,
-        string $realm_name,
+        string $realmName,
         array $context,
         Client $client,
         User $user,
         array $roleClaims,
-        string $keys_id,
+        string $keysId,
         string $typ = 'Refresh'
     ): string {
         $exp = $now + $validity;
@@ -392,7 +392,7 @@ class TokenService
             "exp" => $exp,
             "iat" => $now,
             "jti" => get_guid(),
-            "iss" => $this->issuer . "/realms/$realm_name",
+            "iss" => $this->issuer . "/realms/$realmName",
             "aud" => $this->issuer,
             "sub" => $context['subject'],
             "typ" => $typ,
@@ -408,7 +408,7 @@ class TokenService
         if ($roleClaims['resource'] !== null) {
             $claims["resource_access"] = $roleClaims['resource'];
         }
-        return $this->createToken($claims, $keys_id);
+        return $this->createToken($claims, $keysId);
     }
 
     /**
@@ -425,12 +425,12 @@ class TokenService
     private function createAccessToken(
         int $now,
         int $validity,
-        string $realm_name,
+        string $realmName,
         array $context,
         Client $client,
         User $user,
         array $roleClaims,
-        string $keys_id
+        string $keysId
     ): string {
         $exp = $now + $validity;
         $claims = [
@@ -438,7 +438,7 @@ class TokenService
             "iat" => $now,
             "auth_time" => $context['auth_time'],
             "jti" => get_guid(),
-            "iss" => $this->issuer . "/realms/$realm_name",
+            "iss" => $this->issuer . "/realms/$realmName",
             "aud" => $client->getName(),
             "sub" => $context['subject'],
             "typ" => "Bearer",
@@ -459,7 +459,7 @@ class TokenService
         if ($roleClaims['resource'] !== null) {
             $claims["resource_access"] = $roleClaims['resource'];
         }
-        return $this->createToken($claims, $keys_id);
+        return $this->createToken($claims, $keysId);
     }
 
     /**
@@ -475,12 +475,12 @@ class TokenService
     private function createIdToken(
         int $now,
         int $validity,
-        string $realm_name,
+        string $realmName,
         array $context,
         Client $client,
         User $user,
-        string $access_token,
-        string $keys_id
+        string $accessToken,
+        string $keysId
     ): string {
         $exp = $now + $validity;
         return $this->createToken(
@@ -489,19 +489,19 @@ class TokenService
                 "iat" => $now,
                 "auth_time" => $context['auth_time'],
                 "jti" => get_guid(),
-                "iss" => $this->issuer . "/realms/$realm_name",
+                "iss" => $this->issuer . "/realms/$realmName",
                 "aud" => $client->getName(),
                 "sub" => $context['subject'],
                 "typ" => "ID",
                 "azp" => $client->getName(),
                 "nonce" => $context['nonce'],
                 "session_state" => $context['sid'],
-                "at_hash" => self::calculateAtHash($access_token),
+                "at_hash" => self::calculateAtHash($accessToken),
                 "acr" => $context['acr'],
                 "sid" => $context['sid'],
                 "preferred_username" => $user->getName()
             ],
-            $keys_id
+            $keysId
         );
     }
 

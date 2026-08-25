@@ -18,14 +18,14 @@ use Psr\Http\Message\ServerRequestInterface;
 class TokenController
 {
     private TokenGrantService $tokenGrantService;
-    private AuthenticationOrchestrator $auth_service;
+    private AuthenticationOrchestrator $authService;
 
     public function __construct(
         TokenGrantService $tokenGrantService,
-        AuthenticationOrchestrator $auth_service,
+        AuthenticationOrchestrator $authService,
     ) {
         $this->tokenGrantService = $tokenGrantService;
-        $this->auth_service = $auth_service;
+        $this->authService = $authService;
     }
 
     public function token(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
@@ -42,7 +42,7 @@ class TokenController
             $tokens = $this->tokenGrantService->getTokens($body, $realm);
 
             $origin = $request->getHeaderLine('Origin')
-                ?: $this->auth_service->getClientUri($body['client_id'] ?? '');
+                ?: $this->authService->getClientUri($body['client_id'] ?? '');
 
             return JsonResponse::create($response, $tokens, 200, $origin);
         } catch (OAuth2Error $e) {
