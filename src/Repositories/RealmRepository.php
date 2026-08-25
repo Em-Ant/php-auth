@@ -94,45 +94,37 @@ class RealmRepository implements IRepo
 
     public function findById(string $id): ?Realm
     {
-        try {
-            $statement = $this->db->prepare(
-                "SELECT * FROM realms WHERE id = :id"
-            );
-            $statement->bindValue(':id', $id);
+        $r = $this->fetchOne(
+            "SELECT * FROM realms WHERE id = :id",
+            [':id' => $id],
+            "failed to load realm by id $id"
+        );
 
-            $statement->execute();
-
-            $r = $statement->fetch();
-
-            if (!$r) {
-                return null;
-            }
-
-            return self::buildFromData($r);
-        } catch (\PDOException $e) {
-            throw new StorageFailed("failed to load realm by id $id", 0, $e);
-        }
+        return $r === null ? null : self::buildFromData($r);
     }
 
     public function findByName(string $name): ?Realm
     {
-        try {
-            $statement = $this->db->prepare(
-                "SELECT * FROM realms WHERE name = :name"
-            );
-            $statement->bindValue(':name', $name);
+        $r = $this->fetchOne(
+            "SELECT * FROM realms WHERE name = :name",
+            [':name' => $name],
+            "failed to load realm by name $name"
+        );
 
-            $statement->execute();
+        return $r === null ? null : self::buildFromData($r);
+    }
+
+    private function fetchOne(string $sql, array $params, string $errorMessage): ?array
+    {
+        try {
+            $statement = $this->db->prepare($sql);
+            $statement->execute($params);
 
             $r = $statement->fetch();
 
-            if (!$r) {
-                return null;
-            }
-
-            return self::buildFromData($r);
+            return $r === false ? null : $r;
         } catch (\PDOException $e) {
-            throw new StorageFailed("failed to load realm by name $name", 0, $e);
+            throw new StorageFailed($errorMessage, 0, $e);
         }
     }
 

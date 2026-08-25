@@ -134,31 +134,33 @@ class OfflineSessionRepository implements IRepo
 
     public function countActiveByUserId(string $userId): int
     {
-        try {
-            $statement = $this->db->prepare(
-                "SELECT COUNT(*) FROM offline_sessions
-                 WHERE user_id = :user_id AND status = 'ACTIVE'"
-            );
-            $statement->execute([':user_id' => $userId]);
-
-            return (int) $statement->fetchColumn();
-        } catch (\PDOException $e) {
-            throw new StorageFailed('failed to count active offline sessions for user', 0, $e);
-        }
+        return $this->count(
+            "SELECT COUNT(*) FROM offline_sessions
+             WHERE user_id = :user_id AND status = 'ACTIVE'",
+            [':user_id' => $userId],
+            'failed to count active offline sessions for user'
+        );
     }
 
     public function countActiveByClientId(string $clientId): int
     {
+        return $this->count(
+            "SELECT COUNT(*) FROM offline_sessions
+             WHERE client_id = :client_id AND status = 'ACTIVE'",
+            [':client_id' => $clientId],
+            'failed to count active offline sessions for client'
+        );
+    }
+
+    private function count(string $sql, array $params, string $errorMessage): int
+    {
         try {
-            $statement = $this->db->prepare(
-                "SELECT COUNT(*) FROM offline_sessions
-                 WHERE client_id = :client_id AND status = 'ACTIVE'"
-            );
-            $statement->execute([':client_id' => $clientId]);
+            $statement = $this->db->prepare($sql);
+            $statement->execute($params);
 
             return (int) $statement->fetchColumn();
         } catch (\PDOException $e) {
-            throw new StorageFailed('failed to count active offline sessions for client', 0, $e);
+            throw new StorageFailed($errorMessage, 0, $e);
         }
     }
 

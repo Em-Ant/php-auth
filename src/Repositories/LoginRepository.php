@@ -21,24 +21,13 @@ class LoginRepository implements IRepo
 
     public function findById(string $id): ?Login
     {
-        try {
-            $statement = $this->db->prepare(
-                "SELECT * FROM logins WHERE id = :id"
-            );
-            $statement->bindValue(':id', $id);
+        $r = $this->fetchOne(
+            "SELECT * FROM logins WHERE id = :id",
+            [':id' => $id],
+            "failed to load login by id $id"
+        );
 
-            $statement->execute();
-
-            $r = $statement->fetch();
-
-            if (!$r) {
-                return null;
-            }
-
-            return self::buildFromData($r);
-        } catch (\PDOException $e) {
-            throw new StorageFailed("failed to load login by id $id", 0, $e);
-        }
+        return $r === null ? null : self::buildFromData($r);
     }
 
     public function findByCode(string $code, string $realmId): ?Login
@@ -57,26 +46,28 @@ class LoginRepository implements IRepo
      */
     private function findBy(string $column, string $value, string $realmId): ?Login
     {
-        try {
-            $statement = $this->db->prepare(
-                "SELECT l.* FROM logins l
-                 JOIN clients c ON l.client_id = c.id
-                 WHERE l.$column = :value AND c.realm_id = :realm_id"
-            );
-            $statement->bindValue(':value', $value);
-            $statement->bindValue(':realm_id', $realmId);
+        $r = $this->fetchOne(
+            "SELECT l.* FROM logins l
+             JOIN clients c ON l.client_id = c.id
+             WHERE l.$column = :value AND c.realm_id = :realm_id",
+            [':value' => $value, ':realm_id' => $realmId],
+            "failed to load login by $column"
+        );
 
-            $statement->execute();
+        return $r === null ? null : self::buildFromData($r);
+    }
+
+    private function fetchOne(string $sql, array $params, string $errorMessage): ?array
+    {
+        try {
+            $statement = $this->db->prepare($sql);
+            $statement->execute($params);
 
             $r = $statement->fetch();
 
-            if (!$r) {
-                return null;
-            }
-
-            return self::buildFromData($r);
+            return $r === false ? null : $r;
         } catch (\PDOException $e) {
-            throw new StorageFailed("failed to load login by $column", 0, $e);
+            throw new StorageFailed($errorMessage, 0, $e);
         }
     }
 
@@ -306,27 +297,31 @@ class LoginRepository implements IRepo
 
     public function countByClientId(string $clientId): int
     {
-        try {
-            $statement = $this->db->prepare(
-                "SELECT COUNT(*) FROM logins WHERE client_id = :client_id"
-            );
-            $statement->execute([':client_id' => $clientId]);
-            return (int) $statement->fetchColumn();
-        } catch (\PDOException $e) {
-            throw new StorageFailed('failed to count logins for client', 0, $e);
-        }
+        return $this->count(
+            "SELECT COUNT(*) FROM logins WHERE client_id = :client_id",
+            [':client_id' => $clientId],
+            'failed to count logins for client'
+        );
     }
 
     public function countActiveByClientId(string $clientId): int
     {
+        return $this->count(
+            "SELECT COUNT(*) FROM logins WHERE client_id = :client_id AND status NOT IN ('EXPIRED')",
+            [':client_id' => $clientId],
+            'failed to count active logins for client'
+        );
+    }
+
+    private function count(string $sql, array $params, string $errorMessage): int
+    {
         try {
-            $statement = $this->db->prepare(
-                "SELECT COUNT(*) FROM logins WHERE client_id = :client_id AND status NOT IN ('EXPIRED')"
-            );
-            $statement->execute([':client_id' => $clientId]);
+            $statement = $this->db->prepare($sql);
+            $statement->execute($params);
+
             return (int) $statement->fetchColumn();
         } catch (\PDOException $e) {
-            throw new StorageFailed('failed to count active logins for client', 0, $e);
+            throw new StorageFailed($errorMessage, 0, $e);
         }
     }
 
