@@ -1,5 +1,9 @@
 # Repository error contract
 
+status: **DONE** — implemented in the assessment session; listed under "Already
+fixed" in `.scratch/clean-code/PRD.md`. All repositories rethrow
+`StorageFailed` on PDO errors; the global handler maps them to 500.
+
 **Severity:** medium — infrastructure failures are masked as missing data.
 
 Every repository method catches `\PDOException`, logs the message, returns `null` (e.g. `LoginRepository::findById`, `SessionRepository::create`). A DB outage becomes "not found", which callers translate into `ValidationFailed('invalid client id')`-style 400s — wrong status, wrong semantics, and the real error is only in the log.

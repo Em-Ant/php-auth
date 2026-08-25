@@ -1,6 +1,8 @@
 # Merge E2E scripts into one configurable script
 
-status: **DEFERRED** — filed for later; not implemented
+status: **DEFERRED** — filed for later; not implemented.
+Superseded by backlog item **F-20** (`.scratch/ci-e2e/PRD.md`), which covers
+the script split/merge with a fuller contract.
 
 ## Current state (as of 08/01/2026)
 

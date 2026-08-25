@@ -22,3 +22,6 @@ Backlog of clean-code smells found during the codebase assessment (session ses_0
 7. [Static InputValidator + dead DI entry](issues/07-static-input-validator.md)
 8. [Model jsonSerialize leaks sensitive fields](issues/09-json-serialize-leaks.md)
 9. [TokenService::createKeys handles no boundary failures](issues/10-keystore-unchecked-io.md)
+10. [Repository + test duplication (Sonar dup-lines)](issues/11-repository-and-test-duplication.md)
+
+Done so far: #02, #04, #05, #06, #07, #08, #09, #10, #11 (stamped in their files; R-03/#03 done 2026-08-25). Only [#01](issues/01-duplicate-app-wiring.md) remains queued (R-07).
