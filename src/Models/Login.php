@@ -6,8 +6,8 @@ namespace AuthServer\Models;
 
 use DateTime;
 
-use function AuthServer\format_sql_datetime;
-use function AuthServer\parse_sql_datetime;
+use function AuthServer\formatSqlDatetime;
+use function AuthServer\parseSqlDatetime;
 
 class Login implements \JsonSerializable
 {
@@ -58,9 +58,9 @@ class Login implements \JsonSerializable
         $this->code_challenge = $code_challenge;
         $this->csrf_token = $csrf_token;
         $this->refresh_token = $refresh_token;
-        $this->created_at = parse_sql_datetime($created_at) ?? date_create();
-        $this->updated_at = parse_sql_datetime($updated_at);
-        $this->authenticated_at = parse_sql_datetime($authenticated_at);
+        $this->created_at = parseSqlDatetime($created_at) ?? date_create();
+        $this->updated_at = parseSqlDatetime($updated_at);
+        $this->authenticated_at = parseSqlDatetime($authenticated_at);
         $this->status = LoginStatus::from($status ?? 'PENDING');
     }
 
@@ -171,9 +171,9 @@ class Login implements \JsonSerializable
             'redirect_uri' => $this->redirect_uri,
             'response_mode' => $this->response_mode,
             'status' => $this->status->value,
-            'created_at' => format_sql_datetime($this->created_at),
-            'authenticated_at' => format_sql_datetime($this->authenticated_at),
-            'updated_at' => format_sql_datetime($this->updated_at),
+            'created_at' => formatSqlDatetime($this->created_at),
+            'authenticated_at' => formatSqlDatetime($this->authenticated_at),
+            'updated_at' => formatSqlDatetime($this->updated_at),
         ];
     }
 }

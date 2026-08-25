@@ -6,8 +6,8 @@ namespace AuthServer\Models;
 
 use DateTime;
 
-use function AuthServer\format_sql_datetime;
-use function AuthServer\parse_sql_datetime;
+use function AuthServer\formatSqlDatetime;
+use function AuthServer\parseSqlDatetime;
 
 class Session implements \JsonSerializable
 {
@@ -32,8 +32,8 @@ class Session implements \JsonSerializable
         $this->realm_id = $realm_id;
         $this->acr = $acr;
         $this->user_id = $user_id;
-        $this->created_at = parse_sql_datetime($created_at) ?? date_create();
-        $this->updated_at = parse_sql_datetime($updated_at);
+        $this->created_at = parseSqlDatetime($created_at) ?? date_create();
+        $this->updated_at = parseSqlDatetime($updated_at);
         $this->status = SessionStatus::from($status ?? 'ACTIVE');
     }
 
@@ -74,8 +74,8 @@ class Session implements \JsonSerializable
             'user_id' => $this->user_id,
             'acr' => $this->acr,
             'status' => $this->status->value,
-            'created_at' => format_sql_datetime($this->created_at),
-            'updated_at' => format_sql_datetime($this->updated_at),
+            'created_at' => formatSqlDatetime($this->created_at),
+            'updated_at' => formatSqlDatetime($this->updated_at),
         ];
     }
 }

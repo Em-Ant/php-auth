@@ -17,9 +17,9 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Slim\Exception\HttpNotFoundException;
 
-use function AuthServer\format_sql_datetime;
+use function AuthServer\formatSqlDatetime;
 use function AuthServer\getGuid;
-use function AuthServer\sql_now;
+use function AuthServer\sqlNow;
 
 class ClientsController
 {
@@ -74,7 +74,7 @@ class ClientsController
                 $clientSecret,
                 $uri,
                 $this->optionalBool($body, 'require_auth', false),
-                sql_now(),
+                sqlNow(),
                 $this->optionalString($body, 'scope', null)
             );
 
@@ -123,7 +123,7 @@ class ClientsController
                 $clientSecret,
                 $uri,
                 $this->optionalBool($body, 'require_auth', $existing->requiresAuth()),
-                format_sql_datetime($existing->getCreatedAt()),
+                formatSqlDatetime($existing->getCreatedAt()),
                 $this->optionalString($body, 'scope', $existing->getScopeString())
             );
 
@@ -200,7 +200,7 @@ class ClientsController
             'require_auth' => $client->requiresAuth(),
             'scope' => $client->getScopeString(),
             'has_secret' => $client->getClientSecret() !== null && $client->getClientSecret() !== '',
-            'created_at' => format_sql_datetime($client->getCreatedAt()),
+            'created_at' => formatSqlDatetime($client->getCreatedAt()),
         ];
     }
 }

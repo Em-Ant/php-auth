@@ -9,7 +9,7 @@ use AuthServer\Interfaces\LoginRepository as IRepo;
 use AuthServer\Models\Login;
 
 use function AuthServer\getGuid;
-use function AuthServer\sql_now;
+use function AuthServer\sqlNow;
 
 class LoginRepository implements IRepo
 {
@@ -145,7 +145,7 @@ class LoginRepository implements IRepo
             $q->bindValue(':scope', $scope);
             $q->bindValue(':redirect_uri', $redirect_uri);
             $q->bindValue(':response_mode', $response_mode);
-            $q->bindValue(':authenticated_at', sql_now());
+            $q->bindValue(':authenticated_at', sqlNow());
             $q->bindValue(':code', $code);
             $q->bindValue(':code_challenge', $code_challenge);
 
@@ -172,7 +172,7 @@ class LoginRepository implements IRepo
             );
             $q->bindValue(':code', $code);
             $q->bindValue(':session_id', $session_id);
-            $q->bindValue(':authenticated_at', sql_now());
+            $q->bindValue(':authenticated_at', sqlNow());
             $q->bindValue(':id', $id);
 
             return $q->execute();
@@ -192,7 +192,7 @@ class LoginRepository implements IRepo
       WHERE id = :id"
             );
             $q->bindValue(':refresh_token', $refresh_token);
-            $q->bindValue(':updated_at', sql_now());
+            $q->bindValue(':updated_at', sqlNow());
             $q->bindValue(':id', $id);
 
             return $q->execute();
@@ -212,7 +212,7 @@ class LoginRepository implements IRepo
       WHERE id=:id"
             );
             $q->bindValue(':token', $token);
-            $q->bindValue(':updated_at', sql_now());
+            $q->bindValue(':updated_at', sqlNow());
             $q->bindValue(':id', $id);
 
             return $q->execute();

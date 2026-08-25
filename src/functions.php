@@ -18,17 +18,17 @@ function getGuid(): string
     return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
 }
 
-function sql_now(): string
+function sqlNow(): string
 {
     return gmdate(SQL_DATETIME_FORMAT);
 }
 
-function format_sql_datetime(?DateTimeInterface $datetime): ?string
+function formatSqlDatetime(?DateTimeInterface $datetime): ?string
 {
     return $datetime?->format(SQL_DATETIME_FORMAT);
 }
 
-function parse_sql_datetime(?string $value): ?DateTime
+function parseSqlDatetime(?string $value): ?DateTime
 {
     if ($value === null) {
         return null;
