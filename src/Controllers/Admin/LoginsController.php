@@ -25,15 +25,22 @@ class LoginsController
     public function list(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
         $query = $request->getQueryParams();
-        $realmId = isset($query['realm_id']) && $query['realm_id'] !== '' ? $query['realm_id'] : null;
-        $clientId = isset($query['client_id']) && $query['client_id'] !== '' ? $query['client_id'] : null;
+        $pagination = $this->paginationFromQuery($query);
 
-        return JsonResponse::create($response, [
-            'logins' => array_map(
-                fn(Login $login) => self::toArray($login),
-                $this->logins->findAll($realmId, $clientId)
-            ),
-        ]);
+        $result = $this->logins->searchAll(
+            $this->queryString($query, 'realm_id'),
+            $this->queryString($query, 'client_id'),
+            $pagination['limit'],
+            $pagination['offset']
+        );
+
+        return JsonResponse::paginated(
+            $response,
+            array_map(fn(Login $login) => self::toArray($login), $result['items']),
+            $result['total'],
+            $pagination['limit'],
+            $pagination['offset']
+        );
     }
 
     public function delete(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface

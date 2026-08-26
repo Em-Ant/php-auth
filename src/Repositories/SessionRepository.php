@@ -12,6 +12,8 @@ use function AuthServer\getGuid;
 
 class SessionRepository implements IRepo
 {
+    use PagedListing;
+
     private \PDO $db;
 
     public function __construct(\PDO $db)
@@ -143,6 +145,33 @@ class SessionRepository implements IRepo
         } catch (\PDOException $e) {
             throw new StorageFailed('failed to list sessions', 0, $e);
         }
+    }
+
+    /**
+     * Filtered, paged listing. `total` counts all rows matching the filters,
+     * independent of limit/offset.
+     *
+     * @return array{items: Session[], total: int}
+     */
+    public function searchAll(?string $realmId, ?string $userId, int $limit, int $offset): array
+    {
+        $statement = $this->db->prepare(
+            "SELECT *, COUNT(*) OVER() AS result_total
+             FROM sessions
+             WHERE (:realm_id IS NULL OR realm_id = :realm_id)
+               AND (:user_id IS NULL OR user_id = :user_id)
+             ORDER BY created_at DESC
+             LIMIT :limit OFFSET :offset"
+        );
+        self::bindNullableString($statement, ':realm_id', $realmId);
+        self::bindNullableString($statement, ':user_id', $userId);
+        self::bindPageParams($statement, $limit, $offset);
+
+        return $this->fetchPagedPage(
+            $statement,
+            fn(array $r) => self::buildFromData($r),
+            'failed to list sessions'
+        );
     }
 
     public function countByUserId(string $userId): int

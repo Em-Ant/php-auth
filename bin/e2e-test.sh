@@ -759,7 +759,7 @@ echo "$CLIENT_RESP" | grep -q '"client_secret"' && fail "client_secret must not 
 
 # List clients filtered by realm
 CLIST=$(curl -sS -H "$ADMIN_HDR" "$BASE/admin/clients?realm_id=$ADMIN_CREATED_REALM_ID")
-CLIST_COUNT=$(echo "$CLIST" | python3 -c "import sys,json; print(len(json.load(sys.stdin)['clients']))" 2>/dev/null || echo 0)
+CLIST_COUNT=$(echo "$CLIST" | python3 -c "import sys,json; print(len(json.load(sys.stdin)['items']))" 2>/dev/null || echo 0)
 [[ "$CLIST_COUNT" -ge 1 ]] && ok "List clients filtered by realm returns $CLIST_COUNT client(s)" || fail "Expected >=1 client, got $CLIST_COUNT"
 
 # Read client
@@ -802,7 +802,7 @@ echo "$USER_RESP" | grep -q '"password"' && fail "password must not be exposed i
 
 # List users filtered by realm
 ULIST=$(curl -sS -H "$ADMIN_HDR" "$BASE/admin/users?realm_id=$ADMIN_CREATED_REALM_ID")
-ULIST_COUNT=$(echo "$ULIST" | python3 -c "import sys,json; print(len(json.load(sys.stdin)['users']))" 2>/dev/null || echo 0)
+ULIST_COUNT=$(echo "$ULIST" | python3 -c "import sys,json; print(len(json.load(sys.stdin)['items']))" 2>/dev/null || echo 0)
 [[ "$ULIST_COUNT" -ge 1 ]] && ok "List users filtered by realm returns $ULIST_COUNT user(s)" || fail "Expected >=1 user, got $ULIST_COUNT"
 
 # Read user

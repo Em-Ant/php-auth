@@ -36,6 +36,21 @@ class JsonResponse
         return $response;
     }
 
+    public static function paginated(
+        ResponseInterface $response,
+        array $items,
+        int $total,
+        int $limit,
+        int $offset
+    ): ResponseInterface {
+        return self::create($response, [
+            'items' => $items,
+            'total' => $total,
+            'limit' => $limit,
+            'offset' => $offset,
+        ]);
+    }
+
     public static function error(
         ResponseInterface $response,
         string $error,

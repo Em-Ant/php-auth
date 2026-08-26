@@ -54,4 +54,18 @@ trait AdminApiTrait
     {
         return $this->createRequest($method, $path, $body, $query, self::$adminKey);
     }
+
+    /**
+     * Asserts the `{items,total,limit,offset}` list envelope and returns items.
+     *
+     * @return array<int, mixed>
+     */
+    private function assertEnvelope(array $data, int $limit = 50, int $offset = 0): array
+    {
+        self::assertArrayHasKey('items', $data);
+        self::assertSame(count($data['items']), $data['total']);
+        self::assertSame($limit, $data['limit']);
+        self::assertSame($offset, $data['offset']);
+        return $data['items'];
+    }
 }

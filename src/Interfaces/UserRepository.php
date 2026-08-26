@@ -12,8 +12,12 @@ interface UserRepository
 
     public function findByEmailAndRealmId(string $email, string $realm_id): ?User;
 
-    /** @return User[] */
-    public function findAll(?string $realmId = null): array;
+    /**
+     * Filtered, paged listing; `total` covers all rows matching the filters.
+     *
+     * @return array{items: User[], total: int}
+     */
+    public function searchAll(?string $realmId, int $limit, int $offset): array;
 
     public function create(User $user): User;
 

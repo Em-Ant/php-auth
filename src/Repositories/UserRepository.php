@@ -12,6 +12,8 @@ use function AuthServer\getGuid;
 
 class UserRepository implements IUser
 {
+    use PagedListing;
+
     private \PDO $db;
 
     public function __construct(\PDO $db)
@@ -19,26 +21,29 @@ class UserRepository implements IUser
         $this->db = $db;
     }
 
-    public function findAll(?string $realmId = null): array
+    /**
+     * Filtered, paged listing. `total` counts all rows matching the filters,
+     * independent of limit/offset.
+     *
+     * @return array{items: User[], total: int}
+     */
+    public function searchAll(?string $realmId, int $limit, int $offset): array
     {
-        try {
-            if ($realmId === null) {
-                $statement = $this->db->query(
-                    "SELECT * FROM users ORDER BY email"
-                );
-                $rows = $statement->fetchAll();
-            } else {
-                $statement = $this->db->prepare(
-                    "SELECT * FROM users WHERE realm_id = :realm_id ORDER BY email"
-                );
-                $statement->execute([':realm_id' => $realmId]);
-                $rows = $statement->fetchAll();
-            }
+        $statement = $this->db->prepare(
+            "SELECT *, COUNT(*) OVER() AS result_total
+             FROM users
+             WHERE (:realm_id IS NULL OR realm_id = :realm_id)
+             ORDER BY email
+             LIMIT :limit OFFSET :offset"
+        );
+        self::bindNullableString($statement, ':realm_id', $realmId);
+        self::bindPageParams($statement, $limit, $offset);
 
-            return array_map(fn(array $r) => $this->buildFromData($r), $rows);
-        } catch (\PDOException $e) {
-            throw new StorageFailed('failed to list users', 0, $e);
-        }
+        return $this->fetchPagedPage(
+            $statement,
+            fn(array $r) => $this->buildFromData($r),
+            'failed to list users'
+        );
     }
 
     public function create(User $user): User

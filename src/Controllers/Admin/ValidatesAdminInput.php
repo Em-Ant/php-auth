@@ -45,6 +45,17 @@ trait ValidatesAdminInput
         return $value;
     }
 
+    /**
+     * @return array{limit: int, offset: int}
+     */
+    private function paginationFromQuery(array $query): array
+    {
+        return [
+            'limit' => $this->queryInt($query, 'limit', 50, 1, 200),
+            'offset' => $this->queryInt($query, 'offset', 0, 0, null),
+        ];
+    }
+
     private function queryString(array $query, string $key): ?string
     {
         $value = $query[$key] ?? null;

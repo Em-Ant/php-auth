@@ -15,9 +15,6 @@ class OfflineSessionsController
 {
     use ValidatesAdminInput;
 
-    private const DEFAULT_LIMIT = 50;
-    private const MAX_LIMIT = 100;
-
     public function __construct(
         private readonly OfflineSessionRepository $offlineSessions
     ) {
@@ -26,25 +23,26 @@ class OfflineSessionsController
     public function list(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
         $query = $request->getQueryParams();
+        $pagination = $this->paginationFromQuery($query);
 
-        $realmId = $this->queryString($query, 'realm_id');
-        $userId = $this->queryString($query, 'user_id');
-        $clientId = $this->queryString($query, 'client_id');
+        $result = $this->offlineSessions->searchAll(
+            $this->queryString($query, 'realm_id'),
+            $this->queryString($query, 'user_id'),
+            $this->queryString($query, 'client_id'),
+            $pagination['limit'],
+            $pagination['offset']
+        );
 
-        $limit = $this->queryInt($query, 'limit', self::DEFAULT_LIMIT, 1, self::MAX_LIMIT);
-        $offset = $this->queryInt($query, 'offset', 0, 0, null);
-
-        $result = $this->offlineSessions->searchAll($realmId, $userId, $clientId, $limit, $offset);
-
-        return JsonResponse::create($response, [
-            'items' => array_map(
+        return JsonResponse::paginated(
+            $response,
+            array_map(
                 fn(OfflineSession $s) => $s->jsonSerialize(),
                 $result['items']
             ),
-            'total' => $result['total'],
-            'limit' => $limit,
-            'offset' => $offset,
-        ]);
+            $result['total'],
+            $pagination['limit'],
+            $pagination['offset']
+        );
     }
 
     public function read(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface

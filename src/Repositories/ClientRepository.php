@@ -12,6 +12,8 @@ use function AuthServer\getGuid;
 
 class ClientRepository implements IRepo
 {
+    use PagedListing;
+
     private \PDO $db;
 
     public function __construct(\PDO $db)
@@ -19,26 +21,29 @@ class ClientRepository implements IRepo
         $this->db = $db;
     }
 
-    public function findAll(?string $realmId = null): array
+    /**
+     * Filtered, paged listing. `total` counts all rows matching the filters,
+     * independent of limit/offset.
+     *
+     * @return array{items: Client[], total: int}
+     */
+    public function searchAll(?string $realmId, int $limit, int $offset): array
     {
-        try {
-            if ($realmId === null) {
-                $statement = $this->db->query(
-                    "SELECT * FROM clients ORDER BY name"
-                );
-                $rows = $statement->fetchAll();
-            } else {
-                $statement = $this->db->prepare(
-                    "SELECT * FROM clients WHERE realm_id = :realm_id ORDER BY name"
-                );
-                $statement->execute([':realm_id' => $realmId]);
-                $rows = $statement->fetchAll();
-            }
+        $statement = $this->db->prepare(
+            "SELECT *, COUNT(*) OVER() AS result_total
+             FROM clients
+             WHERE (:realm_id IS NULL OR realm_id = :realm_id)
+             ORDER BY name
+             LIMIT :limit OFFSET :offset"
+        );
+        self::bindNullableString($statement, ':realm_id', $realmId);
+        self::bindPageParams($statement, $limit, $offset);
 
-            return array_map(fn(array $r) => self::buildFromData($r), $rows);
-        } catch (\PDOException $e) {
-            throw new StorageFailed('failed to list clients', 0, $e);
-        }
+        return $this->fetchPagedPage(
+            $statement,
+            fn(array $r) => self::buildFromData($r),
+            'failed to list clients'
+        );
     }
 
     public function create(Client $client): Client

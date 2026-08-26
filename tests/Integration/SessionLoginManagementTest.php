@@ -33,7 +33,7 @@ class SessionLoginManagementTest extends TestCase
     public function testListSessionsReturnsData(): void
     {
         $data = $this->assertStatus(200, $this->adminRequest('GET', '/admin/sessions'));
-        self::assertArrayHasKey('sessions', $data);
+        $this->assertEnvelope($data);
     }
 
     public function testListSessionsFilteredByRealm(): void
@@ -41,7 +41,7 @@ class SessionLoginManagementTest extends TestCase
         $data = $this->assertStatus(200, $this->adminRequest('GET', '/admin/sessions', [], [
             'realm_id' => self::TEST_REALM,
         ]));
-        self::assertArrayHasKey('sessions', $data);
+        $this->assertEnvelope($data);
     }
 
     public function testDeleteSessionRemovesLoginsAndSession(): void
@@ -138,7 +138,7 @@ class SessionLoginManagementTest extends TestCase
     public function testListLoginsReturnsData(): void
     {
         $data = $this->assertStatus(200, $this->adminRequest('GET', '/admin/logins'));
-        self::assertArrayHasKey('logins', $data);
+        $this->assertEnvelope($data);
     }
 
     public function testListLoginsFilteredByClient(): void
@@ -146,7 +146,7 @@ class SessionLoginManagementTest extends TestCase
         $data = $this->assertStatus(200, $this->adminRequest('GET', '/admin/logins', [], [
             'client_id' => self::TEST_CLIENT,
         ]));
-        self::assertArrayHasKey('logins', $data);
+        $this->assertEnvelope($data);
     }
 
     public function testDeleteLoginReturns204(): void

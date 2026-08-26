@@ -61,6 +61,13 @@ interface LoginRepository
 
     public function findAll(?string $realmId = null, ?string $clientId = null): array;
 
+    /**
+     * Filtered, paged listing; `total` covers all rows matching the filters.
+     *
+     * @return array{items: Login[], total: int}
+     */
+    public function searchAll(?string $realmId, ?string $clientId, int $limit, int $offset): array;
+
     public function countByClientId(string $clientId): int;
 
     public function countActiveByClientId(string $clientId): int;

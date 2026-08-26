@@ -27,15 +27,22 @@ class SessionsController
     public function list(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
         $query = $request->getQueryParams();
-        $realmId = isset($query['realm_id']) && $query['realm_id'] !== '' ? $query['realm_id'] : null;
-        $userId = isset($query['user_id']) && $query['user_id'] !== '' ? $query['user_id'] : null;
+        $pagination = $this->paginationFromQuery($query);
 
-        return JsonResponse::create($response, [
-            'sessions' => array_map(
-                fn(Session $session) => self::toArray($session),
-                $this->sessions->findAll($realmId, $userId)
-            ),
-        ]);
+        $result = $this->sessions->searchAll(
+            $this->queryString($query, 'realm_id'),
+            $this->queryString($query, 'user_id'),
+            $pagination['limit'],
+            $pagination['offset']
+        );
+
+        return JsonResponse::paginated(
+            $response,
+            array_map(fn(Session $session) => self::toArray($session), $result['items']),
+            $result['total'],
+            $pagination['limit'],
+            $pagination['offset']
+        );
     }
 
     public function delete(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
