@@ -32,8 +32,8 @@ Scope/role model and mapping, Keycloak-style. See `.scratch/scopes/PRD.md`.
 - [x] Well-known `scope_supported` derived from realm scopes ([#01](scopes/issues/01-well-known-from-realm-scopes.md))
 - [x] Client scopes: per-client allow-list (`clients.scope`, NULL = inherit realm) via `ScopeResolver`, gates `offline_access` per client ([#02](scopes/issues/02-client-scopes-and-roles.md))
 - [x] Client roles: per-client authorization namespace (`resource_access.<client>.roles`) — shipped with [#02](scopes/issues/02-client-scopes-and-roles.md) (2026-08-21)
-- [ ] Scope↔role mapping, Keycloak-style ([#03](scopes/issues/03-scope-role-mapping.md))
-- [ ] Admin API config surface for scopes/roles/mappings ([#04](scopes/issues/04-admin-api-configuration.md))
+- [x] Scope↔role mapping, Keycloak-style ([#03](scopes/issues/03-scope-role-mapping.md)) — done 2026-08-26
+- [x] Admin API config surface for scopes/roles/mappings ([#04](scopes/issues/04-admin-api-configuration.md)) — done 2026-08-26
 
 ## Login Methods
 

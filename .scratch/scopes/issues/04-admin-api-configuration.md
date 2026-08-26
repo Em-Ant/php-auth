@@ -1,6 +1,6 @@
 # Admin API configuration surface for scopes/roles/mappings
 
-status: **TODO** — parallel track to `.scratch/scopes/PRD.md` Phases 2–3
+status: **DONE** — 2026-08-26 (F-12). Roles CRUD, user role assignments, scope-role mappings — all shipped with 30 integration tests + 27 e2e checks.
 
 ## Problem
 

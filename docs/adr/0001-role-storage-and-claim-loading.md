@@ -5,7 +5,7 @@
 - **Decides:** where roles live, who reads them, and the status of the
   string-based `realm_roles` admin contract
 - **Supersedes:** the denormalized option in `.scratch/scopes/issues/02-client-scopes-and-roles.md`
-- **Related:** `.scratch/admin-api/gaps.md` (D-1..D-3, G-3), migration `005_roles`
+- **Related:** migration `005_roles`, `admin-api/PRD.md`
 
 ## Context
 
@@ -99,8 +99,17 @@ preserves the v0 request contract, but:
 
 **Negative / follow-ups**
 
-- Until F-12, client roles have no write path beyond seed data.
-- The shim's auto-create can materialize typos as real roles (accepted while
-  the API has no consumers).
-- Admin list pagination and write atomicity remain open gaps — tracked as
-  A-03/A-04, unaffected by this ADR.
+- ~~Until F-12, client roles have no write path beyond seed data.~~ — F-12
+  shipped 2026-08-26 (roles CRUD + user role assignments + scope-role
+  mappings).
+- ~~The shim's auto-create can materialize typos as real roles~~ — retired
+  2026-08-26 by F-12; `realm_roles` string field no longer accepted.
+- ~~Admin list pagination and write atomicity remain open gaps~~ — pagination
+  shipped with F-03 (2026-08-26); atomicity shipped with F-04.
+- **Audit log on admin mutations** — compliance gap, tracked as F-07 (BACKLOG).
+
+**Design rules (from admin-api/gaps.md, absorbed here)**
+
+- New admin features must not reintroduce string-dialect fields (G-3 retired).
+- New list endpoints ship with the `{items, total, limit, offset}` envelope
+  from day one (A-03/F-03).
