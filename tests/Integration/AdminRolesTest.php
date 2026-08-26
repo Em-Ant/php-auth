@@ -278,7 +278,47 @@ class AdminRolesTest extends TestCase
         ));
     }
 
+    public function testRemoveNonExistentRoleIdIsIdempotent(): void
+    {
+        $this->assertStatus(204, $this->adminRequest(
+            'DELETE',
+            "/admin/users/" . self::TEST_USER . "/roles/" . getGuid()
+        ));
+    }
+
     // ── Scope-Role Mappings ─────────────────────────────────
+
+    public function testFindScopeRoleMappingReturnsValueObject(): void
+    {
+        $roles = self::$app->getContainer()->get(\AuthServer\Interfaces\RoleRepository::class);
+
+        self::$pdo->prepare(
+            'INSERT OR IGNORE INTO client_scope_roles (client_id, scope, role_id, required)
+             VALUES (:client_id, :scope, :role_id, :required)'
+        )->execute([
+            ':client_id' => self::KC_APP_CLIENT,
+            ':scope' => 'email',
+            ':role_id' => self::ADMIN_ROLE,
+            ':required' => 1,
+        ]);
+
+        $mapping = $roles->findScopeRoleMapping(self::KC_APP_CLIENT, 'email', self::ADMIN_ROLE);
+
+        self::assertInstanceOf(\AuthServer\Models\ScopeRoleMapping::class, $mapping);
+        self::assertSame(self::ADMIN_ROLE, $mapping->roleId);
+        self::assertSame('email', $mapping->scope);
+        self::assertSame('admin', $mapping->roleName);
+        self::assertTrue($mapping->required);
+    }
+
+    public function testFindScopeRoleMappingReturnsNullWhenNotFound(): void
+    {
+        $roles = self::$app->getContainer()->get(\AuthServer\Interfaces\RoleRepository::class);
+
+        $mapping = $roles->findScopeRoleMapping(self::KC_APP_CLIENT, 'nonexistent', getGuid());
+
+        self::assertNull($mapping);
+    }
 
     public function testListScopeRolesEmpty(): void
     {
@@ -343,6 +383,18 @@ class AdminRolesTest extends TestCase
         ));
     }
 
+    public function testCreateScopeRoleMappingWithInvalidScopeReturns400(): void
+    {
+        $this->assertStatus(400, $this->adminRequest(
+            'POST',
+            "/admin/clients/" . self::KC_APP_CLIENT . "/scope-roles",
+            [
+                'scope' => 'nonexistent-scope',
+                'role_id' => self::ADMIN_ROLE,
+            ]
+        ));
+    }
+
     public function testListScopeRolesAfterCreate(): void
     {
         $data = $this->assertStatus(200, $this->adminRequest(
@@ -378,7 +430,7 @@ class AdminRolesTest extends TestCase
     {
         $this->assertStatus(404, $this->adminRequest(
             'PUT',
-            "/admin/clients/" . self::KC_APP_CLIENT . "/scope-roles/nonexistent/" . self::ADMIN_ROLE,
+            "/admin/clients/" . self::KC_APP_CLIENT . "/scope-roles/openid/" . self::ADMIN_ROLE,
             ['required' => true]
         ));
     }

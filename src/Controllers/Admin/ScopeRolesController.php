@@ -7,6 +7,7 @@ namespace AuthServer\Controllers\Admin;
 use AuthServer\Exceptions\ConflictException;
 use AuthServer\Exceptions\ValidationFailed;
 use AuthServer\Interfaces\ClientRepository;
+use AuthServer\Interfaces\RealmRepository;
 use AuthServer\Interfaces\RoleRepository;
 use AuthServer\Response\JsonResponse;
 use Psr\Http\Message\ResponseInterface;
@@ -20,6 +21,7 @@ class ScopeRolesController
     public function __construct(
         private readonly ClientRepository $clients,
         private readonly RoleRepository $roles,
+        private readonly RealmRepository $realms,
     ) {
     }
 
@@ -51,6 +53,8 @@ class ScopeRolesController
             $roleId = $this->requiredString($body, 'role_id');
             $required = $this->optionalBool($body, 'required', false);
 
+            $this->assertScopeIsValidForClient($clientId, $scope);
+
             $role = $this->roles->findById($roleId);
             if ($role === null) {
                 throw new ValidationFailed("unknown role '$roleId'");
@@ -80,13 +84,15 @@ class ScopeRolesController
             $scope = $request->getAttribute('scope');
             $roleId = $request->getAttribute('role_id');
 
+            $this->assertScopeIsValidForClient($clientId, $scope);
+
             $existing = $this->roles->findScopeRoleMapping($clientId, $scope, $roleId);
             if ($existing === null) {
                 throw new HttpNotFoundException($request, "mapping for scope '$scope' and role '$roleId' not found");
             }
 
             $body = (array) ($request->getParsedBody() ?? []);
-            $required = $this->optionalBool($body, 'required', (bool) $existing['required']);
+            $required = $this->optionalBool($body, 'required', $existing->required);
 
             $this->roles->updateScopeRoleMapping($clientId, $scope, $roleId, $required);
 
@@ -129,5 +135,15 @@ class ScopeRolesController
             'role_name' => $roleName,
             'required' => $required,
         ];
+    }
+
+    private function assertScopeIsValidForClient(string $clientId, string $scope): void
+    {
+        $client = $this->clients->findById($clientId);
+        $realm = $this->realms->findById($client->getRealmId());
+
+        if (!in_array($scope, $realm->getScope(), true)) {
+            throw new ValidationFailed("scope '$scope' is not allowed in this realm");
+        }
     }
 }

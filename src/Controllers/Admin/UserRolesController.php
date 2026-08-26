@@ -66,10 +66,6 @@ class UserRolesController
         $this->findUserOrFail($request, $userId);
 
         $roleId = $request->getAttribute('role_id');
-        if ($this->roles->findById($roleId) === null) {
-            throw new HttpNotFoundException($request, "role '$roleId' not found");
-        }
-
         $this->roles->removeRoleFromUser($userId, $roleId);
 
         return $response->withStatus(204);

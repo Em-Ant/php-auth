@@ -400,12 +400,15 @@ class RoleRepository implements IRoleRepo
         }
     }
 
-    public function findScopeRoleMapping(string $clientId, string $scope, string $roleId): ?array
+    public function findScopeRoleMapping(string $clientId, string $scope, string $roleId): ?ScopeRoleMapping
     {
         try {
             $stmt = $this->db->prepare(
-                'SELECT * FROM client_scope_roles
-                 WHERE client_id = :client_id AND scope = :scope AND role_id = :role_id'
+                'SELECT csr.role_id, csr.scope, r.name AS role_name, c.name AS role_client_name, csr.required
+                 FROM client_scope_roles csr
+                 JOIN roles r ON r.id = csr.role_id
+                 LEFT JOIN clients c ON c.id = r.client_id
+                 WHERE csr.client_id = :client_id AND csr.scope = :scope AND csr.role_id = :role_id'
             );
             $stmt->execute([
                 ':client_id' => $clientId,
@@ -413,7 +416,16 @@ class RoleRepository implements IRoleRepo
                 ':role_id' => $roleId,
             ]);
             $row = $stmt->fetch();
-            return $row !== false ? $row : null;
+            if ($row === false) {
+                return null;
+            }
+            return new ScopeRoleMapping(
+                $row['role_id'],
+                $row['scope'],
+                $row['role_name'],
+                $row['role_client_name'],
+                (bool) $row['required'],
+            );
         } catch (\PDOException $e) {
             throw new StorageFailed('failed to load scope role mapping', 0, $e);
         }

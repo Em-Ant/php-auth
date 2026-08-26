@@ -50,7 +50,7 @@ class CorsMiddleware implements MiddlewareInterface
         if (!$response->hasHeader('Access-Control-Allow-Methods')) {
             $response = $response->withHeader(
                 'Access-Control-Allow-Methods',
-                'GET,POST,OPTIONS'
+                'GET,POST,PUT,DELETE,OPTIONS'
             );
         }
 

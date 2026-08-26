@@ -11,6 +11,7 @@ use AuthServer\Interfaces\RealmRepository;
 use AuthServer\Interfaces\RoleRepository;
 use AuthServer\Models\Role;
 use AuthServer\Response\JsonResponse;
+use AuthServer\Services\RoleAdminService;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Slim\Exception\HttpNotFoundException;
@@ -26,6 +27,7 @@ class RolesController
         private readonly RoleRepository $roles,
         private readonly RealmRepository $realms,
         private readonly ClientRepository $clients,
+        private readonly RoleAdminService $roleAdmin,
     ) {
     }
 
@@ -132,15 +134,7 @@ class RolesController
         $id = $request->getAttribute('id');
         $this->findRoleOrFail($request, $id);
 
-        if ($this->roles->countUsersByRoleId($id) > 0) {
-            throw new ConflictException("role '$id' is still assigned to users");
-        }
-
-        if ($this->roles->countScopeRoleMappingsByRoleId($id) > 0) {
-            throw new ConflictException("role '$id' is still referenced in scope-role mappings");
-        }
-
-        $this->roles->delete($id);
+        $this->roleAdmin->deleteRole($id);
 
         return $response->withStatus(204);
     }

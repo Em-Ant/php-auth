@@ -52,6 +52,7 @@ use AuthServer\Services\LogoutService;
 use AuthServer\Services\MigrationRunner;
 use AuthServer\Services\OfflineSessionService;
 use AuthServer\Services\RateLimiter;
+use AuthServer\Services\RoleAdminService;
 use AuthServer\Services\ScopeResolver;
 use AuthServer\Services\SecretsService;
 use AuthServer\Services\SessionOrchestrator;
@@ -201,6 +202,7 @@ final class Definitions
                 ->constructorParameter('keysRoot', \DI\get('keys_root')),
             \AuthServer\Controllers\Admin\OfflineSessionsController::class => \DI\autowire(),
             RolesController::class => \DI\autowire(),
+            RoleAdminService::class => \DI\autowire(),
             UserRolesController::class => \DI\autowire(),
             ScopeRolesController::class => \DI\autowire(),
         ];
