@@ -9,6 +9,7 @@ use AuthServer\Exceptions\StorageFailed;
 use AuthServer\Exceptions\ValidationFailed;
 use AuthServer\Interfaces\ClientRepository as IClientRepo;
 use AuthServer\Interfaces\LoginRepository as ILoginRepo;
+use AuthServer\Interfaces\RoleRepository as IRoleRepo;
 use AuthServer\Interfaces\UserRepository as IUserRepo;
 use AuthServer\Models\Client;
 use AuthServer\Models\Login;
@@ -56,7 +57,7 @@ class AuthenticationOrchestratorTest extends TestCase
             $this->loginRepo,
             $this->stateMachine,
             $this->secretsService,
-            new ScopeResolver(new NullLogger()),
+            new ScopeResolver(new NullLogger(), $this->createMock(IRoleRepo::class)),
             $this->logger,
         );
 

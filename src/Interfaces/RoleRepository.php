@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AuthServer\Interfaces;
 
 use AuthServer\Models\Role;
+use AuthServer\Models\ScopeRoleMapping;
 
 interface RoleRepository
 {
@@ -27,6 +28,14 @@ interface RoleRepository
 
     /** @return Role[] */
     public function findByUserId(string $userId): array;
+
+    /**
+     * Role scope mappings of a client, grouped by scope name. A client with
+     * no mappings falls back to full scope (all held roles are emitted).
+     *
+     * @return array<string, list<ScopeRoleMapping>>
+     */
+    public function findScopeRoleMappings(string $clientId): array;
 
     /**
      * Replace the realm-role assignments for a user. Client-role assignments

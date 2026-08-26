@@ -92,6 +92,11 @@ Per-flow behavior:
   + client_credentials flows, introspection (`resource_access` passthrough).
 - Issue: `issues/02-client-scopes-and-roles.md`
 
+> **Status (2026-08-26):** Phase 3 shipped — scope↔role mapping at issuance
+> with Keycloak-style full-scope fallback (no mappings = all held roles).
+> Admin CRUD for mappings deferred to F-12 (issue 04).
+> See [issues/03](issues/03-scope-role-mapping.md).
+
 ### Phase 3 — Scope↔role mapping (joining config, full Keycloak style)
 
 - Client scopes carry **role scope mappings**: when a scope is granted it maps

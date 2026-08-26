@@ -45,4 +45,20 @@ final class GrantContext
             scope: $offlineSession->getScope(),
         );
     }
+
+    /**
+     * Same grant, narrowed scope — issuance-time role gating may drop scopes
+     * from the stored grant without touching the stored login/session row.
+     */
+    public function withScope(string $scope): self
+    {
+        return new self(
+            subject: $this->subject,
+            authTime: $this->authTime,
+            acr: $this->acr,
+            sid: $this->sid,
+            nonce: $this->nonce,
+            scope: $scope,
+        );
+    }
 }

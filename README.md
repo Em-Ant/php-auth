@@ -190,6 +190,34 @@ is independent of the SSO session — that is what lets it outlive logout. For
 admin-initiated revocation without the token, see
 [Admin API — Sessions](#admin-api--sessions).
 
+### Scope-role mapping (F-05)
+
+Clients can control which roles appear in tokens by mapping scopes to roles.
+This follows Keycloak-style hybrid semantics:
+
+**Full-scope fallback (no mappings):** When a client has no scope-role
+mappings, all realm and client roles the user holds are emitted in the token.
+This is the default behaviour and maintains backward compatibility.
+
+**Mapped-only (any mappings exist):** When a client has one or more scope-role
+mappings, only roles explicitly mapped to the requested scopes are emitted.
+Additionally, if a scope has a `required` mapping and the user lacks that
+role, the entire scope is dropped from the grant.
+
+Example scenario:
+
+| Scope | Role | Required | User holds role | Result |
+|---|---|---|---|---|
+| `openid` | `admin` | no | yes | Role `admin` included in `realm_access.roles`; scope kept |
+| `profile` | `basic` | no | yes | Role `basic` included in `realm_access.roles`; scope kept |
+| `email` | `admin` | **yes** | **no** | Scope `email` **dropped** from grant |
+
+The `resource_access.<client>.roles` claim only emits client roles whose
+namespace matches the requesting client, matching full-scope behaviour.
+
+Scope-role mappings are stored in the `client_scope_roles` table and managed
+via direct database access (admin CRUD for mappings is planned for F-12).
+
 ---
 
 ## Tokens

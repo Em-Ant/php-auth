@@ -7,6 +7,7 @@ namespace AuthServer\Repositories;
 use AuthServer\Exceptions\StorageFailed;
 use AuthServer\Interfaces\RoleRepository as IRoleRepo;
 use AuthServer\Models\Role;
+use AuthServer\Models\ScopeRoleMapping;
 
 use function AuthServer\getGuid;
 
@@ -150,6 +151,34 @@ class RoleRepository implements IRoleRepo
             return array_map(fn(array $r) => self::buildFromData($r), $stmt->fetchAll());
         } catch (\PDOException $e) {
             throw new StorageFailed('failed to load roles for user', 0, $e);
+        }
+    }
+
+    public function findScopeRoleMappings(string $clientId): array
+    {
+        try {
+            $stmt = $this->db->prepare(
+                'SELECT csr.scope, r.name AS role_name, c.name AS role_client_name, csr.required
+                 FROM client_scope_roles csr
+                 JOIN roles r ON r.id = csr.role_id
+                 LEFT JOIN clients c ON c.id = r.client_id
+                 WHERE csr.client_id = :client_id
+                 ORDER BY csr.scope, r.name'
+            );
+            $stmt->execute([':client_id' => $clientId]);
+
+            $grouped = [];
+            foreach ($stmt->fetchAll() as $row) {
+                $grouped[$row['scope']][] = new ScopeRoleMapping(
+                    $row['scope'],
+                    $row['role_name'],
+                    $row['role_client_name'],
+                    (bool) $row['required'],
+                );
+            }
+            return $grouped;
+        } catch (\PDOException $e) {
+            throw new StorageFailed('failed to load scope role mappings', 0, $e);
         }
     }
 

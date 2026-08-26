@@ -61,6 +61,9 @@ trait IntegrationFlowTrait
         ]);
         $response = $this->handle($request);
         $body = (string) $response->getBody();
+        if (!str_contains($body, 'action=')) { fwrite(STDERR, "
+DBG status={$response->getStatusCode()} body=" . substr($body,0,300) . "
+"); }
 
         preg_match('/action="[^"]*\?q=([^"]+)"/', $body, $m);
         self::assertNotEmpty($m, 'login_id not found in auth response');

@@ -16,7 +16,6 @@ Single source of truth for what to work on next. **Local by design** (3 machines
 
 | ID | Type | Priority | Size | Blocked by | Why-now | Doc |
 |----|------|----------|------|------------|---------|-----|
-| F-05 | feature | P1 | L | | scope↔role gating at issuance (`roles` tables shipped in F-04) | `scopes/issues/03-…` |
 | F-07 | feature | P2 | M | | audit log table + query | `ROADMAP → Admin API` |
 | F-08 | feature | P2 | S | | ROPC grant | `ROADMAP → Login Methods` |
 | F-09 | feature | P2 | M | | email magic link | `ROADMAP → Login Methods` |

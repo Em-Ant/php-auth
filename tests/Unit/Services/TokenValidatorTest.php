@@ -47,8 +47,7 @@ class TokenValidatorTest extends TestCase
         $this->tokenService = new TokenService(
             self::ISSUER,
             $keyStore,
-            $this->createMock(RoleRepository::class),
-            new ScopeResolver(new NullLogger()),
+            new ScopeResolver(new NullLogger(), $this->createMock(RoleRepository::class)),
         );
         $this->blacklist = $this->createMock(TokenBlacklistRepository::class);
         $this->blacklist->method('exists')->willReturn(false);

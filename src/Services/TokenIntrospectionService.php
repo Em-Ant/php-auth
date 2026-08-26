@@ -77,7 +77,7 @@ class TokenIntrospectionService
         return $this->introspectActiveRefreshToken(
             $decoded,
             $login->getClientId(),
-            $login->getScope()
+            $decoded['scope'] ?? ''
         );
     }
 
@@ -94,7 +94,7 @@ class TokenIntrospectionService
         return $this->introspectActiveRefreshToken(
             $decoded,
             $offline->getClientId(),
-            $offline->getScope()
+            $decoded['scope'] ?? ''
         );
     }
 

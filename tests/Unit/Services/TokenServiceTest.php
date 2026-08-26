@@ -52,11 +52,9 @@ class TokenServiceTest extends TestCase
             }
         };
 
-        $this->roles = $this->createMock(RoleRepository::class);
-        $this->roles->method('findRealmRoleNamesByUserId')->willReturn(['admin', 'basic']);
-        $this->roles->method('findClientRoleNamesByUserId')->willReturn([]);
+        $this->roles = $this->roleRepoWith(['admin', 'basic'], []);
 
-        $this->tokenService = new TokenService(self::ISSUER, $this->keyStore, $this->roles, new ScopeResolver(new NullLogger()));
+        $this->buildTokenService($this->roles);
 
         $this->realm = new Realm(
             id: 'r-id',
@@ -258,13 +256,27 @@ class TokenServiceTest extends TestCase
     /**
      * @param array<string, list<string>> $clientRolesForUser
      */
-    private function userWithClientRoles(array $clientRolesForUser): User
+    private function roleRepoWith(array $realmRoles, array $clientRoles): RoleRepository
     {
         $roles = $this->createMock(RoleRepository::class);
-        $roles->method('findRealmRoleNamesByUserId')->willReturn(['admin', 'basic']);
-        $roles->method('findClientRoleNamesByUserId')->willReturn($clientRolesForUser);
+        $roles->method('findScopeRoleMappings')->willReturn([]);
+        $roles->method('findRealmRoleNamesByUserId')->willReturn($realmRoles);
+        $roles->method('findClientRoleNamesByUserId')->willReturn($clientRoles);
+        return $roles;
+    }
 
-        $this->tokenService = new TokenService(self::ISSUER, $this->keyStore, $roles, new ScopeResolver(new NullLogger()));
+    private function buildTokenService(RoleRepository $roles): void
+    {
+        $this->tokenService = new TokenService(
+            self::ISSUER,
+            $this->keyStore,
+            new ScopeResolver(new NullLogger(), $roles)
+        );
+    }
+
+    private function userWithClientRoles(array $clientRolesForUser): User
+    {
+        $this->buildTokenService($this->roleRepoWith(['admin', 'basic'], $clientRolesForUser));
 
         return new User(
             id: 'user-1',
