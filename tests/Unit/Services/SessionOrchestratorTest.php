@@ -78,9 +78,19 @@ class SessionOrchestratorTest extends TestCase
         );
     }
 
-    public function testCheckExpiryAppliesIdleTimeoutToOriginalCreatedAt(): void
+    public function testCheckExpiryAppliesIdleTimeoutToUpdatedAt(): void
     {
-        // Created 2h ago: within session expiry (86400) but idle timeout (1800) exceeded.
+        // Created 2h ago but updated 10s ago: recently active, should NOT be idle.
+        $created = gmdate('Y-m-d H:i:s', time() - 7200);
+        $updated = gmdate('Y-m-d H:i:s', time() - 10);
+        $session = new Session('s-id', 'r-id', 'u-id', '0', $created, $updated, 'ACTIVE');
+
+        self::assertTrue($this->svc->checkExpiry($session, 86400, 1800));
+    }
+
+    public function testCheckExpiryIdleTimeoutStillExpiresStaleSession(): void
+    {
+        // Created 2h ago, never updated: idle timeout (1800) exceeded.
         $created = gmdate('Y-m-d H:i:s', time() - 7200);
         $session = new Session('s-id', 'r-id', 'u-id', '0', $created, null, 'ACTIVE');
 

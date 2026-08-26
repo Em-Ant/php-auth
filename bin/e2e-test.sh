@@ -654,8 +654,16 @@ ADMIN_CREATED_KID=""
 ADMIN_CREATED_REALM_ID=""
 ADMIN_CREATED_CLIENT_ID=""
 ADMIN_CREATED_USER_ID=""
+ADMIN_CREATED_ROLE_ID=""
+ADMIN_CREATED_CLIENT_ROLE_ID=""
+ADMIN_CREATED_SCOPE_ROLE_SCOPE=""
 
 admin_cleanup() {
+    # Remove scope-role mappings first (FK dependency on roles)
+    [[ -n "${ADMIN_CREATED_SCOPE_ROLE_SCOPE:-}" && -n "${ADMIN_CREATED_ROLE_ID:-}" && -n "${ADMIN_CREATED_CLIENT_ID:-}" ]] \
+        && curl -sf -X DELETE -H "$ADMIN_HDR" "$BASE/admin/clients/$ADMIN_CREATED_CLIENT_ID/scope-roles/$ADMIN_CREATED_SCOPE_ROLE_SCOPE/$ADMIN_CREATED_ROLE_ID" >/dev/null 2>&1 || true
+    [[ -n "${ADMIN_CREATED_ROLE_ID:-}" ]]       && curl -sf -X DELETE -H "$ADMIN_HDR" "$BASE/admin/roles/$ADMIN_CREATED_ROLE_ID" >/dev/null 2>&1 || true
+    [[ -n "${ADMIN_CREATED_CLIENT_ROLE_ID:-}" ]] && curl -sf -X DELETE -H "$ADMIN_HDR" "$BASE/admin/roles/$ADMIN_CREATED_CLIENT_ROLE_ID" >/dev/null 2>&1 || true
     [[ -n "${ADMIN_CREATED_USER_ID:-}" ]]  && curl -sf -X DELETE -H "$ADMIN_HDR" "$BASE/admin/users/$ADMIN_CREATED_USER_ID" >/dev/null 2>&1 || true
     [[ -n "${ADMIN_CREATED_CLIENT_ID:-}" ]] && curl -sf -X DELETE -H "$ADMIN_HDR" "$BASE/admin/clients/$ADMIN_CREATED_CLIENT_ID" >/dev/null 2>&1 || true
     [[ -n "${ADMIN_CREATED_REALM_ID:-}" ]] && curl -sf -X DELETE -H "$ADMIN_HDR" "$BASE/admin/realms/$ADMIN_CREATED_REALM_ID" >/dev/null 2>&1 || true
@@ -830,6 +838,178 @@ BAD_REALM_USER=$(curl -sS -o /dev/null -w "%{http_code}" -X POST -H "$ADMIN_HDR"
 [[ "$BAD_REALM_USER" = "400" ]] && ok "User with unknown realm returns 400" || fail "Expected 400, got $BAD_REALM_USER"
 
 # ═══════════════════════════════════════════════════════════════
+# Admin Roles CRUD (F-12)
+# ═══════════════════════════════════════════════════════════════
+
+# ── Step 18b: Admin roles CRUD ──────────────────────────────
+echo ""
+echo "=== Step 18b: Admin — roles CRUD ==="
+
+# List seeded roles
+ROLES_LIST=$(curl -sS -H "$ADMIN_HDR" "$BASE/admin/roles?realm_id=$ADMIN_CREATED_REALM_ID")
+ROLES_TOTAL=$(echo "$ROLES_LIST" | python3 -c "import sys,json; print(json.load(sys.stdin).get('total',0))" 2>/dev/null || echo 0)
+[[ "$ROLES_TOTAL" -ge 2 ]] && ok "List roles returns seeded roles ($ROLES_TOTAL found)" || fail "Expected >=2 seeded roles, got $ROLES_TOTAL"
+
+# Create realm role
+ROLE_RESP=$(curl -sS -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"name":"e2e-editor","realm_id":"'"$ADMIN_CREATED_REALM_ID"'","description":"E2E test role"}' \
+    "$BASE/admin/roles")
+ADMIN_CREATED_ROLE_ID=$(echo "$ROLE_RESP" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
+ROLE_NAME=$(echo "$ROLE_RESP" | sed -n 's/.*"name":"\([^"]*\)".*/\1/p')
+
+[[ -n "$ADMIN_CREATED_ROLE_ID" ]] && ok "Created role: $ROLE_NAME (${ADMIN_CREATED_ROLE_ID:0:8}...)" || { fail "No role id returned"; admin_cleanup; exit 1; }
+
+# Read role
+READ_ROLE=$(curl -sS -H "$ADMIN_HDR" "$BASE/admin/roles/$ADMIN_CREATED_ROLE_ID")
+READ_ROLE_NAME=$(echo "$READ_ROLE" | sed -n 's/.*"name":"\([^"]*\)".*/\1/p')
+[[ "$READ_ROLE_NAME" = "e2e-editor" ]] && ok "Read role returns correct data" || fail "Read role name mismatch: $READ_ROLE_NAME"
+
+# Update role description
+UPDATE_ROLE=$(curl -sS -X PUT -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"description":"Updated description"}' \
+    "$BASE/admin/roles/$ADMIN_CREATED_ROLE_ID")
+UPDATED_DESC=$(echo "$UPDATE_ROLE" | sed -n 's/.*"description":"\([^"]*\)".*/\1/p')
+[[ "$UPDATED_DESC" = "Updated description" ]] && ok "Updated role description" || fail "Expected 'Updated description', got '$UPDATED_DESC'"
+
+# Duplicate role name returns 409
+DUP_ROLE=$(curl -sS -o /dev/null -w "%{http_code}" -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"name":"e2e-editor","realm_id":"'"$ADMIN_CREATED_REALM_ID"'"}' \
+    "$BASE/admin/roles")
+[[ "$DUP_ROLE" = "409" ]] && ok "Duplicate role name returns 409" || fail "Expected 409, got $DUP_ROLE"
+
+# Unknown realm returns 400
+BAD_REALM_ROLE=$(curl -sS -o /dev/null -w "%{http_code}" -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"name":"ghost","realm_id":"nonexistent"}' \
+    "$BASE/admin/roles")
+[[ "$BAD_REALM_ROLE" = "400" ]] && ok "Role with unknown realm returns 400" || fail "Expected 400, got $BAD_REALM_ROLE"
+
+# Missing role returns 404
+MISSING_ROLE=$(curl -sS -o /dev/null -w "%{http_code}" -H "$ADMIN_HDR" "$BASE/admin/roles/nonexistent")
+[[ "$MISSING_ROLE" = "404" ]] && ok "Missing role returns 404" || fail "Expected 404, got $MISSING_ROLE"
+
+# Create client role
+CLIENT_ROLE_RESP=$(curl -sS -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"name":"e2e-client-role","realm_id":"'"$ADMIN_CREATED_REALM_ID"'","client_id":"'"$ADMIN_CREATED_CLIENT_ID"'"}' \
+    "$BASE/admin/roles")
+ADMIN_CREATED_CLIENT_ROLE_ID=$(echo "$CLIENT_ROLE_RESP" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
+[[ -n "$ADMIN_CREATED_CLIENT_ROLE_ID" ]] && ok "Created client role: ${ADMIN_CREATED_CLIENT_ROLE_ID:0:8}..." || { fail "No client role id"; admin_cleanup; exit 1; }
+
+# Delete role (not assigned → 204)
+DEL_ROLE=$(curl -sS -o /dev/null -w "%{http_code}" -X DELETE -H "$ADMIN_HDR" "$BASE/admin/roles/$ADMIN_CREATED_CLIENT_ROLE_ID")
+[[ "$DEL_ROLE" = "204" ]] && ok "Deleted unassigned role → 204" || fail "Expected 204, got $DEL_ROLE"
+ADMIN_CREATED_CLIENT_ROLE_ID=""
+
+# ── Step 18c: Admin user role assignments ───────────────────
+echo ""
+echo "=== Step 18c: Admin — user role assignments ==="
+
+# List user roles
+USER_ROLES=$(curl -sS -H "$ADMIN_HDR" "$BASE/admin/users/$ADMIN_CREATED_USER_ID/roles")
+USER_ROLES_COUNT=$(echo "$USER_ROLES" | python3 -c "import sys,json; print(len(json.load(sys.stdin)['items']))" 2>/dev/null || echo 0)
+[[ "$USER_ROLES_COUNT" -ge 1 ]] && ok "List user roles returns $USER_ROLES_COUNT role(s)" || fail "Expected >=1 role, got $USER_ROLES_COUNT"
+
+# Assign role to user
+ASSIGN_RESP=$(curl -sS -o /dev/null -w "%{http_code}" -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"role_id":"'"$ADMIN_CREATED_ROLE_ID"'"}' \
+    "$BASE/admin/users/$ADMIN_CREATED_USER_ID/roles")
+[[ "$ASSIGN_RESP" = "201" ]] && ok "Assigned role to user → 201" || fail "Expected 201, got $ASSIGN_RESP"
+
+# Verify assignment
+USER_ROLES_AFTER=$(curl -sS -H "$ADMIN_HDR" "$BASE/admin/users/$ADMIN_CREATED_USER_ID/roles")
+echo "$USER_ROLES_AFTER" | grep -q "$ADMIN_CREATED_ROLE_ID" \
+    && ok "Role appears in user's roles after assignment" \
+    || fail "Role not found in user's roles after assignment"
+
+# Assign same role again (idempotent via INSERT OR IGNORE)
+DUP_ASSIGN=$(curl -sS -o /dev/null -w "%{http_code}" -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"role_id":"'"$ADMIN_CREATED_ROLE_ID"'"}' \
+    "$BASE/admin/users/$ADMIN_CREATED_USER_ID/roles")
+[[ "$DUP_ASSIGN" = "201" ]] && ok "Duplicate assignment is idempotent → 201" || fail "Expected 201, got $DUP_ASSIGN"
+
+# Assign unknown role returns 400
+BAD_ASSIGN=$(curl -sS -o /dev/null -w "%{http_code}" -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"role_id":"nonexistent"}' \
+    "$BASE/admin/users/$ADMIN_CREATED_USER_ID/roles")
+[[ "$BAD_ASSIGN" = "400" ]] && ok "Assign unknown role returns 400" || fail "Expected 400, got $BAD_ASSIGN"
+
+# Unassign role from user
+UNASSIGN=$(curl -sS -o /dev/null -w "%{http_code}" -X DELETE -H "$ADMIN_HDR" \
+    "$BASE/admin/users/$ADMIN_CREATED_USER_ID/roles/$ADMIN_CREATED_ROLE_ID")
+[[ "$UNASSIGN" = "204" ]] && ok "Unassigned role from user → 204" || fail "Expected 204, got $UNASSIGN"
+
+# Verify unassignment
+USER_ROLES_UNASSIGNED=$(curl -sS -H "$ADMIN_HDR" "$BASE/admin/users/$ADMIN_CREATED_USER_ID/roles")
+echo "$USER_ROLES_UNASSIGNED" | grep -q "$ADMIN_CREATED_ROLE_ID" \
+    && fail "Role should not appear after unassignment" \
+    || ok "Role not in user's roles after unassignment"
+
+# ── Step 18d: Admin scope-role mappings ─────────────────────
+echo ""
+echo "=== Step 18d: Admin — scope-role mappings ==="
+
+# List scope-role mappings (empty for new client)
+SCOPE_LIST=$(curl -sS -H "$ADMIN_HDR" "$BASE/admin/clients/$ADMIN_CREATED_CLIENT_ID/scope-roles")
+SCOPE_COUNT=$(echo "$SCOPE_LIST" | python3 -c "import sys,json; print(len(json.load(sys.stdin)['items']))" 2>/dev/null || echo 0)
+[[ "$SCOPE_COUNT" -eq 0 ]] && ok "List scope-role mappings returns empty for new client" || fail "Expected 0 mappings, got $SCOPE_COUNT"
+
+# Create scope-role mapping
+SCOPE_MAP_RESP=$(curl -sS -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"scope":"profile","role_id":"'"$ADMIN_CREATED_ROLE_ID"'","required":true}' \
+    "$BASE/admin/clients/$ADMIN_CREATED_CLIENT_ID/scope-roles")
+SCOPE_MAP_SCOPE=$(echo "$SCOPE_MAP_RESP" | sed -n 's/.*"scope":"\([^"]*\)".*/\1/p')
+SCOPE_MAP_REQUIRED=$(echo "$SCOPE_MAP_RESP" | grep -c '"required":true' || true)
+
+[[ "$SCOPE_MAP_SCOPE" = "profile" ]] && ok "Created scope-role mapping: profile → role" || fail "Scope mismatch: $SCOPE_MAP_SCOPE"
+[[ "$SCOPE_MAP_REQUIRED" -gt 0 ]] && ok "Mapping required=true" || fail "required should be true"
+ADMIN_CREATED_SCOPE_ROLE_SCOPE="profile"
+
+# List scope-role mappings (now has 1)
+SCOPE_LIST_AFTER=$(curl -sS -H "$ADMIN_HDR" "$BASE/admin/clients/$ADMIN_CREATED_CLIENT_ID/scope-roles")
+SCOPE_COUNT_AFTER=$(echo "$SCOPE_LIST_AFTER" | python3 -c "import sys,json; print(len(json.load(sys.stdin)['items']))" 2>/dev/null || echo 0)
+[[ "$SCOPE_COUNT_AFTER" -ge 1 ]] && ok "List scope-role mappings returns $SCOPE_COUNT_AFTER mapping(s)" || fail "Expected >=1, got $SCOPE_COUNT_AFTER"
+
+# Duplicate mapping returns 409
+DUP_SCOPE=$(curl -sS -o /dev/null -w "%{http_code}" -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"scope":"profile","role_id":"'"$ADMIN_CREATED_ROLE_ID"'"}' \
+    "$BASE/admin/clients/$ADMIN_CREATED_CLIENT_ID/scope-roles")
+[[ "$DUP_SCOPE" = "409" ]] && ok "Duplicate scope-role mapping returns 409" || fail "Expected 409, got $DUP_SCOPE"
+
+# Unknown client returns 404
+BAD_CLIENT_SCOPE=$(curl -sS -o /dev/null -w "%{http_code}" -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"scope":"admin","role_id":"'"$ADMIN_CREATED_ROLE_ID"'"}' \
+    "$BASE/admin/clients/nonexistent/scope-roles")
+[[ "$BAD_CLIENT_SCOPE" = "404" ]] && ok "Scope-role mapping on unknown client returns 404" || fail "Expected 404, got $BAD_CLIENT_SCOPE"
+
+# Unknown role returns 400
+BAD_ROLE_SCOPE=$(curl -sS -o /dev/null -w "%{http_code}" -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"scope":"admin","role_id":"nonexistent"}' \
+    "$BASE/admin/clients/$ADMIN_CREATED_CLIENT_ID/scope-roles")
+[[ "$BAD_ROLE_SCOPE" = "400" ]] && ok "Scope-role mapping with unknown role returns 400" || fail "Expected 400, got $BAD_ROLE_SCOPE"
+
+# Update mapping (change required to false)
+UPDATE_SCOPE=$(curl -sS -X PUT -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"required":false}' \
+    "$BASE/admin/clients/$ADMIN_CREATED_CLIENT_ID/scope-roles/profile/$ADMIN_CREATED_ROLE_ID")
+UPDATED_REQUIRED=$(echo "$UPDATE_SCOPE" | grep -c '"required":false' || true)
+[[ "$UPDATED_REQUIRED" -gt 0 ]] && ok "Updated mapping required to false" || fail "Failed to update mapping"
+
+# Delete mapping
+DEL_SCOPE=$(curl -sS -o /dev/null -w "%{http_code}" -X DELETE -H "$ADMIN_HDR" \
+    "$BASE/admin/clients/$ADMIN_CREATED_CLIENT_ID/scope-roles/profile/$ADMIN_CREATED_ROLE_ID")
+[[ "$DEL_SCOPE" = "204" ]] && ok "Deleted scope-role mapping → 204" || fail "Expected 204, got $DEL_SCOPE"
+ADMIN_CREATED_SCOPE_ROLE_SCOPE=""
+
+# Verify empty again
+SCOPE_LIST_EMPTY=$(curl -sS -H "$ADMIN_HDR" "$BASE/admin/clients/$ADMIN_CREATED_CLIENT_ID/scope-roles")
+SCOPE_COUNT_EMPTY=$(echo "$SCOPE_LIST_EMPTY" | python3 -c "import sys,json; print(len(json.load(sys.stdin)['items']))" 2>/dev/null || echo 0)
+[[ "$SCOPE_COUNT_EMPTY" -eq 0 ]] && ok "Scope-role mappings empty after delete" || fail "Expected 0, got $SCOPE_COUNT_EMPTY"
+
+# Delete non-existent mapping is idempotent
+IDEMP_DEL=$(curl -sS -o /dev/null -w "%{http_code}" -X DELETE -H "$ADMIN_HDR" \
+    "$BASE/admin/clients/$ADMIN_CREATED_CLIENT_ID/scope-roles/nonexistent/$ADMIN_CREATED_ROLE_ID")
+[[ "$IDEMP_DEL" = "204" ]] && ok "Delete non-existent mapping is idempotent → 204" || fail "Expected 204, got $IDEMP_DEL"
+
+# ═══════════════════════════════════════════════════════════════
 # OIDC login using admin-created realm / client / user
 # ═══════════════════════════════════════════════════════════════
 
@@ -965,6 +1145,427 @@ ADMIN_REVOKED=$(curl -sS -X POST \
 [[ "$ADMIN_REVOKED" -gt 0 ]] && ok "Revoked refresh token rejected" || fail "Revoked refresh token was accepted"
 
 rm -f "$ADMIN_OIDC_COOKIE" "$ADMIN_OIDC_HEADERS"
+
+# ── Step 24a: Scope-role mapping (F-05) ──────────────────────
+echo ""
+echo "=== Step 24a: Scope-role mapping — hybrid semantics (F-05) ==="
+
+# Fresh rate-limit headroom
+sqlite3 db/data.db "DELETE FROM rate_limits;" 2>/dev/null || true
+
+# Helper: decode JWT payload as JSON
+decode_jwt_payload() {
+    echo "$1" | cut -d. -f2 | python3 -c "
+import sys, base64, json
+payload = sys.stdin.read().strip()
+payload += '=' * (4 - len(payload) % 4)
+print(json.dumps(json.loads(base64.urlsafe_b64decode(payload))))
+" 2>/dev/null || echo "{}"
+}
+
+# ── 24a-1: Full-scope fallback (unmapped client) ───────────
+echo ""
+echo "--- 24a-1: Full-scope fallback (no mappings) ---"
+
+# The admin-created client has NO scope-role mappings, so it uses full-scope
+# fallback: all held roles are emitted.
+FULLSCOPE_COOKIE=$(mktemp)
+FULLSCOPE_HEADERS=$(mktemp)
+
+FULLSCOPE_AUTH=$(curl -sS -c "$FULLSCOPE_COOKIE" \
+    "$ADMIN_AUTH_BASE/auth?client_id=$ADMIN_CLIENT_NAME&redirect_uri=$ADMIN_REDIRECT_URI&response_type=code&response_mode=query&scope=openid&state=f05-full&nonce=f05-full")
+
+FULLSCOPE_LOGIN_ID=$(echo "$FULLSCOPE_AUTH" | sed -n 's/.*action="[^"]*?q=\([^"]*\)".*/\1/p')
+FULLSCOPE_CSRF=$(echo "$FULLSCOPE_AUTH" | sed -n 's/.*name="csrf_token"\s*value="\([^"]*\)".*/\1/p')
+
+> "$FULLSCOPE_HEADERS"
+FULLSCOPE_LOGIN_CODE=$(curl -sS -c "$FULLSCOPE_COOKIE" -b "$FULLSCOPE_COOKIE" \
+    -D "$FULLSCOPE_HEADERS" -o /dev/null -w "%{http_code}" \
+    -X POST \
+    -d "email=${ADMIN_EMAIL}&password=${ADMIN_PASSWORD}&csrf_token=${FULLSCOPE_CSRF}" \
+    "$ADMIN_AUTH_BASE/login-actions/authenticate?q=${FULLSCOPE_LOGIN_ID}")
+
+[[ "$FULLSCOPE_LOGIN_CODE" = "302" ]] && ok "Full-scope auth: login 302" || { fail "Full-scope auth: expected 302, got $FULLSCOPE_LOGIN_CODE"; rm -f "$FULLSCOPE_COOKIE" "$FULLSCOPE_HEADERS"; }
+
+FULLSCOPE_LOCATION=$(grep -i '^location:' "$FULLSCOPE_HEADERS" | sed 's/.*location: //I' | tr -d '\r\n')
+FULLSCOPE_CODE=$(echo "$FULLSCOPE_LOCATION" | sed 's/.*code=\([^&]*\).*/\1/')
+
+FULLSCOPE_TOKENS=$(curl -sS -X POST \
+    -d "grant_type=authorization_code&client_id=${ADMIN_CLIENT_NAME}&code=${FULLSCOPE_CODE}&redirect_uri=${ADMIN_REDIRECT_URI}" \
+    "$ADMIN_AUTH_BASE/token")
+
+FULLSCOPE_AT=$(echo "$FULLSCOPE_TOKENS" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+[[ -n "$FULLSCOPE_AT" ]] && ok "Full-scope: got access_token" || { fail "Full-scope: no access_token"; rm -f "$FULLSCOPE_COOKIE" "$FULLSCOPE_HEADERS"; }
+
+FULLSCOPE_PAYLOAD=$(decode_jwt_payload "$FULLSCOPE_AT")
+echo "$FULLSCOPE_PAYLOAD" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+roles = d.get('realm_access', {}).get('roles', [])
+print(' '.join(sorted(roles)))
+" 2>/dev/null | grep -q 'admin' \
+    && ok "Full-scope: realm_access.roles contains admin" \
+    || fail "Full-scope: realm_access.roles missing admin"
+
+echo "$FULLSCOPE_PAYLOAD" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+roles = d.get('realm_access', {}).get('roles', [])
+print(' '.join(sorted(roles)))
+" 2>/dev/null | grep -q 'basic' \
+    && ok "Full-scope: realm_access.roles contains basic" \
+    || fail "Full-scope: realm_access.roles missing basic"
+
+rm -f "$FULLSCOPE_COOKIE" "$FULLSCOPE_HEADERS"
+
+# ── 24a-2: Mapped-only client ──────────────────────────────
+echo ""
+echo "--- 24a-2: Mapped-only (scope-role mappings active) ---"
+
+# Create a second client for mapped-only testing
+MAPPED_CLIENT_JSON=$(curl -sS -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"name":"e2e-mapped-client","realm_id":"'"$ADMIN_CREATED_REALM_ID"'","uri":"https://e2e-mapped.example.com","require_auth":false}' \
+    "$BASE/admin/clients")
+MAPPED_CLIENT_ID=$(echo "$MAPPED_CLIENT_JSON" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
+[[ -n "$MAPPED_CLIENT_ID" ]] && ok "Created mapped client: ${MAPPED_CLIENT_ID:0:8}..." || { fail "No mapped client id"; exit 1; }
+
+# Look up role IDs in the admin-created realm
+ADMIN_REALM_ID="$ADMIN_CREATED_REALM_ID"
+ADMIN_ROLE_ID=$(sqlite3 db/data.db "SELECT id FROM roles WHERE name='admin' AND realm_id='$ADMIN_REALM_ID' AND client_id IS NULL;" 2>/dev/null || true)
+BASIC_ROLE_ID=$(sqlite3 db/data.db "SELECT id FROM roles WHERE name='basic' AND realm_id='$ADMIN_REALM_ID' AND client_id IS NULL;" 2>/dev/null || true)
+
+[[ -n "$ADMIN_ROLE_ID" ]] && ok "Found admin role_id: ${ADMIN_ROLE_ID:0:8}..." || { fail "admin role not found"; exit 1; }
+[[ -n "$BASIC_ROLE_ID" ]] && ok "Found basic role_id: ${BASIC_ROLE_ID:0:8}..." || { fail "basic role not found"; exit 1; }
+
+# Map scope "openid" → realm role "admin" (required=0, included if held)
+# Map scope "profile" → realm role "basic" (required=0, included if held)
+curl -sf -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"scope":"openid","role_id":"'"$ADMIN_ROLE_ID"'","required":false}' \
+    "$BASE/admin/clients/$MAPPED_CLIENT_ID/scope-roles" >/dev/null
+curl -sf -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"scope":"profile","role_id":"'"$BASIC_ROLE_ID"'","required":false}' \
+    "$BASE/admin/clients/$MAPPED_CLIENT_ID/scope-roles" >/dev/null
+ok "Inserted scope-role mappings for mapped client (openid→admin, profile→basic) via admin API"
+
+# Run OIDC flow on mapped client with scope=openid profile
+MAPPED_COOKIE=$(mktemp)
+MAPPED_HEADERS=$(mktemp)
+
+MAPPED_AUTH=$(curl -sS -c "$MAPPED_COOKIE" \
+    "$ADMIN_AUTH_BASE/auth?client_id=e2e-mapped-client&redirect_uri=https://e2e-mapped.example.com&response_type=code&response_mode=query&scope=openid%20profile&state=f05-map&nonce=f05-map")
+
+MAPPED_LOGIN_ID=$(echo "$MAPPED_AUTH" | sed -n 's/.*action="[^"]*?q=\([^"]*\)".*/\1/p')
+MAPPED_CSRF=$(echo "$MAPPED_AUTH" | sed -n 's/.*name="csrf_token"\s*value="\([^"]*\)".*/\1/p')
+
+> "$MAPPED_HEADERS"
+MAPPED_LOGIN_CODE=$(curl -sS -c "$MAPPED_COOKIE" -b "$MAPPED_COOKIE" \
+    -D "$MAPPED_HEADERS" -o /dev/null -w "%{http_code}" \
+    -X POST \
+    -d "email=${ADMIN_EMAIL}&password=${ADMIN_PASSWORD}&csrf_token=${MAPPED_CSRF}" \
+    "$ADMIN_AUTH_BASE/login-actions/authenticate?q=${MAPPED_LOGIN_ID}")
+
+[[ "$MAPPED_LOGIN_CODE" = "302" ]] && ok "Mapped auth: login 302" || { fail "Mapped auth: expected 302, got $MAPPED_LOGIN_CODE"; rm -f "$MAPPED_COOKIE" "$MAPPED_HEADERS"; }
+
+MAPPED_LOCATION=$(grep -i '^location:' "$MAPPED_HEADERS" | sed 's/.*location: //I' | tr -d '\r\n')
+MAPPED_CODE=$(echo "$MAPPED_LOCATION" | sed 's/.*code=\([^&]*\).*/\1/')
+
+MAPPED_TOKENS=$(curl -sS -X POST \
+    -d "grant_type=authorization_code&client_id=e2e-mapped-client&code=${MAPPED_CODE}&redirect_uri=https://e2e-mapped.example.com" \
+    "$ADMIN_AUTH_BASE/token")
+
+MAPPED_AT=$(echo "$MAPPED_TOKENS" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+[[ -n "$MAPPED_AT" ]] && ok "Mapped: got access_token" || { fail "Mapped: no access_token"; rm -f "$MAPPED_COOKIE" "$MAPPED_HEADERS"; }
+
+MAPPED_PAYLOAD=$(decode_jwt_payload "$MAPPED_AT")
+
+# Only mapped roles the user holds should appear in realm_access
+echo "$MAPPED_PAYLOAD" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+roles = d.get('realm_access', {}).get('roles', [])
+print(' '.join(sorted(roles)))
+" 2>/dev/null | grep -q 'admin' \
+    && ok "Mapped: realm_access.roles contains admin (mapped, required=0)" \
+    || fail "Mapped: realm_access.roles missing admin"
+
+echo "$MAPPED_PAYLOAD" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+roles = d.get('realm_access', {}).get('roles', [])
+print(' '.join(sorted(roles)))
+" 2>/dev/null | grep -q 'basic' \
+    && ok "Mapped: realm_access.roles contains basic (mapped, required=0)" \
+    || fail "Mapped: realm_access.roles missing basic"
+
+# Scope should be narrowed to what was requested and mapped
+echo "$MAPPED_TOKENS" | grep -q '"scope":"openid profile"' \
+    && ok "Mapped: scope is openid profile" \
+    || fail "Mapped: unexpected scope in token response"
+
+rm -f "$MAPPED_COOKIE" "$MAPPED_HEADERS"
+
+# ── 24a-3: Required scope gating ───────────────────────────
+echo ""
+echo "--- 24a-3: Required scope gating (scope dropped when role missing) ---"
+
+# Create a third client with a required mapping for a role the user lacks
+REQUIRED_CLIENT_JSON=$(curl -sS -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"name":"e2e-required-client","realm_id":"'"$ADMIN_CREATED_REALM_ID"'","uri":"https://e2e-required.example.com","require_auth":false}' \
+    "$BASE/admin/clients")
+REQUIRED_CLIENT_ID=$(echo "$REQUIRED_CLIENT_JSON" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
+[[ -n "$REQUIRED_CLIENT_ID" ]] && ok "Created required client: ${REQUIRED_CLIENT_ID:0:8}..." || { fail "No required client id"; exit 1; }
+
+# Map scope "email" → realm role "admin" (required=1)
+# The user HAS admin, so this scope should be kept
+curl -sf -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"scope":"email","role_id":"'"$ADMIN_ROLE_ID"'","required":true}' \
+    "$BASE/admin/clients/$REQUIRED_CLIENT_ID/scope-roles" >/dev/null
+ok "Inserted required mapping: email→admin (required=1) via admin API"
+
+# Run OIDC flow with scope=openid email — user has admin, so email should be kept
+REQ_COOKIE=$(mktemp)
+REQ_HEADERS=$(mktemp)
+
+REQ_AUTH=$(curl -sS -c "$REQ_COOKIE" \
+    "$ADMIN_AUTH_BASE/auth?client_id=e2e-required-client&redirect_uri=https://e2e-required.example.com&response_type=code&response_mode=query&scope=openid%20email&state=f05-req&nonce=f05-req")
+
+REQ_LOGIN_ID=$(echo "$REQ_AUTH" | sed -n 's/.*action="[^"]*?q=\([^"]*\)".*/\1/p')
+REQ_CSRF=$(echo "$REQ_AUTH" | sed -n 's/.*name="csrf_token"\s*value="\([^"]*\)".*/\1/p')
+
+> "$REQ_HEADERS"
+REQ_LOGIN_CODE=$(curl -sS -c "$REQ_COOKIE" -b "$REQ_COOKIE" \
+    -D "$REQ_HEADERS" -o /dev/null -w "%{http_code}" \
+    -X POST \
+    -d "email=${ADMIN_EMAIL}&password=${ADMIN_PASSWORD}&csrf_token=${REQ_CSRF}" \
+    "$ADMIN_AUTH_BASE/login-actions/authenticate?q=${REQ_LOGIN_ID}")
+
+[[ "$REQ_LOGIN_CODE" = "302" ]] && ok "Required auth: login 302" || { fail "Required auth: expected 302, got $REQ_LOGIN_CODE"; rm -f "$REQ_COOKIE" "$REQ_HEADERS"; }
+
+REQ_LOCATION=$(grep -i '^location:' "$REQ_HEADERS" | sed 's/.*location: //I' | tr -d '\r\n')
+REQ_CODE=$(echo "$REQ_LOCATION" | sed 's/.*code=\([^&]*\).*/\1/')
+
+REQ_TOKENS=$(curl -sS -X POST \
+    -d "grant_type=authorization_code&client_id=e2e-required-client&code=${REQ_CODE}&redirect_uri=https://e2e-required.example.com" \
+    "$ADMIN_AUTH_BASE/token")
+
+REQ_AT=$(echo "$REQ_TOKENS" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+[[ -n "$REQ_AT" ]] && ok "Required: got access_token" || { fail "Required: no access_token"; rm -f "$REQ_COOKIE" "$REQ_HEADERS"; }
+
+REQ_PAYLOAD=$(decode_jwt_payload "$REQ_AT")
+
+# User has admin role → required mapping satisfied → email scope kept
+echo "$REQ_PAYLOAD" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+roles = d.get('realm_access', {}).get('roles', [])
+print(' '.join(sorted(roles)))
+" 2>/dev/null | grep -q 'admin' \
+    && ok "Required: realm_access.roles contains admin (required role held)" \
+    || fail "Required: realm_access.roles missing admin"
+
+echo "$REQ_TOKENS" | grep -q '"scope":"openid email"' \
+    && ok "Required: scope is openid email (required role held, scope kept)" \
+    || fail "Required: unexpected scope in token response"
+
+rm -f "$REQ_COOKIE" "$REQ_HEADERS"
+
+# ── 24a-4: Required scope dropped (user lacks role) ─────────
+echo ""
+echo "--- 24a-4: Required scope dropped (user lacks required role) ---"
+
+# Create a limited user with only "basic" role (not "admin")
+LIMITED_USER_JSON=$(curl -sS -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"realm_id":"'"$ADMIN_CREATED_REALM_ID"'","email":"e2e-limited@example.com","password":"secret456","name":"E2E Limited User","realm_roles":"basic"}' \
+    "$BASE/admin/users")
+LIMITED_USER_ID=$(echo "$LIMITED_USER_JSON" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
+[[ -n "$LIMITED_USER_ID" ]] && ok "Created limited user: ${LIMITED_USER_ID:0:8}..." || { fail "No limited user id"; exit 1; }
+
+# The required-client has email→admin (required=1).
+# The limited user does NOT have admin → scope "email" should be dropped.
+LIM_COOKIE=$(mktemp)
+LIM_HEADERS=$(mktemp)
+
+LIM_AUTH=$(curl -sS -c "$LIM_COOKIE" \
+    "$ADMIN_AUTH_BASE/auth?client_id=e2e-required-client&redirect_uri=https://e2e-required.example.com&response_type=code&response_mode=query&scope=openid%20email&state=f05-lim&nonce=f05-lim")
+
+LIM_LOGIN_ID=$(echo "$LIM_AUTH" | sed -n 's/.*action="[^"]*?q=\([^"]*\)".*/\1/p')
+LIM_CSRF=$(echo "$LIM_AUTH" | sed -n 's/.*name="csrf_token"\s*value="\([^"]*\)".*/\1/p')
+
+> "$LIM_HEADERS"
+LIM_LOGIN_CODE=$(curl -sS -c "$LIM_COOKIE" -b "$LIM_COOKIE" \
+    -D "$LIM_HEADERS" -o /dev/null -w "%{http_code}" \
+    -X POST \
+    -d "email=e2e-limited@example.com&password=secret456&csrf_token=${LIM_CSRF}" \
+    "$ADMIN_AUTH_BASE/login-actions/authenticate?q=${LIM_LOGIN_ID}")
+
+[[ "$LIM_LOGIN_CODE" = "302" ]] && ok "Limited auth: login 302" || { fail "Limited auth: expected 302, got $LIM_LOGIN_CODE"; rm -f "$LIM_COOKIE" "$LIM_HEADERS"; }
+
+LIM_LOCATION=$(grep -i '^location:' "$LIM_HEADERS" | sed 's/.*location: //I' | tr -d '\r\n')
+LIM_CODE=$(echo "$LIM_LOCATION" | sed 's/.*code=\([^&]*\).*/\1/')
+
+LIM_TOKENS=$(curl -sS -X POST \
+    -d "grant_type=authorization_code&client_id=e2e-required-client&code=${LIM_CODE}&redirect_uri=https://e2e-required.example.com" \
+    "$ADMIN_AUTH_BASE/token")
+
+LIM_AT=$(echo "$LIM_TOKENS" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+[[ -n "$LIM_AT" ]] && ok "Limited: got access_token" || { fail "Limited: no access_token"; rm -f "$LIM_COOKIE" "$LIM_HEADERS"; }
+
+LIM_PAYLOAD=$(decode_jwt_payload "$LIM_AT")
+
+# Scope "email" should be dropped because the limited user lacks the required "admin" role
+echo "$LIM_TOKENS" | grep -q '"scope":"openid email"' \
+    && fail "Limited: scope should NOT contain email (required role missing)" \
+    || ok "Limited: scope does not contain email (required role missing → scope dropped)"
+
+echo "$LIM_TOKENS" | grep -q '"scope":"openid"' \
+    && ok "Limited: scope is openid (email dropped)" \
+    || fail "Limited: unexpected scope in token response"
+
+# The limited user has "basic" role but it's not mapped to any scope on this
+# client, and "email" scope is dropped (required "admin" role missing).
+# So realm_access.roles should be empty.
+echo "$LIM_PAYLOAD" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+roles = d.get('realm_access', {}).get('roles', [])
+print(' '.join(sorted(roles)))
+" 2>/dev/null | grep -q 'admin' \
+    && fail "Limited: realm_access.roles should NOT contain admin" \
+    || ok "Limited: realm_access.roles does not contain admin (user lacks it)"
+
+echo "$LIM_PAYLOAD" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+roles = d.get('realm_access', {}).get('roles', [])
+print(len(roles))
+" 2>/dev/null | grep -q '^0$' \
+    && ok "Limited: realm_access.roles is empty (no mapped roles held)" \
+    || fail "Limited: realm_access.roles should be empty"
+
+rm -f "$LIM_COOKIE" "$LIM_HEADERS"
+
+# ── 24a-5: resource_access client-namespace filtering ──────
+echo ""
+echo "--- 24a-5: resource_access client-namespace filtering ---"
+
+# Create a client role for the mapped client via admin API
+MAPPED_CLIENT_ROLE_JSON=$(curl -sS -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"name":"app-user","realm_id":"'"$ADMIN_REALM_ID"'","client_id":"'"$MAPPED_CLIENT_ID"'"}' \
+    "$BASE/admin/roles")
+MAPPED_CLIENT_ROLE_ID=$(echo "$MAPPED_CLIENT_ROLE_JSON" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
+ok "Created client role 'app-user' on mapped client via admin API"
+
+# Assign the client role to the admin user
+sqlite3 db/data.db "INSERT INTO user_role_assignments (user_id, role_id) VALUES ('$ADMIN_CREATED_USER_ID', '$MAPPED_CLIENT_ROLE_ID');"
+ok "Assigned client role 'app-user' to admin user"
+
+# Map scope "email" → client role "app-user" (required=0, on mapped client)
+curl -sf -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"scope":"email","role_id":"'"$MAPPED_CLIENT_ROLE_ID"'","required":false}' \
+    "$BASE/admin/clients/$MAPPED_CLIENT_ID/scope-roles" >/dev/null
+ok "Inserted mapping: email→app-user (client role, required=0) via admin API"
+
+# Run OIDC flow on mapped client with scope=openid profile email
+NS_COOKIE=$(mktemp)
+NS_HEADERS=$(mktemp)
+
+NS_AUTH=$(curl -sS -c "$NS_COOKIE" \
+    "$ADMIN_AUTH_BASE/auth?client_id=e2e-mapped-client&redirect_uri=https://e2e-mapped.example.com&response_type=code&response_mode=query&scope=openid%20profile%20email&state=f05-ns&nonce=f05-ns")
+
+NS_LOGIN_ID=$(echo "$NS_AUTH" | sed -n 's/.*action="[^"]*?q=\([^"]*\)".*/\1/p')
+NS_CSRF=$(echo "$NS_AUTH" | sed -n 's/.*name="csrf_token"\s*value="\([^"]*\)".*/\1/p')
+
+> "$NS_HEADERS"
+NS_LOGIN_CODE=$(curl -sS -c "$NS_COOKIE" -b "$NS_COOKIE" \
+    -D "$NS_HEADERS" -o /dev/null -w "%{http_code}" \
+    -X POST \
+    -d "email=${ADMIN_EMAIL}&password=${ADMIN_PASSWORD}&csrf_token=${NS_CSRF}" \
+    "$ADMIN_AUTH_BASE/login-actions/authenticate?q=${NS_LOGIN_ID}")
+
+[[ "$NS_LOGIN_CODE" = "302" ]] && ok "NS auth: login 302" || { fail "NS auth: expected 302, got $NS_LOGIN_CODE"; rm -f "$NS_COOKIE" "$NS_HEADERS"; }
+
+NS_LOCATION=$(grep -i '^location:' "$NS_HEADERS" | sed 's/.*location: //I' | tr -d '\r\n')
+NS_CODE=$(echo "$NS_LOCATION" | sed 's/.*code=\([^&]*\).*/\1/')
+
+NS_TOKENS=$(curl -sS -X POST \
+    -d "grant_type=authorization_code&client_id=e2e-mapped-client&code=${NS_CODE}&redirect_uri=https://e2e-mapped.example.com" \
+    "$ADMIN_AUTH_BASE/token")
+
+NS_AT=$(echo "$NS_TOKENS" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+[[ -n "$NS_AT" ]] && ok "NS: got access_token" || { fail "NS: no access_token"; rm -f "$NS_COOKIE" "$NS_HEADERS"; }
+
+NS_PAYLOAD=$(decode_jwt_payload "$NS_AT")
+
+# resource_access should only contain roles for the requesting client namespace
+echo "$NS_PAYLOAD" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+ra = d.get('resource_access', {})
+client_roles = ra.get('e2e-mapped-client', {}).get('roles', [])
+print(' '.join(sorted(client_roles)))
+" 2>/dev/null | grep -q 'app-user' \
+    && ok "NS: resource_access.e2e-mapped-client.roles contains app-user" \
+    || fail "NS: resource_access.e2e-mapped-client.roles missing app-user"
+
+# realm_access should contain the mapped realm roles (admin, basic)
+echo "$NS_PAYLOAD" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+roles = d.get('realm_access', {}).get('roles', [])
+print(' '.join(sorted(roles)))
+" 2>/dev/null | grep -q 'admin' \
+    && ok "NS: realm_access.roles contains admin (from profile scope)" \
+    || fail "NS: realm_access.roles missing admin"
+
+echo "$NS_PAYLOAD" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+roles = d.get('realm_access', {}).get('roles', [])
+print(' '.join(sorted(roles)))
+" 2>/dev/null | grep -q 'basic' \
+    && ok "NS: realm_access.roles contains basic (from profile scope)" \
+    || fail "NS: realm_access.roles missing basic"
+
+rm -f "$NS_COOKIE" "$NS_HEADERS"
+
+# ── 24a-cleanup: Remove F-05 fixtures ──────────────────────
+echo ""
+echo "--- 24a-cleanup: Remove F-05 test fixtures ---"
+
+# Invalidate sessions for the limited user (required before delete)
+curl -sf -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"user_id":"'"$LIMITED_USER_ID"'"}' \
+    "$BASE/admin/sessions/invalidate" >/dev/null 2>&1 || true
+
+# Delete limited user (no sessions → 204)
+DEL_LIMITED=$(curl -sS -o /dev/null -w "%{http_code}" -X DELETE -H "$ADMIN_HDR" "$BASE/admin/users/$LIMITED_USER_ID")
+[[ "$DEL_LIMITED" = "204" ]] && ok "Deleted limited user → 204" || fail "Delete limited user expected 204, got $DEL_LIMITED"
+
+# Invalidate sessions for the required and mapped clients
+curl -sf -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"client_id":"'"$REQUIRED_CLIENT_ID"'"}' \
+    "$BASE/admin/sessions/invalidate" >/dev/null 2>&1 || true
+curl -sf -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"client_id":"'"$MAPPED_CLIENT_ID"'"}' \
+    "$BASE/admin/sessions/invalidate" >/dev/null 2>&1 || true
+
+# Delete required client
+DEL_REQUIRED=$(curl -sS -o /dev/null -w "%{http_code}" -X DELETE -H "$ADMIN_HDR" "$BASE/admin/clients/$REQUIRED_CLIENT_ID")
+[[ "$DEL_REQUIRED" = "204" ]] && ok "Deleted required client → 204" || fail "Delete required client expected 204, got $DEL_REQUIRED"
+
+# Delete mapped client role before client (FK dependency)
+# Remove scope-role mapping first (email → app-user)
+curl -sf -X DELETE -H "$ADMIN_HDR" \
+    "$BASE/admin/clients/$MAPPED_CLIENT_ID/scope-roles/email/$MAPPED_CLIENT_ROLE_ID" >/dev/null 2>&1 || true
+# Unassign from user (role is assigned to ADMIN_CREATED_USER_ID)
+curl -sf -X DELETE -H "$ADMIN_HDR" \
+    "$BASE/admin/users/$ADMIN_CREATED_USER_ID/roles/$MAPPED_CLIENT_ROLE_ID" >/dev/null 2>&1 || true
+DEL_MAPPED_ROLE=$(curl -sS -o /dev/null -w "%{http_code}" -X DELETE -H "$ADMIN_HDR" "$BASE/admin/roles/$MAPPED_CLIENT_ROLE_ID")
+[[ "$DEL_MAPPED_ROLE" = "204" ]] && ok "Deleted mapped client role → 204" || fail "Delete mapped client role expected 204, got $DEL_MAPPED_ROLE"
+
+# Delete mapped client
+DEL_MAPPED=$(curl -sS -o /dev/null -w "%{http_code}" -X DELETE -H "$ADMIN_HDR" "$BASE/admin/clients/$MAPPED_CLIENT_ID")
+[[ "$DEL_MAPPED" = "204" ]] && ok "Deleted mapped client → 204" || fail "Delete mapped client expected 204, got $DEL_MAPPED"
 
 # ── Step 24b: Offline access on the throwaway realm (F-02) ──
 echo ""

@@ -111,7 +111,8 @@ class SessionRepository implements IRepo
             $q = $this->db->prepare(
                 "DELETE FROM sessions WHERE id = :id"
             );
-            return $q->execute([':id' => $id]);
+            $q->execute([':id' => $id]);
+            return $q->rowCount() > 0;
         } catch (\PDOException $e) {
             throw new StorageFailed("failed to delete session $id", 0, $e);
         }

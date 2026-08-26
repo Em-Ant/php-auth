@@ -37,7 +37,7 @@ class CorsMiddlewareTest extends TestCase
             'content-type,accept,origin,authorization',
             $response->getHeaderLine('Access-Control-Allow-Headers'),
         );
-        self::assertSame('GET,POST,OPTIONS', $response->getHeaderLine('Access-Control-Allow-Methods'));
+        self::assertSame('GET,POST,PUT,DELETE,OPTIONS', $response->getHeaderLine('Access-Control-Allow-Methods'));
     }
 
     public function testOptionsRequestWithOriginIncludesCredentials(): void
@@ -68,6 +68,21 @@ class CorsMiddlewareTest extends TestCase
 
         self::assertSame(200, $response->getStatusCode());
         self::assertSame('*', $response->getHeaderLine('Access-Control-Allow-Origin'));
+    }
+
+    public function testNonOptionsFallbackIncludesPutAndDeleteInMethods(): void
+    {
+        $request = $this->createMock(ServerRequestInterface::class);
+        $request->method('getMethod')->willReturn('GET');
+        $request->method('getHeaderLine')->with('Origin')->willReturn('');
+
+        $innerResponse = new Response();
+        $handler = $this->createMock(RequestHandlerInterface::class);
+        $handler->method('handle')->willReturn($innerResponse);
+
+        $response = $this->middleware->process($request, $handler);
+
+        self::assertSame('GET,POST,PUT,DELETE,OPTIONS', $response->getHeaderLine('Access-Control-Allow-Methods'));
     }
 
     public function testGetRequestWithOriginSetsSpecificOrigin(): void

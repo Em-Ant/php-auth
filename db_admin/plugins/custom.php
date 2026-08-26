@@ -30,7 +30,10 @@ class CustomCredentials
 
     public function navigation()
     {
-        return true;
+        // No override: returning any non-null value here would stop
+        // AdminerPlugin from calling Adminer::navigation(), silently
+        // removing the default menu (SQL command, logout, db switch).
+        return null;
     }
 
     public function credentials()

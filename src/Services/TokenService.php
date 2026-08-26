@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace AuthServer\Services;
 
 use AuthServer\Interfaces\KeyStore;
-use AuthServer\Interfaces\RoleRepository;
 use AuthServer\Exceptions\StorageFailed;
 use AuthServer\Models\Client;
 use AuthServer\Models\GrantContext;
@@ -23,18 +22,15 @@ class TokenService
 {
     private string $issuer;
     private KeyStore $keyStore;
-    private RoleRepository $roles;
     private ScopeResolver $scopeResolver;
 
     public function __construct(
         string $issuer,
         KeyStore $keyStore,
-        RoleRepository $roles,
         ScopeResolver $scopeResolver
     ) {
         $this->issuer = $issuer;
         $this->keyStore = $keyStore;
-        $this->roles = $roles;
         $this->scopeResolver = $scopeResolver;
     }
 
@@ -81,12 +77,15 @@ class TokenService
         $base64UrlHeader = Base64Utils::b64UrlEncode($header);
         $base64UrlPayload = Base64Utils::b64UrlEncode(json_encode($payload));
 
-        openssl_sign(
+        $ok = openssl_sign(
             $base64UrlHeader . "." . $base64UrlPayload,
             $signature,
             $privateKey,
             'sha256WithRSAEncryption'
         );
+        if (!$ok) {
+            throw new StorageFailed('failed to sign JWT');
+        }
 
         $base64UrlSignature = Base64Utils::b64UrlEncode($signature);
         return $base64UrlHeader . "." . $base64UrlPayload . "." . $base64UrlSignature;
@@ -296,15 +295,12 @@ class TokenService
         $now = time();
         $refreshExpiresIn = $refreshKind->expiresIn($realm);
 
-        // Role claims are read once per issuance, straight from the roles
-        // tables — the User model carries no authorization state.
-        $roleClaims = new RoleClaims(
-            realmRoles: $this->roles->findRealmRoleNamesByUserId(
-                $user->getId(),
-                $user->getRealmId()
-            ),
-            resourceAccess: $this->resourceAccessClaim($user, $client),
-        );
+        // Scope and role claims are resolved once per issuance: role scope
+        // mappings narrow the stored grant and filter the emitted roles.
+        // The User model carries no authorization state.
+        $issued = $this->scopeResolver->resolveIssuance($context->scope, $user, $client);
+        $context = $context->withScope($issued->scope);
+        $roleClaims = $issued->roleClaims;
 
         $accessToken = $this->createAccessToken($now, $realm, $context, $client, $user, $roleClaims);
         $idToken = $this->createIdToken($now, $realm, $context, $client, $user, $accessToken);
@@ -431,25 +427,6 @@ class TokenService
     private function issuerFor(Realm $realm): string
     {
         return $this->issuer . '/realms/' . $realm->getName();
-    }
-
-    /**
-     * `resource_access.<client>.roles` for the client the token is issued to,
-     * omitted when the user holds no roles for it.
-     *
-     * @return array<string, array<string, list<string>>>|null
-     */
-    private function resourceAccessClaim(User $user, Client $client): ?array
-    {
-        $clientRoles = $this->roles->findClientRoleNamesByUserId(
-            $user->getId(),
-            $user->getRealmId()
-        );
-        $roles = $clientRoles[$client->getName()] ?? [];
-        if ($roles === []) {
-            return null;
-        }
-        return [$client->getName() => ['roles' => $roles]];
     }
 
     private static function calculateAtHash(string $accessToken): string

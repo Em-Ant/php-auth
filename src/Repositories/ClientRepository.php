@@ -88,7 +88,8 @@ class ClientRepository implements IRepo
             $statement = $this->db->prepare(
                 "DELETE FROM clients WHERE id = :id"
             );
-            return $statement->execute([':id' => $id]);
+            $statement->execute([':id' => $id]);
+            return $statement->rowCount() > 0;
         } catch (\PDOException $e) {
             throw new StorageFailed('failed to delete client', 0, $e);
         }

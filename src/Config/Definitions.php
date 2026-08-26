@@ -8,8 +8,12 @@ use AuthServer\Controllers\Admin\ClientsController;
 use AuthServer\Controllers\Admin\KeysController;
 use AuthServer\Controllers\Admin\LoginsController;
 use AuthServer\Controllers\Admin\MigrationsController;
+use AuthServer\Controllers\Admin\OfflineSessionsController;
 use AuthServer\Controllers\Admin\RealmsController;
+use AuthServer\Controllers\Admin\RolesController;
+use AuthServer\Controllers\Admin\ScopeRolesController;
 use AuthServer\Controllers\Admin\SessionsController;
+use AuthServer\Controllers\Admin\UserRolesController;
 use AuthServer\Controllers\Admin\UsersController;
 use AuthServer\Controllers\AuthorizationController;
 use AuthServer\Controllers\ErrorController;
@@ -48,6 +52,7 @@ use AuthServer\Services\LogoutService;
 use AuthServer\Services\MigrationRunner;
 use AuthServer\Services\OfflineSessionService;
 use AuthServer\Services\RateLimiter;
+use AuthServer\Services\RoleAdminService;
 use AuthServer\Services\ScopeResolver;
 use AuthServer\Services\SecretsService;
 use AuthServer\Services\SessionOrchestrator;
@@ -196,6 +201,10 @@ final class Definitions
             KeysController::class => \DI\autowire()
                 ->constructorParameter('keysRoot', \DI\get('keys_root')),
             \AuthServer\Controllers\Admin\OfflineSessionsController::class => \DI\autowire(),
+            RolesController::class => \DI\autowire(),
+            RoleAdminService::class => \DI\autowire(),
+            UserRolesController::class => \DI\autowire(),
+            ScopeRolesController::class => \DI\autowire(),
         ];
     }
 }

@@ -46,6 +46,13 @@ class OidcController
         $realm = $request->getAttribute(Realm::class);
 
         $data = file_get_contents(__DIR__ . '/../../static/well-known.json');
+        if ($data === false) {
+            $response->getBody()->write(json_encode([
+                'error' => 'server_error',
+                'error_description' => 'well-known.json not found',
+            ]));
+            return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
+        }
         $data = str_replace(
             '<<ISSUER>>',
             $this->issuer . '/realms/' . $realm->getName(),
@@ -66,7 +73,7 @@ class OidcController
         $token = $request->getAttribute('accessTokenParsed');
         $user = [];
         $user['sub'] = $token['sub'];
-        $user['preferred_username'] = $token['preferred_username'];
+        $user['preferred_username'] = $token['preferred_username'] ?? null;
 
         return JsonResponse::create($response, $user, 200, '*');
     }

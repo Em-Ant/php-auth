@@ -22,6 +22,7 @@
 - [x] Session/login management: list/delete sessions & logins, invalidate-by-user/client, user deactivation (`valid=FALSE`) — the SSO part of offline revocation
 - [ ] Audit log table + query endpoint
 - [ ] Password policy per realm (min length, complexity)
+- [ ] Retire the `realm_roles` string field on user create/update (ADR-0001 D4 shim) — breaking admin-API change, roles become explicit entities assigned via `POST /admin/users/{id}/roles`
 - [x] Offline revocation: revoke a user's `offline_sessions` (SSO session/login revoke already shipped) — [token-lifecycle #04](token-lifecycle/issues/04-offline-revocation.md) (done 2026-08-23, F-06)
 - [ ] Maintenance task: blacklist purge + expired-session cleanup (admin-triggered; manual / deploy-time / CI-scheduled) — see [token-lifecycle #05](token-lifecycle/issues/05-cleanup-job.md)
 
@@ -32,8 +33,8 @@ Scope/role model and mapping, Keycloak-style. See `.scratch/scopes/PRD.md`.
 - [x] Well-known `scope_supported` derived from realm scopes ([#01](scopes/issues/01-well-known-from-realm-scopes.md))
 - [x] Client scopes: per-client allow-list (`clients.scope`, NULL = inherit realm) via `ScopeResolver`, gates `offline_access` per client ([#02](scopes/issues/02-client-scopes-and-roles.md))
 - [x] Client roles: per-client authorization namespace (`resource_access.<client>.roles`) — shipped with [#02](scopes/issues/02-client-scopes-and-roles.md) (2026-08-21)
-- [ ] Scope↔role mapping, Keycloak-style ([#03](scopes/issues/03-scope-role-mapping.md))
-- [ ] Admin API config surface for scopes/roles/mappings ([#04](scopes/issues/04-admin-api-configuration.md))
+- [x] Scope↔role mapping, Keycloak-style ([#03](scopes/issues/03-scope-role-mapping.md)) — done 2026-08-26
+- [x] Admin API config surface for scopes/roles/mappings ([#04](scopes/issues/04-admin-api-configuration.md)) — done 2026-08-26
 
 ## Login Methods
 

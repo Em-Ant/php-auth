@@ -75,28 +75,30 @@ class SessionsController
             }
 
             $count = 0;
+            $invalidatedSessionIds = [];
 
             if ($userId !== null) {
                 $sessions = $this->sessions->findAll(null, $userId);
                 foreach ($sessions as $session) {
-                    $this->deleteSessionAndLogins($session->getId());
-                    $count++;
+                    $invalidatedSessionIds[] = $session->getId();
                 }
-                // Offline grants survive SSO logout by design; admin invalidation
-                // is the way to kill them without the token (RFC 7009 analog).
                 $count += $this->offlineSessions->setExpiredByUserId($userId);
             }
 
             if ($clientId !== null) {
                 $logins = $this->logins->findAll(null, $clientId);
-                $sessionIds = array_unique(array_filter(
+                $clientSessionIds = array_unique(array_filter(
                     array_map(fn($login) => $login->getSessionId(), $logins)
                 ));
-                foreach ($sessionIds as $sessionId) {
-                    $this->deleteSessionAndLogins($sessionId);
-                    $count++;
+                foreach ($clientSessionIds as $sessionId) {
+                    $invalidatedSessionIds[] = $sessionId;
                 }
                 $count += $this->offlineSessions->setExpiredByClientId($clientId);
+            }
+
+            foreach (array_unique($invalidatedSessionIds) as $sessionId) {
+                $this->deleteSessionAndLogins($sessionId);
+                $count++;
             }
 
             return JsonResponse::create($response, ['invalidated' => $count]);

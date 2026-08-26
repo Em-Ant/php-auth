@@ -33,10 +33,14 @@ class RateLimiter
             );
             $update->execute([$ip, $endpoint, $window]);
         } else {
-            $insert = $this->db->prepare(
-                'INSERT INTO rate_limits (ip, endpoint, window_start, count) VALUES (?, ?, ?, 1)'
-            );
-            $insert->execute([$ip, $endpoint, $window]);
+            $this->db->prepare(
+                'INSERT OR IGNORE INTO rate_limits (ip, endpoint, window_start, count) VALUES (?, ?, ?, 0)'
+            )->execute([$ip, $endpoint, $window]);
+
+            $this->db->prepare(
+                'UPDATE rate_limits SET count = count + 1'
+                . ' WHERE ip = ? AND endpoint = ? AND window_start = ? AND count < ?'
+            )->execute([$ip, $endpoint, $window, $maxRequests]);
         }
 
         $this->maybeCleanup();

@@ -5,14 +5,22 @@ declare(strict_types=1);
 namespace AuthServer\Tests\Unit\Services;
 
 use AuthServer\Exceptions\ValidationFailed;
+use AuthServer\Interfaces\RoleRepository;
 use AuthServer\Models\Client;
+use AuthServer\Models\IssuedGrant;
 use AuthServer\Models\Realm;
+use AuthServer\Models\ScopeRoleMapping;
+use AuthServer\Models\User;
 use AuthServer\Services\ScopeResolver;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
 
 class ScopeResolverTest extends TestCase
 {
+    private const USER_ID = 'u-1';
+    private const REALM_ID = 'r-id';
+
+    private RoleRepository $roles;
     private ScopeResolver $resolver;
     private Realm $realm;
     private Client $inheritClient;
@@ -20,7 +28,9 @@ class ScopeResolverTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->resolver = new ScopeResolver(new NullLogger());
+        $this->roles = $this->createMock(RoleRepository::class);
+
+        $this->resolver = new ScopeResolver(new NullLogger(), $this->roles);
 
         $this->realm = new Realm(
             'r-id', 'test', 'k-id',
@@ -140,7 +150,7 @@ class ScopeResolverTest extends TestCase
             ->method('info')
             ->with($this->stringContains("scope 'email' not allowed for client 'narrow-app'"));
 
-        $resolver = new ScopeResolver($logger);
+        $resolver = new ScopeResolver($logger, $this->roles);
 
         try {
             $resolver->resolve('openid email', $this->narrowClient, $this->realm, true);
@@ -148,5 +158,149 @@ class ScopeResolverTest extends TestCase
         } catch (ValidationFailed $e) {
             self::assertSame('invalid scope', $e->getMessage());
         }
+    }
+
+    // ── resolveIssuance (F-05 scope↔role mapping) ─────────────
+
+    private function issuanceUser(): User
+    {
+        return new User(
+            self::USER_ID, self::REALM_ID, 'emant',
+            'test@example.com', 'hashed', '2025-01-01 00:00:00',
+        );
+    }
+
+    private function mappedClient(): Client
+    {
+        return new Client(
+            'c-map', 'mapped-app', self::REALM_ID, null,
+            'https://example.com', false, '2025-01-01 00:00:00',
+        );
+    }
+
+    private function stubHeldRoles(array $realmRoles, array $clientRoles): void
+    {
+        $this->roles->method('findRealmRoleNamesByUserId')->willReturn($realmRoles);
+        $this->roles->method('findClientRoleNamesByUserId')->willReturn($clientRoles);
+    }
+
+    /**
+     * @param array<string, list<ScopeRoleMapping>> $mappings
+     * @param array<string, list<string>> $clientRoles
+     */
+    private function issueWith(
+        array $mappings,
+        array $realmRoles,
+        array $clientRoles,
+        string $scope
+    ): IssuedGrant {
+        $this->roles->method('findScopeRoleMappings')->willReturn($mappings);
+        $this->stubHeldRoles($realmRoles, $clientRoles);
+
+        return $this->resolver->resolveIssuance(
+            $scope,
+            $this->issuanceUser(),
+            $this->mappedClient()
+        );
+    }
+
+    public function testIssuanceWithoutMappingsFallsBackToFullScope(): void
+    {
+        $issued = $this->issueWith([], ['basic', 'admin'], ['mapped-app' => ['app-user']], 'openid profile');
+
+        self::assertSame('openid profile', $issued->scope);
+        self::assertSame(['basic', 'admin'], $issued->roleClaims->realmRoles);
+        self::assertSame(['mapped-app' => ['roles' => ['app-user']]], $issued->roleClaims->resourceAccess);
+    }
+
+    public function testScopeWithRequiredRoleMissingIsDropped(): void
+    {
+        $issued = $this->issueWith(
+            ['admin' => [new ScopeRoleMapping('role-admin', 'admin', 'admin', null, true)]],
+            ['basic'],
+            [],
+            'openid profile admin'
+        );
+
+        self::assertSame('openid profile', $issued->scope);
+        self::assertSame([], $issued->roleClaims->realmRoles);
+        self::assertNull($issued->roleClaims->resourceAccess);
+    }
+
+    public function testScopeWithRequiredRoleHeldIsKeptAndRoleIncluded(): void
+    {
+        $issued = $this->issueWith(
+            ['admin' => [new ScopeRoleMapping('role-admin', 'admin', 'admin', null, true)]],
+            ['basic', 'admin'],
+            [],
+            'openid admin'
+        );
+
+        self::assertSame('openid admin', $issued->scope);
+        self::assertSame(['admin'], $issued->roleClaims->realmRoles);
+    }
+
+    /**
+     * @return list<ScopeRoleMapping>
+     */
+    private function profileMapping(): array
+    {
+        return [new ScopeRoleMapping('role-app-user', 'profile', 'app-user', 'mapped-app', false)];
+    }
+
+    public function testIncludeMappingRoleNotHeldIsSkipped(): void
+    {
+        $issued = $this->issueWith(['profile' => $this->profileMapping()], ['basic'], [], 'openid profile');
+
+        self::assertSame('openid profile', $issued->scope);
+        self::assertNull($issued->roleClaims->resourceAccess);
+    }
+
+    public function testIncludeMappingHeldRoleIsEmittedUnderClientNamespace(): void
+    {
+        $issued = $this->issueWith(
+            ['profile' => $this->profileMapping()],
+            ['basic'],
+            ['mapped-app' => ['app-user']],
+            'openid profile'
+        );
+
+        self::assertSame('openid profile', $issued->scope);
+        self::assertSame(['mapped-app' => ['roles' => ['app-user']]], $issued->roleClaims->resourceAccess);
+    }
+
+    public function testUnmappedScopesPassThroughUntouchedInRestrictedMode(): void
+    {
+        $issued = $this->issueWith(
+            ['admin' => [new ScopeRoleMapping('role-admin', 'admin', 'admin', null, true)]],
+            [],
+            [],
+            'openid'
+        );
+
+        self::assertSame('openid', $issued->scope);
+        self::assertSame([], $issued->roleClaims->realmRoles);
+    }
+
+    public function testClientRoleOfAnotherNamespaceIsNotEmittedForResourceAccess(): void
+    {
+        $this->roles->method('findScopeRoleMappings')->willReturn([
+            'profile' => [new ScopeRoleMapping('role-other', 'profile', 'other-role', 'other-app', false)],
+        ]);
+        $this->stubHeldRoles([], ['other-app' => ['other-role']]);
+
+        $issued = $this->resolver->resolveIssuance(
+            'openid profile',
+            $this->issuanceUser(),
+            $this->mappedClient()
+        );
+
+        self::assertNull($issued->roleClaims->resourceAccess);
+    }
+
+    public function testSplitScopeFiltersEmptyStrings(): void
+    {
+        $granted = $this->resolver->resolve('openid  profile', $this->inheritClient, $this->realm, true);
+        self::assertSame('openid profile', $granted);
     }
 }

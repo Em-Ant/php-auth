@@ -22,9 +22,11 @@ final class GrantContext
 
     public static function fromSession(Session $session, Login $login): self
     {
+        $authenticatedAt = $login->getAuthenticatedAt();
+
         return new self(
             subject: $session->getUserId(),
-            authTime: date_timestamp_get($login->getAuthenticatedAt()),
+            authTime: $authenticatedAt !== null ? date_timestamp_get($authenticatedAt) : time(),
             acr: $session->getAcr(),
             sid: $session->getId(),
             nonce: $login->getNonce(),
@@ -43,6 +45,22 @@ final class GrantContext
             sid: $offlineSession->getId(),
             nonce: $offlineSession->getNonce(),
             scope: $offlineSession->getScope(),
+        );
+    }
+
+    /**
+     * Same grant, narrowed scope — issuance-time role gating may drop scopes
+     * from the stored grant without touching the stored login/session row.
+     */
+    public function withScope(string $scope): self
+    {
+        return new self(
+            subject: $this->subject,
+            authTime: $this->authTime,
+            acr: $this->acr,
+            sid: $this->sid,
+            nonce: $this->nonce,
+            scope: $scope,
         );
     }
 }

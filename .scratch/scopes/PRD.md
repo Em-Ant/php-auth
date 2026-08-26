@@ -92,6 +92,11 @@ Per-flow behavior:
   + client_credentials flows, introspection (`resource_access` passthrough).
 - Issue: `issues/02-client-scopes-and-roles.md`
 
+> **Status (2026-08-26):** Phase 3 shipped — scope↔role mapping at issuance
+> with Keycloak-style full-scope fallback (no mappings = all held roles).
+> Admin CRUD for mappings shipped as F-12 (issue 04, 2026-08-26).
+> See [issues/03](issues/03-scope-role-mapping.md).
+
 ### Phase 3 — Scope↔role mapping (joining config, full Keycloak style)
 
 - Client scopes carry **role scope mappings**: when a scope is granted it maps
@@ -120,6 +125,10 @@ must expose — treat them as one workstream:
 Concretely: build the admin API's entities in an order that unblocks each
 phase (realms/clients CRUD before Phase 2; roles + mappings before Phase 3).
 Details in `issues/04-admin-api-configuration.md`.
+
+> **Status (2026-08-26):** All admin surfaces delivered — realms/clients/users
+> CRUD (F-03), session/login management (F-02), offline revocation (F-06),
+> roles CRUD + user role assignments + scope-role mappings (F-12).
 
 ## Out of Scope
 

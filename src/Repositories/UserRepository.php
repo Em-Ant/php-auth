@@ -87,7 +87,8 @@ class UserRepository implements IUser
             $statement = $this->db->prepare(
                 "DELETE FROM users WHERE id = :id"
             );
-            return $statement->execute([':id' => $id]);
+            $statement->execute([':id' => $id]);
+            return $statement->rowCount() > 0;
         } catch (\PDOException $e) {
             throw new StorageFailed('failed to delete user', 0, $e);
         }

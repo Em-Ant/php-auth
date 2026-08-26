@@ -86,7 +86,8 @@ class RealmRepository implements IRepo
             $statement = $this->db->prepare(
                 "DELETE FROM realms WHERE id = :id"
             );
-            return $statement->execute([':id' => $id]);
+            $statement->execute([':id' => $id]);
+            return $statement->rowCount() > 0;
         } catch (\PDOException $e) {
             throw new StorageFailed('failed to delete realm', 0, $e);
         }
