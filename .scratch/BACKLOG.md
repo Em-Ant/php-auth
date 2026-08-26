@@ -16,36 +16,34 @@ Single source of truth for what to work on next. **Local by design** (3 machines
 
 | ID | Type | Priority | Size | Blocked by | Why-now | Doc |
 |----|------|----------|------|------------|---------|-----|
-| F-07 | feature | P2 | M | | audit log table + query | `ROADMAP → Admin API` |
-| F-08 | feature | P2 | S | | ROPC grant | `ROADMAP → Login Methods` |
-| F-09 | feature | P2 | M | | email magic link | `ROADMAP → Login Methods` |
-| F-10 | feature | P2 | M | | consent screen (`offline_access`) — delayed by design; client gating (scopes #02) is the control until then | `ROADMAP → Token Lifecycle` |
-| F-11 | feature | P2 | S | | per-realm password policy | `ROADMAP → Admin API` |
-| F-13 | feature | P2 | S | | per-realm login page config | `ROADMAP → Login Form` |
-| F-19 | feature | P2 | S | | blacklist purge + expired-session cleanup | `token-lifecycle/issues/05-…` |
-| F-20 | refactor | P2 | M | | split E2E into two contracts — prod smoke (`bin/smoke-test.sh`, no DB, bounded footprint, ~30 checks) + local OIDC integrity suite; phase 2: PHPUnit-against-live-`BASE_URL` (no Playwright) — also replaces the ad-hoc `python3` JWT payload decoding in `bin/e2e-test.sh` with PHP tooling | `ci-e2e/PRD.md` |
-| F-37 | fix | P2 | S | | JWKS `x5t`/`x5t#sha256` = b64url of binary thumbprint (RFC 7517 §4.7; breaks JWKS verification) — verified live vs Keycloak | `keycloak-parity/PRD.md` |
+| R-15 | refactor | P1 | S | | standardize `users.valid` boolean to integer `1`/`0` — string `'TRUE'`/`'FALSE'` convention inconsistent with rest of schema; risky migration (data transform), needs release plan per ADR-0002 | `boolean-standardize/PRD.md` |
 | F-38 | fix | P2 | M | | check-session iframe mechanism: salted `KEYCLOAK_SESSION` cookie + client-side SHA-256 (premise verified live) | `keycloak-parity/PRD.md` |
-| F-39 | fix | P2 | S | | sliding idle session timeout — idle leg on `updated_at` | `keycloak-parity/PRD.md` |
 | F-40 | fix | P2 | S | | `acr` default `"1"` for password login (verified live) | `keycloak-parity/PRD.md` |
 | F-41 | fix | P2 | M | | userinfo claims per scope (`profile`/`email`) | `keycloak-parity/PRD.md` |
 | F-42 | fix | P2 | S | | drop `nonce` from access/refresh tokens (ID token only) | `keycloak-parity/PRD.md` |
-| R-08 | refactor | P3 | S | | remaining domain enums (`ResponseMode`) | `ROADMAP → PHP 8` |
-| R-09 | refactor | P3 | M | | readonly props + constructor promotion | `ROADMAP → PHP 8` |
-| R-10 | refactor | P3 | M | | named args + match expressions | `ROADMAP → PHP 8` |
-| R-11 | refactor | P3 | L | | PHPStan 5→6→7→8→9 | `ROADMAP → PHPStan` |
-| R-13 | refactor | P3 | S | | PSR12 for `tests/` (ROADMAP "PSR12 compliance throughout" was never queued) — 198 auto-fixable violations in 25 files; run phpcbf then widen `composer cs_check` scope | `ROADMAP → PHP 8` |
-| R-14 | refactor | P3 | S–M | best alongside F-08/F-09/F-39 (login-lifecycle work) | `Login` model: raw setters → intention-revealing transition methods (`markAuthenticated/markActive/markRefreshed/markExpired`), single serialization home; invariants over metric (S1448 stays, dismiss) | `login-split/PRD.md` |
+| F-44 | fix | P2 | S | | CORS origin allowlist in config.ini (`*` = echo any origin, current behaviour) — `CorsMiddleware` reflects arbitrary `Origin` with credentials | `issues/001-cors-allowlist.md` |
+| F-08 | feature | P2 | S | | ROPC grant | `ROADMAP → Login Methods` |
+| F-11 | feature | P2 | S | | per-realm password policy | `ROADMAP → Admin API` |
+| F-13 | feature | P2 | S | | per-realm login page config | `ROADMAP → Login Form` |
+| F-19 | feature | P2 | S | | blacklist purge + expired-session cleanup | `token-lifecycle/issues/05-…` |
+| F-45 | feature | P2 | S | | retire the `realm_roles` string field on user create/update (shim per ADR-0001 D4): breaking admin-API change; consumers must create roles explicitly then assign via `POST /admin/users/{id}/roles`; also removes `ensureRealmRole` auto-create | `docs/adr/0001 → Negative/follow-ups, F-45` |
+| F-07 | feature | P2 | M | | audit log table + query | `ROADMAP → Admin API` |
+| F-09 | feature | P2 | M | | email magic link | `ROADMAP → Login Methods` |
+| F-10 | feature | P2 | M | | consent screen (`offline_access`) — delayed by design; client gating (scopes #02) is the control until then | `ROADMAP → Token Lifecycle` |
+| F-20 | refactor | P2 | M | | split E2E into two contracts — prod smoke (`bin/smoke-test.sh`, no DB, bounded footprint, ~30 checks) + local OIDC integrity suite; phase 2: PHPUnit-against-live-`BASE_URL` (no Playwright) — also replaces the ad-hoc `python3` JWT payload decoding in `bin/e2e-test.sh` with PHP tooling | `ci-e2e/PRD.md` |
 | F-14 | feature | P3 | S | | fallback full-page login form | `ROADMAP → Login Form` |
+| F-18 | feature | P3 | S | | SMTP adapter (VPS) | `ROADMAP → Login Methods` |
+| F-43 | fix | P3 | S | | deferred batch: `login_hint`/`max_age`/`ui_locales`, `WWW-Authenticate` on 401, `X-Powered-By` removal — with a future hardening pass | `keycloak-parity/PRD.md` |
 | F-15 | feature | P3 | L | | social login (Google/GitHub/GitLab) | `ROADMAP → Login Methods` |
 | F-16 | feature | P3 | L | | 2FA/TOTP | `ROADMAP → Login Methods` |
 | F-17 | feature | P3 | L | | Google-style modal widget (SAM iframe) | `ROADMAP → Login Form` |
-| F-18 | feature | P3 | S | | SMTP adapter (VPS) | `ROADMAP → Login Methods` |
-| F-43 | fix | P3 | S | | deferred batch: `login_hint`/`max_age`/`ui_locales`, `WWW-Authenticate` on 401, `X-Powered-By` removal — with a future hardening pass | `keycloak-parity/PRD.md` |
-| R-15 | refactor | P1 | S | | standardize `users.valid` boolean to integer `1`/`0` — string `'TRUE'`/`'FALSE'` convention inconsistent with rest of schema; risky migration (data transform), needs release plan per ADR-0002 | `boolean-standardize/PRD.md` |
-| F-44 | fix | P2 | S | | CORS origin allowlist in config.ini (`*` = echo any origin, current behaviour) — `CorsMiddleware` reflects arbitrary `Origin` with credentials | `issues/001-cors-allowlist.md` |
-| R-16 | refactor | P3 | S | | `findScopeRoleMapping` returns raw `?array` — every other finder returns a typed model; interface + impl + callers to update | `clean-code/issues/12` |
-| F-45 | feature | P2 | S | | retire the `realm_roles` string field on user create/update (shim per ADR-0001 D4): breaking admin-API change; consumers must create roles explicitly then assign via `POST /admin/users/{id}/roles`; also removes `ensureRealmRole` auto-create | `docs/adr/0001 → Negative/follow-ups, F-45` |
+| R-08 | refactor | P3 | S | | remaining domain enums (`ResponseMode`) | `ROADMAP → PHP 8` |
+| R-13 | refactor | P3 | S | | PSR12 for `tests/` (ROADMAP "PSR12 compliance throughout" was never queued) — 198 auto-fixable violations in 25 files; run phpcbf then widen `composer cs_check` scope | `ROADMAP → PHP 8` |
+| R-14 | refactor | P3 | S–M | best alongside F-08/F-09/F-39 (login-lifecycle work) | `Login` model: raw setters → intention-revealing transition methods (`markAuthenticated/markActive/markRefreshed/markExpired`), single serialization home; invariants over metric (S1448 stays, dismiss) | `login-split/PRD.md` |
+| R-09 | refactor | P3 | M | | readonly props + constructor promotion | `ROADMAP → PHP 8` |
+| R-10 | refactor | P3 | M | | named args + match expressions | `ROADMAP → PHP 8` |
+| R-11 | refactor | P3 | L | | PHPStan 5→6→7→8→9 | `ROADMAP → PHPStan` |
+
 
 
 **Blocked-by:** empty = pickable now; a task ID = wait for that task first.

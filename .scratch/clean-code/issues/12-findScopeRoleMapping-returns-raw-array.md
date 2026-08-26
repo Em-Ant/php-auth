@@ -1,6 +1,7 @@
 # 12: `findScopeRoleMapping` returns raw `?array` instead of typed model
 
-**Status**: Open
+**Status**: Resolved — singular `findScopeRoleMapping` now returns
+`?ScopeRoleMapping` in interface + implementation; R-16 removed from BACKLOG.
 **Severity**: Minor
 **File**: `src/Repositories/RoleRepository.php:403`
 
