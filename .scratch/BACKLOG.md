@@ -16,7 +16,6 @@ Single source of truth for what to work on next. **Local by design** (3 machines
 
 | ID | Type | Priority | Size | Blocked by | Why-now | Doc |
 |----|------|----------|------|------------|---------|-----|
-| A-03 | fix | P1 | M | | admin list endpoints unbounded — pagination + `{items,total,limit,offset}` envelope (users/clients/sessions/logins); auth paths unaffected, API has no consumers yet | `admin-api/issues/03-…` |
 | F-05 | feature | P1 | L | | scope↔role gating at issuance (`roles` tables shipped in F-04) | `scopes/issues/03-…` |
 | F-07 | feature | P2 | M | | audit log table + query | `ROADMAP → Admin API` |
 | F-08 | feature | P2 | S | | ROPC grant | `ROADMAP → Login Methods` |

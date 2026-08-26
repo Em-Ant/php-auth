@@ -43,16 +43,21 @@ class UsersController
     public function list(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
         $query = $request->getQueryParams();
-        $realmId = isset($query['realm_id']) && $query['realm_id'] !== ''
-            ? $query['realm_id']
-            : null;
+        $pagination = $this->paginationFromQuery($query);
 
-        return JsonResponse::create($response, [
-            'users' => array_map(
-                fn(User $user) => self::toArray($user),
-                $this->users->findAll($realmId)
-            ),
-        ]);
+        $result = $this->users->searchAll(
+            $this->queryString($query, 'realm_id'),
+            $pagination['limit'],
+            $pagination['offset']
+        );
+
+        return JsonResponse::paginated(
+            $response,
+            array_map(fn(User $user) => self::toArray($user), $result['items']),
+            $result['total'],
+            $pagination['limit'],
+            $pagination['offset']
+        );
     }
 
     public function create(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface

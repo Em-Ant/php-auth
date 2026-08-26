@@ -28,6 +28,13 @@ interface SessionRepository
 
     public function findAll(?string $realmId = null, ?string $userId = null): array;
 
+    /**
+     * Filtered, paged listing; `total` covers all rows matching the filters.
+     *
+     * @return array{items: Session[], total: int}
+     */
+    public function searchAll(?string $realmId, ?string $userId, int $limit, int $offset): array;
+
     public function countByUserId(string $userId): int;
 
     public function countActiveByUserId(string $userId): int;

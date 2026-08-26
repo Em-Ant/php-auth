@@ -37,16 +37,21 @@ class ClientsController
     public function list(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
         $query = $request->getQueryParams();
-        $realmId = isset($query['realm_id']) && $query['realm_id'] !== ''
-            ? $query['realm_id']
-            : null;
+        $pagination = $this->paginationFromQuery($query);
 
-        return JsonResponse::create($response, [
-            'clients' => array_map(
-                fn(Client $client) => self::toArray($client),
-                $this->clients->findAll($realmId)
-            ),
-        ]);
+        $result = $this->clients->searchAll(
+            $this->queryString($query, 'realm_id'),
+            $pagination['limit'],
+            $pagination['offset']
+        );
+
+        return JsonResponse::paginated(
+            $response,
+            array_map(fn(Client $client) => self::toArray($client), $result['items']),
+            $result['total'],
+            $pagination['limit'],
+            $pagination['offset']
+        );
     }
 
     public function create(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface

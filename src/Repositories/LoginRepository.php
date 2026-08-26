@@ -13,6 +13,8 @@ use function AuthServer\sqlNow;
 
 class LoginRepository implements IRepo
 {
+    use PagedListing;
+
     private \PDO $db;
 
     public function __construct(\PDO $db)
@@ -294,6 +296,34 @@ class LoginRepository implements IRepo
         } catch (\PDOException $e) {
             throw new StorageFailed('failed to list logins', 0, $e);
         }
+    }
+
+    /**
+     * Filtered, paged listing. `total` counts all rows matching the filters,
+     * independent of limit/offset.
+     *
+     * @return array{items: Login[], total: int}
+     */
+    public function searchAll(?string $realmId, ?string $clientId, int $limit, int $offset): array
+    {
+        $statement = $this->db->prepare(
+            "SELECT l.*, COUNT(*) OVER() AS result_total
+             FROM logins l
+             LEFT JOIN clients c ON l.client_id = c.id
+             WHERE (:realm_id IS NULL OR c.realm_id = :realm_id)
+               AND (:client_id IS NULL OR l.client_id = :client_id)
+             ORDER BY l.created_at DESC
+             LIMIT :limit OFFSET :offset"
+        );
+        self::bindNullableString($statement, ':realm_id', $realmId);
+        self::bindNullableString($statement, ':client_id', $clientId);
+        self::bindPageParams($statement, $limit, $offset);
+
+        return $this->fetchPagedPage(
+            $statement,
+            fn(array $r) => self::buildFromData($r),
+            'failed to list logins'
+        );
     }
 
     public function countByClientId(string $clientId): int

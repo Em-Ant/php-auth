@@ -1,6 +1,20 @@
 # 03 — Admin list endpoints: pagination + bounded payloads
 
-status: **OPEN**
+status: **DONE** 08/26/2026 — uncommitted working tree (stan 0 errors, PSR12 clean, 495 tests / 1402 assertions OK, e2e 171/171)
+
+## Outcome notes
+
+- Paged listing lives in a `searchAll(...)` method per repository
+  (`{items,total}` via `COUNT(*) OVER()`), not on `findAll`:
+  sessions/logins keep unbounded `findAll` for `/admin/sessions/invalidate`,
+  which legitimately needs full enumeration; users/clients lost their
+  now-unused `findAll`.
+- Shared plumbing: `Repositories\PagedListing` trait (query execution +
+  binding) and `JsonResponse::paginated()` + `ValidatesAdminInput::paginationFromQuery()`.
+- Envelope key is `items` for **all** admin list endpoints (users, clients,
+  sessions, logins, offline-sessions); default limit 50, hard cap 200 — the
+  offline-sessions cap was raised from 100 to align.
+- Contract change applied to `bin/e2e-test.sh` list checks.
 
 ## Problem
 

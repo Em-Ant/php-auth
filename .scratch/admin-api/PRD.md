@@ -124,3 +124,11 @@ logins can be deleted, as can a user with only expired sessions.
 
 - [#01](issues/01-admin-crud.md) — Admin CRUD: realms, clients, users, key assignment
 - [#02](issues/02-session-login-management.md) — Session/login management, user deactivation, active-only delete guards
+- [#03](issues/03-pagination.md) — Pagination + bounded payloads on all list endpoints
+
+### List envelope
+
+All `GET …list` endpoints return `{items, total, limit, offset}`; `?limit=`
+defaults to 50 (hard cap 200), `?offset=` defaults to 0, invalid values fall
+back to the defaults. `total` counts all rows matching the filters,
+independent of paging.

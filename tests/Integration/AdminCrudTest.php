@@ -229,15 +229,21 @@ class AdminCrudTest extends TestCase
 
     public function testListClientsFilteredByRealm(): void
     {
-        $data = $this->assertStatus(200, $this->adminRequest('GET', '/admin/clients', [], [
-            'realm_id' => self::TEST_REALM,
-        ]));
+        $data = $this->adminListByTestRealm('/admin/clients');
 
-        self::assertArrayHasKey('clients', $data);
-        self::assertGreaterThan(0, count($data['clients']));
-        foreach ($data['clients'] as $client) {
+        $items = $this->assertEnvelope($data);
+
+        self::assertGreaterThan(0, count($items));
+        foreach ($items as $client) {
             self::assertSame(self::TEST_REALM, $client['realm_id']);
         }
+    }
+
+    private function adminListByTestRealm(string $path): array
+    {
+        return $this->assertStatus(200, $this->adminRequest('GET', $path, [], [
+            'realm_id' => self::TEST_REALM,
+        ]));
     }
 
     public function testUpdateClientPartial(): void
@@ -330,15 +336,64 @@ class AdminCrudTest extends TestCase
 
     public function testListUsersFilteredByRealm(): void
     {
-        $data = $this->assertStatus(200, $this->adminRequest('GET', '/admin/users', [], [
-            'realm_id' => self::TEST_REALM,
-        ]));
+        $data = $this->adminListByTestRealm('/admin/users');
 
-        self::assertArrayHasKey('users', $data);
-        self::assertGreaterThan(0, count($data['users']));
-        foreach ($data['users'] as $user) {
+        $items = $this->assertEnvelope($data);
+
+        self::assertGreaterThan(0, count($items));
+        foreach ($items as $user) {
             self::assertSame(self::TEST_REALM, $user['realm_id']);
         }
+    }
+
+    public function testListUsersPaginatesWithinSameTotal(): void
+    {
+        foreach ([1, 2] as $n) {
+            $this->assertStatus(201, $this->adminRequest('POST', '/admin/users', [
+                'realm_id' => self::TEST_REALM,
+                'email' => 'paged-' . getGuid() . "@example.com",
+                'password' => self::USER_PASSWORD,
+            ]));
+        }
+
+        $page1 = $this->assertStatus(200, $this->adminRequest('GET', '/admin/users', [], [
+            'realm_id' => self::TEST_REALM,
+            'limit' => 1,
+            'offset' => 0,
+        ]));
+        $page2 = $this->assertStatus(200, $this->adminRequest('GET', '/admin/users', [], [
+            'realm_id' => self::TEST_REALM,
+            'limit' => 1,
+            'offset' => 1,
+        ]));
+
+        self::assertCount(1, $page1['items']);
+        self::assertCount(1, $page2['items']);
+        self::assertNotSame($page1['items'][0]['id'], $page2['items'][0]['id']);
+        self::assertSame(
+            $page1['total'],
+            $page2['total'],
+            'total must be independent of limit/offset'
+        );
+        self::assertGreaterThanOrEqual(2, $page1['total']);
+    }
+
+    public function testListUsersInvalidPaginationFallsBackToDefaults(): void
+    {
+        $invalidLimits = ['abc', '-5', '0', '201'];
+
+        foreach ($invalidLimits as $invalid) {
+            $data = $this->assertStatus(200, $this->adminRequest('GET', '/admin/users', [], [
+                'limit' => $invalid,
+            ]));
+            self::assertSame(50, $data['limit'], "invalid limit '$invalid' should fall back to default");
+            self::assertSame(0, $data['offset']);
+        }
+
+        $data = $this->assertStatus(200, $this->adminRequest('GET', '/admin/users', [], [
+            'offset' => -3,
+        ]));
+        self::assertSame(0, $data['offset'], 'negative offset should fall back to default');
     }
 
     public function testUpdateUserPasswordRehashes(): void

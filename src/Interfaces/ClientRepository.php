@@ -12,8 +12,12 @@ interface ClientRepository
 
     public function findByName(string $id): ?Client;
 
-    /** @return Client[] */
-    public function findAll(?string $realmId = null): array;
+    /**
+     * Filtered, paged listing; `total` covers all rows matching the filters.
+     *
+     * @return array{items: Client[], total: int}
+     */
+    public function searchAll(?string $realmId, int $limit, int $offset): array;
 
     public function create(Client $client): Client;
 
