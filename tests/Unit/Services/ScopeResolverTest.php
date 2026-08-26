@@ -297,4 +297,10 @@ class ScopeResolverTest extends TestCase
 
         self::assertNull($issued->roleClaims->resourceAccess);
     }
+
+    public function testSplitScopeFiltersEmptyStrings(): void
+    {
+        $granted = $this->resolver->resolve('openid  profile', $this->inheritClient, $this->realm, true);
+        self::assertSame('openid profile', $granted);
+    }
 }

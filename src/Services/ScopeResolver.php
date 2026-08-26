@@ -258,6 +258,6 @@ class ScopeResolver
             return [];
         }
 
-        return explode(' ', $scope);
+        return array_values(array_filter(explode(' ', $scope), static fn(string $s): bool => $s !== ''));
     }
 }

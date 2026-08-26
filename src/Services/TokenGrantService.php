@@ -83,7 +83,7 @@ class TokenGrantService
         Client $client,
         ?string $codeVerifier
     ): array {
-        $this->logger->info("generating tokens from authorization code $code");
+        $this->logger->info("generating tokens from authorization code");
         $login = $this->loginStateMachine->findByCode($code, $realm->getId());
 
         if ($login === null) {

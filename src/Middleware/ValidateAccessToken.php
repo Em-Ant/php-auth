@@ -40,7 +40,7 @@ class ValidateAccessToken implements MiddlewareInterface
             );
         }
 
-        $token = str_replace('Bearer ', '', $authHeader);
+        $token = substr($authHeader, 7);
 
         try {
             $parsed = $this->tokenValidator->parseValidToken($token, $realm);

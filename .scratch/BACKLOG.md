@@ -43,6 +43,7 @@ Single source of truth for what to work on next. **Local by design** (3 machines
 | F-18 | feature | P3 | S | | SMTP adapter (VPS) | `ROADMAP → Login Methods` |
 | F-43 | fix | P3 | S | | deferred batch: `login_hint`/`max_age`/`ui_locales`, `WWW-Authenticate` on 401, `X-Powered-By` removal — with a future hardening pass | `keycloak-parity/PRD.md` |
 | R-15 | refactor | P1 | S | | standardize `users.valid` boolean to integer `1`/`0` — string `'TRUE'`/`'FALSE'` convention inconsistent with rest of schema; risky migration (data transform), needs release plan per ADR-0002 | `boolean-standardize/PRD.md` |
+| F-44 | fix | P2 | S | | CORS origin allowlist in config.ini (`*` = echo any origin, current behaviour) — `CorsMiddleware` reflects arbitrary `Origin` with credentials | `issues/001-cors-allowlist.md` |
 
 **Blocked-by:** empty = pickable now; a task ID = wait for that task first.
 Conscious postponements (delayed/deferred) are flagged in Why-now, not as a

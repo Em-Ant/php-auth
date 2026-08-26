@@ -134,6 +134,13 @@ class InputValidatorTest extends TestCase
         InputValidator::validateRedirectUri($client, 'http://localhost:5173');
     }
 
+    public function testValidateRedirectUriPathWildcardRejectsSiblingPrefix(): void
+    {
+        $client = new Client('c-1', 'app', 'r-1', null, 'https://app.example.com/api/*', false, '2025-01-01 00:00:00');
+        $this->expectException(ValidationFailed::class);
+        InputValidator::validateRedirectUri($client, 'https://app.example.com/api-admin/secret');
+    }
+
     // ── validateQueryParams ────────────────────────────────────
 
     public function testValidateQueryParamsValid(): void

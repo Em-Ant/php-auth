@@ -118,7 +118,11 @@ class InputValidator
         $prefix = rtrim($registeredParts['path'] ?? '/', '*');
         $requestedPath = $requestedParts['path'] ?? '/';
 
-        return str_starts_with($requestedPath, $prefix);
+        if (!str_starts_with($requestedPath, $prefix)) {
+            return false;
+        }
+        $rest = substr($requestedPath, strlen($prefix));
+        return $prefix === '/' || str_ends_with($prefix, '/') || $rest === '' || $rest[0] === '/' || $rest[0] === '?';
     }
 
     public static function validateQueryParams(array $query): void

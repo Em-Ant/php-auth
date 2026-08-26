@@ -1554,7 +1554,10 @@ DEL_REQUIRED=$(curl -sS -o /dev/null -w "%{http_code}" -X DELETE -H "$ADMIN_HDR"
 [[ "$DEL_REQUIRED" = "204" ]] && ok "Deleted required client → 204" || fail "Delete required client expected 204, got $DEL_REQUIRED"
 
 # Delete mapped client role before client (FK dependency)
-# Unassign from user first (role is assigned to ADMIN_CREATED_USER_ID)
+# Remove scope-role mapping first (email → app-user)
+curl -sf -X DELETE -H "$ADMIN_HDR" \
+    "$BASE/admin/clients/$MAPPED_CLIENT_ID/scope-roles/email/$MAPPED_CLIENT_ROLE_ID" >/dev/null 2>&1 || true
+# Unassign from user (role is assigned to ADMIN_CREATED_USER_ID)
 curl -sf -X DELETE -H "$ADMIN_HDR" \
     "$BASE/admin/users/$ADMIN_CREATED_USER_ID/roles/$MAPPED_CLIENT_ROLE_ID" >/dev/null 2>&1 || true
 DEL_MAPPED_ROLE=$(curl -sS -o /dev/null -w "%{http_code}" -X DELETE -H "$ADMIN_HDR" "$BASE/admin/roles/$MAPPED_CLIENT_ROLE_ID")

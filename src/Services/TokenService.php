@@ -77,12 +77,15 @@ class TokenService
         $base64UrlHeader = Base64Utils::b64UrlEncode($header);
         $base64UrlPayload = Base64Utils::b64UrlEncode(json_encode($payload));
 
-        openssl_sign(
+        $ok = openssl_sign(
             $base64UrlHeader . "." . $base64UrlPayload,
             $signature,
             $privateKey,
             'sha256WithRSAEncryption'
         );
+        if (!$ok) {
+            throw new StorageFailed('failed to sign JWT');
+        }
 
         $base64UrlSignature = Base64Utils::b64UrlEncode($signature);
         return $base64UrlHeader . "." . $base64UrlPayload . "." . $base64UrlSignature;
