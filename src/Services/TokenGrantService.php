@@ -16,6 +16,7 @@ use Psr\Log\LoggerInterface;
 class TokenGrantService
 {
     private const ERR_INVALID_REFRESH_TOKEN = 'invalid refresh token';
+    private const ERR_LOGIN_EXPIRED = 'login is expired';
 
     public function __construct(
         private ActiveSessionResolver $sessions,
@@ -174,14 +175,14 @@ class TokenGrantService
         }
         if ($login->getStatus() !== LoginStatus::Active) {
             $this->logger->error("login is in invalid status");
-            throw OAuth2Error::invalidGrant('login is expired');
+            throw OAuth2Error::invalidGrant(self::ERR_LOGIN_EXPIRED);
         }
 
         $login = $this->loginStateMachine->transition($login, LoginEvent::CheckExpiry, $realm);
 
         if ($login->getStatus() === LoginStatus::Expired) {
-            $this->logger->error('login is expired');
-            throw OAuth2Error::invalidGrant('login is expired');
+            $this->logger->error(self::ERR_LOGIN_EXPIRED);
+            throw OAuth2Error::invalidGrant(self::ERR_LOGIN_EXPIRED);
         }
 
         $valid = $this->tokenValidator->validate($refreshToken, $realm, 'Refresh');

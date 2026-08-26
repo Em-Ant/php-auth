@@ -246,7 +246,8 @@ class LoginRepository implements IRepo
             $q = $this->db->prepare(
                 "DELETE FROM logins WHERE id = :id"
             );
-            return $q->execute([':id' => $id]);
+            $q->execute([':id' => $id]);
+            return $q->rowCount() > 0;
         } catch (\PDOException $e) {
             throw new StorageFailed("failed to delete login $id", 0, $e);
         }

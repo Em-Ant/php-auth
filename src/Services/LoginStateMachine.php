@@ -158,8 +158,7 @@ class LoginStateMachine
             return;
         }
 
-        $login->setStatus(LoginStatus::Expired);
-        throw new ValidationFailed($login->getStatus()->value . ' login expired');
+        throw new ValidationFailed('login expired');
     }
 
     private function logState(string $action, Login $login): void

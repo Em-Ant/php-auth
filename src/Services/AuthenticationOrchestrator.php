@@ -72,10 +72,10 @@ class AuthenticationOrchestrator
         string $realmId,
         array $query
     ): array {
+        InputValidator::validateQueryParams($query);
+
         $clientName = $query['client_id'];
         $this->logger->info("initializing login for client $clientName");
-
-        InputValidator::validateQueryParams($query);
 
         $client = $this->ensureValidClient($clientName, $realmId, $query['redirect_uri']);
 
@@ -106,7 +106,7 @@ class AuthenticationOrchestrator
     public function validateCsrfToken(string $loginId, string $csrfToken): void
     {
         $login = $this->loginRepository->findById($loginId);
-        if ($login === null || $login->getCsrfToken() !== $csrfToken) {
+        if ($login === null || !hash_equals($login->getCsrfToken(), $csrfToken)) {
             $this->logger->info("CSRF validation failed for login $loginId");
             throw new ValidationFailed('CSRF validation failed');
         }
@@ -117,10 +117,10 @@ class AuthenticationOrchestrator
         Realm $realm,
         array $query
     ): Login {
+        InputValidator::validateQueryParams($query);
+
         $clientName = $query['client_id'];
         $this->logger->info("creating authorized login for client $clientName");
-
-        InputValidator::validateQueryParams($query);
 
         $client = $this->ensureValidClient($clientName, $realm->getId(), $query['redirect_uri']);
 

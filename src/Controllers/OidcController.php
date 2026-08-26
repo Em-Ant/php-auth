@@ -73,7 +73,7 @@ class OidcController
         $token = $request->getAttribute('accessTokenParsed');
         $user = [];
         $user['sub'] = $token['sub'];
-        $user['preferred_username'] = $token['preferred_username'];
+        $user['preferred_username'] = $token['preferred_username'] ?? null;
 
         return JsonResponse::create($response, $user, 200, '*');
     }
