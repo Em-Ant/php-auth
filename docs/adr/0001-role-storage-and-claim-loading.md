@@ -52,11 +52,11 @@ user_role_assignments(user_id, role_id)
 ### D2 — User is a pure row model; claims are read at issuance
 
 `User` carries no role state. `UserRepository` does zero role queries — this
-removes the N+1 by construction rather than by batching. `TokenService`
-depends on the `RoleRepository` interface and reads both role axes once per
-token bundle to build `realm_access.roles` and
-`resource_access.<client>.roles` (the latter only for the token's own client,
-omitted when empty).
+removes the N+1 by construction rather than by batching.
+`ScopeResolver::resolveIssuance()` depends on the `RoleRepository` interface
+and reads both role axes once per token bundle to build
+`realm_access.roles` and `resource_access.<client>.roles` (the latter only
+for the token's own client, omitted when empty).
 
 Role data has exactly two legitimate consumers: token issuance and the future
 per-user role-mapping UI. Any other consumer must go through `RoleRepository`.
@@ -102,10 +102,15 @@ preserves the v0 request contract, but:
 - ~~Until F-12, client roles have no write path beyond seed data.~~ — F-12
   shipped 2026-08-26 (roles CRUD + user role assignments + scope-role
   mappings).
-- ~~The shim's auto-create can materialize typos as real roles~~ — retired
-  2026-08-26 by F-12; `realm_roles` string field no longer accepted.
+- **The shim's auto-create can materialize typos as real roles** — still
+  open. F-12 makes retirement *possible* (explicit role entities + per-user
+  assignment endpoints exist), but the `realm_roles` string field on user
+  create/update is still accepted and `ensureRealmRole` still auto-creates
+  unknown names. Removing them is a breaking admin-API change; tracked as
+  **F-45** (BACKLOG).
 - ~~Admin list pagination and write atomicity remain open gaps~~ — pagination
-  shipped with F-03 (2026-08-26); atomicity shipped with F-04.
+  shipped with F-03 (2026-08-26); delete-role atomicity shipped with F-04
+  (guards + delete inside one reentrant transaction).
 - **Audit log on admin mutations** — compliance gap, tracked as F-07 (BACKLOG).
 
 **Design rules (from admin-api/gaps.md, absorbed here)**

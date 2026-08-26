@@ -905,7 +905,7 @@ echo "=== Step 18c: Admin — user role assignments ==="
 
 # List user roles
 USER_ROLES=$(curl -sS -H "$ADMIN_HDR" "$BASE/admin/users/$ADMIN_CREATED_USER_ID/roles")
-USER_ROLES_COUNT=$(echo "$USER_ROLES" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo 0)
+USER_ROLES_COUNT=$(echo "$USER_ROLES" | python3 -c "import sys,json; print(len(json.load(sys.stdin)['items']))" 2>/dev/null || echo 0)
 [[ "$USER_ROLES_COUNT" -ge 1 ]] && ok "List user roles returns $USER_ROLES_COUNT role(s)" || fail "Expected >=1 role, got $USER_ROLES_COUNT"
 
 # Assign role to user
@@ -949,7 +949,7 @@ echo "=== Step 18d: Admin — scope-role mappings ==="
 
 # List scope-role mappings (empty for new client)
 SCOPE_LIST=$(curl -sS -H "$ADMIN_HDR" "$BASE/admin/clients/$ADMIN_CREATED_CLIENT_ID/scope-roles")
-SCOPE_COUNT=$(echo "$SCOPE_LIST" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo 0)
+SCOPE_COUNT=$(echo "$SCOPE_LIST" | python3 -c "import sys,json; print(len(json.load(sys.stdin)['items']))" 2>/dev/null || echo 0)
 [[ "$SCOPE_COUNT" -eq 0 ]] && ok "List scope-role mappings returns empty for new client" || fail "Expected 0 mappings, got $SCOPE_COUNT"
 
 # Create scope-role mapping
@@ -965,7 +965,7 @@ ADMIN_CREATED_SCOPE_ROLE_SCOPE="profile"
 
 # List scope-role mappings (now has 1)
 SCOPE_LIST_AFTER=$(curl -sS -H "$ADMIN_HDR" "$BASE/admin/clients/$ADMIN_CREATED_CLIENT_ID/scope-roles")
-SCOPE_COUNT_AFTER=$(echo "$SCOPE_LIST_AFTER" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo 0)
+SCOPE_COUNT_AFTER=$(echo "$SCOPE_LIST_AFTER" | python3 -c "import sys,json; print(len(json.load(sys.stdin)['items']))" 2>/dev/null || echo 0)
 [[ "$SCOPE_COUNT_AFTER" -ge 1 ]] && ok "List scope-role mappings returns $SCOPE_COUNT_AFTER mapping(s)" || fail "Expected >=1, got $SCOPE_COUNT_AFTER"
 
 # Duplicate mapping returns 409
@@ -1001,7 +1001,7 @@ ADMIN_CREATED_SCOPE_ROLE_SCOPE=""
 
 # Verify empty again
 SCOPE_LIST_EMPTY=$(curl -sS -H "$ADMIN_HDR" "$BASE/admin/clients/$ADMIN_CREATED_CLIENT_ID/scope-roles")
-SCOPE_COUNT_EMPTY=$(echo "$SCOPE_LIST_EMPTY" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo 0)
+SCOPE_COUNT_EMPTY=$(echo "$SCOPE_LIST_EMPTY" | python3 -c "import sys,json; print(len(json.load(sys.stdin)['items']))" 2>/dev/null || echo 0)
 [[ "$SCOPE_COUNT_EMPTY" -eq 0 ]] && ok "Scope-role mappings empty after delete" || fail "Expected 0, got $SCOPE_COUNT_EMPTY"
 
 # Delete non-existent mapping is idempotent

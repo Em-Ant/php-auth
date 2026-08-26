@@ -207,9 +207,10 @@ class AdminRolesTest extends TestCase
             "/admin/users/" . self::TEST_USER . "/roles"
         ));
 
-        self::assertIsArray($data);
-        self::assertGreaterThan(0, count($data));
-        $roleNames = array_column($data, 'name');
+        self::assertArrayHasKey('items', $data);
+        self::assertGreaterThan(0, $data['total']);
+        self::assertLessThanOrEqual($data['limit'], count($data['items']));
+        $roleNames = array_column($data['items'], 'name');
         self::assertContains('basic', $roleNames);
     }
 
@@ -237,6 +238,23 @@ class AdminRolesTest extends TestCase
             "/admin/users/" . self::TEST_USER . "/roles",
             ['role_id' => getGuid()]
         ));
+    }
+
+    public function testAssignRoleFromAnotherRealmReturns400(): void
+    {
+        $otherRealmId = (string) self::$pdo
+            ->query("SELECT id FROM realms WHERE id <> '" . self::TEST_REALM . "' LIMIT 1")
+            ->fetchColumn();
+        $foreignRealmRoleId = getGuid();
+        $this->insertRole($foreignRealmRoleId, $otherRealmId, 'foreign-realm-role');
+
+        $this->assertStatus(400, $this->assignRoleRequest(
+            self::TEST_USER,
+            $foreignRealmRoleId
+        ));
+
+        $roles = self::$app->getContainer()->get(\AuthServer\Interfaces\RoleRepository::class);
+        self::assertFalse($roles->userHasRole(self::TEST_USER, $foreignRealmRoleId));
     }
 
     public function testAssignRoleToUnknownUserReturns404(): void
@@ -327,7 +345,9 @@ class AdminRolesTest extends TestCase
             "/admin/clients/" . self::KC_APP_CLIENT . "/scope-roles"
         ));
 
-        self::assertIsArray($data);
+        self::assertArrayHasKey('items', $data);
+        self::assertSame($data['total'], count($data['items']));
+        self::assertGreaterThanOrEqual(0, $data['total']);
     }
 
     public function testCreateScopeRoleMapping(): void
@@ -402,9 +422,9 @@ class AdminRolesTest extends TestCase
             "/admin/clients/" . self::KC_APP_CLIENT . "/scope-roles"
         ));
 
-        self::assertGreaterThan(0, count($data));
+        self::assertGreaterThan(0, $data['total']);
         $found = false;
-        foreach ($data as $mapping) {
+        foreach ($data['items'] as $mapping) {
             if ($mapping['scope'] === 'profile' && $mapping['role_id'] === self::ADMIN_ROLE) {
                 $found = true;
                 self::assertTrue($mapping['required']);
@@ -447,7 +467,7 @@ class AdminRolesTest extends TestCase
             "/admin/clients/" . self::KC_APP_CLIENT . "/scope-roles"
         ));
 
-        foreach ($data as $mapping) {
+        foreach ($data['items'] as $mapping) {
             self::assertFalse(
                 $mapping['scope'] === 'profile' && $mapping['role_id'] === self::ADMIN_ROLE,
                 'Mapping should have been deleted'
@@ -479,4 +499,17 @@ class AdminRolesTest extends TestCase
             "/admin/roles/$roleId"
         ));
     }
+
+    private function insertRole(string $roleId, string $realmId, string $name): void
+    {
+        self::$pdo->prepare(
+            "INSERT INTO roles (id, realm_id, name) VALUES (?, ?, ?)"
+        )->execute([$roleId, $realmId, $name]);
+    }
+
+    private function assignRoleRequest(string $userId, string $roleId): mixed
+    {
+        return $this->adminRequest('POST', "/admin/users/{$userId}/roles", ['role_id' => $roleId]);
+    }
 }
+

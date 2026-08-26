@@ -32,14 +32,29 @@ class ScopeRolesController
 
         $grouped = $this->roles->findScopeRoleMappings($clientId);
 
-        $items = [];
-        foreach ($grouped as $scope => $mappings) {
-            foreach ($mappings as $mapping) {
-                $items[] = self::mappingToArray($mapping->roleId, $scope, $mapping->roleName, $mapping->required);
+        $mappings = [];
+        foreach ($grouped as $scope => $scopeMappings) {
+            foreach ($scopeMappings as $mapping) {
+                $mappings[] = self::mappingToArray($mapping->roleId, $scope, $mapping->roleName, $mapping->required);
             }
         }
 
-        return JsonResponse::create($response, $items);
+        $query = $request->getQueryParams();
+        $pagination = $this->paginationFromQuery($query);
+        $total = count($mappings);
+
+        // Child collection of a bounded aggregate (one client's mappings),
+        // so paging is applied in PHP over the single fetch instead of a
+        // dedicated SQL page query.
+        $items = array_slice($mappings, $pagination['offset'], $pagination['limit']);
+
+        return JsonResponse::paginated(
+            $response,
+            $items,
+            $total,
+            $pagination['limit'],
+            $pagination['offset']
+        );
     }
 
     public function create(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface

@@ -8,6 +8,7 @@ use AuthServer\Exceptions\ValidationFailed;
 use AuthServer\Interfaces\RoleRepository;
 use AuthServer\Interfaces\UserRepository;
 use AuthServer\Models\Role;
+use AuthServer\Models\User;
 use AuthServer\Response\JsonResponse;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -30,11 +31,27 @@ class UserRolesController
         $userId = $request->getAttribute('id');
         $this->findUserOrFail($request, $userId);
 
-        $roles = $this->roles->findByUserId($userId);
+        $query = $request->getQueryParams();
+        $pagination = $this->paginationFromQuery($query);
 
-        return JsonResponse::create(
+        $roles = $this->roles->findByUserId($userId);
+        $total = count($roles);
+
+        // Child collection of a bounded aggregate (one user's assignments),
+        // so paging is applied in PHP over the single fetch instead of a
+        // dedicated SQL page query.
+        $items = array_slice(
+            array_map(fn(Role $role) => self::toArray($role), $roles),
+            $pagination['offset'],
+            $pagination['limit']
+        );
+
+        return JsonResponse::paginated(
             $response,
-            array_map(fn(Role $role) => self::toArray($role), $roles)
+            $items,
+            $total,
+            $pagination['limit'],
+            $pagination['offset']
         );
     }
 
@@ -42,13 +59,15 @@ class UserRolesController
     {
         try {
             $userId = $request->getAttribute('id');
-            $this->findUserOrFail($request, $userId);
+            $user = $this->findUserOrFail($request, $userId);
 
             $body = (array) ($request->getParsedBody() ?? []);
             $roleId = $this->requiredString($body, 'role_id');
 
             $role = $this->roles->findById($roleId);
-            if ($role === null) {
+            // Same error for unknown and out-of-realm roles so the endpoint
+            // does not leak other realms' role ids (realms are hard tenants).
+            if ($role === null || $role->getRealmId() !== $user->getRealmId()) {
                 throw new ValidationFailed("unknown role '$roleId'");
             }
 
@@ -71,12 +90,13 @@ class UserRolesController
         return $response->withStatus(204);
     }
 
-    private function findUserOrFail(ServerRequestInterface $request, string $id): void
+    private function findUserOrFail(ServerRequestInterface $request, string $id): User
     {
         $user = $this->users->findById($id);
         if ($user === null) {
             throw new HttpNotFoundException($request, "user '$id' not found");
         }
+        return $user;
     }
 
     private static function toArray(Role $role): array

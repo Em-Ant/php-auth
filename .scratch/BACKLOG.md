@@ -45,6 +45,8 @@ Single source of truth for what to work on next. **Local by design** (3 machines
 | R-15 | refactor | P1 | S | | standardize `users.valid` boolean to integer `1`/`0` — string `'TRUE'`/`'FALSE'` convention inconsistent with rest of schema; risky migration (data transform), needs release plan per ADR-0002 | `boolean-standardize/PRD.md` |
 | F-44 | fix | P2 | S | | CORS origin allowlist in config.ini (`*` = echo any origin, current behaviour) — `CorsMiddleware` reflects arbitrary `Origin` with credentials | `issues/001-cors-allowlist.md` |
 | R-16 | refactor | P3 | S | | `findScopeRoleMapping` returns raw `?array` — every other finder returns a typed model; interface + impl + callers to update | `clean-code/issues/12` |
+| F-45 | feature | P2 | S | | retire the `realm_roles` string field on user create/update (shim per ADR-0001 D4): breaking admin-API change; consumers must create roles explicitly then assign via `POST /admin/users/{id}/roles`; also removes `ensureRealmRole` auto-create | `docs/adr/0001 → Negative/follow-ups, F-45` |
+
 
 **Blocked-by:** empty = pickable now; a task ID = wait for that task first.
 Conscious postponements (delayed/deferred) are flagged in Why-now, not as a
