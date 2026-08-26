@@ -1,0 +1,133 @@
+<?php
+
+declare(strict_types=1);
+
+namespace AuthServer\Controllers\Admin;
+
+use AuthServer\Exceptions\ConflictException;
+use AuthServer\Exceptions\ValidationFailed;
+use AuthServer\Interfaces\ClientRepository;
+use AuthServer\Interfaces\RoleRepository;
+use AuthServer\Response\JsonResponse;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+use Slim\Exception\HttpNotFoundException;
+
+class ScopeRolesController
+{
+    use ValidatesAdminInput;
+
+    public function __construct(
+        private readonly ClientRepository $clients,
+        private readonly RoleRepository $roles,
+    ) {
+    }
+
+    public function list(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        $clientId = $request->getAttribute('id');
+        $this->findClientOrFail($request, $clientId);
+
+        $grouped = $this->roles->findScopeRoleMappings($clientId);
+
+        $items = [];
+        foreach ($grouped as $scope => $mappings) {
+            foreach ($mappings as $mapping) {
+                $items[] = self::mappingToArray($mapping->roleId, $scope, $mapping->roleName, $mapping->required);
+            }
+        }
+
+        return JsonResponse::create($response, $items);
+    }
+
+    public function create(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        try {
+            $clientId = $request->getAttribute('id');
+            $this->findClientOrFail($request, $clientId);
+
+            $body = (array) ($request->getParsedBody() ?? []);
+            $scope = $this->requiredString($body, 'scope');
+            $roleId = $this->requiredString($body, 'role_id');
+            $required = $this->optionalBool($body, 'required', false);
+
+            $role = $this->roles->findById($roleId);
+            if ($role === null) {
+                throw new ValidationFailed("unknown role '$roleId'");
+            }
+
+            $existing = $this->roles->findScopeRoleMapping($clientId, $scope, $roleId);
+            if ($existing !== null) {
+                throw new ConflictException("mapping for scope '$scope' and role '$roleId' already exists");
+            }
+
+            $this->roles->createScopeRoleMapping($clientId, $scope, $roleId, $required);
+
+            $data = self::mappingToArray($roleId, $scope, $role->getName(), $required);
+
+            return JsonResponse::create($response, $data, 201);
+        } catch (ValidationFailed $e) {
+            return JsonResponse::error($response, 'invalid_request', $e->getMessage(), 400);
+        }
+    }
+
+    public function update(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        try {
+            $clientId = $request->getAttribute('id');
+            $this->findClientOrFail($request, $clientId);
+
+            $scope = $request->getAttribute('scope');
+            $roleId = $request->getAttribute('role_id');
+
+            $existing = $this->roles->findScopeRoleMapping($clientId, $scope, $roleId);
+            if ($existing === null) {
+                throw new HttpNotFoundException($request, "mapping for scope '$scope' and role '$roleId' not found");
+            }
+
+            $body = (array) ($request->getParsedBody() ?? []);
+            $required = $this->optionalBool($body, 'required', (bool) $existing['required']);
+
+            $this->roles->updateScopeRoleMapping($clientId, $scope, $roleId, $required);
+
+            return JsonResponse::create($response, [
+                'scope' => $scope,
+                'role_id' => $roleId,
+                'required' => $required,
+            ]);
+        } catch (ValidationFailed $e) {
+            return JsonResponse::error($response, 'invalid_request', $e->getMessage(), 400);
+        }
+    }
+
+    public function delete(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
+    {
+        $clientId = $request->getAttribute('id');
+        $this->findClientOrFail($request, $clientId);
+
+        $scope = $request->getAttribute('scope');
+        $roleId = $request->getAttribute('role_id');
+
+        $this->roles->deleteScopeRoleMapping($clientId, $scope, $roleId);
+
+        return $response->withStatus(204);
+    }
+
+    private function findClientOrFail(ServerRequestInterface $request, string $id): void
+    {
+        $client = $this->clients->findById($id);
+        if ($client === null) {
+            throw new HttpNotFoundException($request, "client '$id' not found");
+        }
+    }
+
+    private static function mappingToArray(string $roleId, string $scope, string $roleName, bool $required): array
+    {
+        return [
+            'scope' => $scope,
+            'role_id' => $roleId,
+            'role_name' => $roleName,
+            'required' => $required,
+        ];
+    }
+}

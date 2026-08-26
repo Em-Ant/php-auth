@@ -216,7 +216,7 @@ class ScopeResolverTest extends TestCase
     public function testScopeWithRequiredRoleMissingIsDropped(): void
     {
         $issued = $this->issueWith(
-            ['admin' => [new ScopeRoleMapping('admin', 'admin', null, true)]],
+            ['admin' => [new ScopeRoleMapping('role-admin', 'admin', 'admin', null, true)]],
             ['basic'],
             [],
             'openid profile admin'
@@ -230,7 +230,7 @@ class ScopeResolverTest extends TestCase
     public function testScopeWithRequiredRoleHeldIsKeptAndRoleIncluded(): void
     {
         $issued = $this->issueWith(
-            ['admin' => [new ScopeRoleMapping('admin', 'admin', null, true)]],
+            ['admin' => [new ScopeRoleMapping('role-admin', 'admin', 'admin', null, true)]],
             ['basic', 'admin'],
             [],
             'openid admin'
@@ -245,7 +245,7 @@ class ScopeResolverTest extends TestCase
      */
     private function profileMapping(): array
     {
-        return [new ScopeRoleMapping('profile', 'app-user', 'mapped-app', false)];
+        return [new ScopeRoleMapping('role-app-user', 'profile', 'app-user', 'mapped-app', false)];
     }
 
     public function testIncludeMappingRoleNotHeldIsSkipped(): void
@@ -272,7 +272,7 @@ class ScopeResolverTest extends TestCase
     public function testUnmappedScopesPassThroughUntouchedInRestrictedMode(): void
     {
         $issued = $this->issueWith(
-            ['admin' => [new ScopeRoleMapping('admin', 'admin', null, true)]],
+            ['admin' => [new ScopeRoleMapping('role-admin', 'admin', 'admin', null, true)]],
             [],
             [],
             'openid'
@@ -285,7 +285,7 @@ class ScopeResolverTest extends TestCase
     public function testClientRoleOfAnotherNamespaceIsNotEmittedForResourceAccess(): void
     {
         $this->roles->method('findScopeRoleMappings')->willReturn([
-            'profile' => [new ScopeRoleMapping('profile', 'other-role', 'other-app', false)],
+            'profile' => [new ScopeRoleMapping('role-other', 'profile', 'other-role', 'other-app', false)],
         ]);
         $this->stubHeldRoles([], ['other-app' => ['other-role']]);
 

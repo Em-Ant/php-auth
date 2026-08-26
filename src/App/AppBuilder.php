@@ -10,7 +10,10 @@ use AuthServer\Controllers\Admin\LoginsController;
 use AuthServer\Controllers\Admin\MigrationsController;
 use AuthServer\Controllers\Admin\OfflineSessionsController;
 use AuthServer\Controllers\Admin\RealmsController;
+use AuthServer\Controllers\Admin\RolesController;
+use AuthServer\Controllers\Admin\ScopeRolesController;
 use AuthServer\Controllers\Admin\SessionsController;
+use AuthServer\Controllers\Admin\UserRolesController;
 use AuthServer\Controllers\Admin\UsersController;
 use AuthServer\Controllers\AuthorizationController;
 use AuthServer\Controllers\ErrorController;
@@ -57,6 +60,11 @@ final class AppBuilder
     private const REALMS_ID_ROUTE = '/realms/{id}';
     private const CLIENTS_ID_ROUTE = '/clients/{id}';
     private const USERS_ID_ROUTE = '/users/{id}';
+    private const ROLES_ID_ROUTE = '/roles/{id}';
+    private const USER_ROLES_ROUTE = '/users/{id}/roles';
+    private const USER_ROLE_BY_ID_ROUTE = '/users/{id}/roles/{role_id}';
+    private const CLIENT_SCOPE_ROLES_ROUTE = '/clients/{id}/scope-roles';
+    private const CLIENT_SCOPE_ROLE_BY_ID_ROUTE = '/clients/{id}/scope-roles/{scope}/{role_id}';
 
     public static function create(
         ContainerInterface $container,
@@ -306,6 +314,9 @@ final class AppBuilder
         $sessionsController = $container->get(SessionsController::class);
         $loginsController = $container->get(LoginsController::class);
         $offlineSessionsController = $container->get(OfflineSessionsController::class);
+        $rolesController = $container->get(RolesController::class);
+        $userRolesController = $container->get(UserRolesController::class);
+        $scopeRolesController = $container->get(ScopeRolesController::class);
 
         $app->group('/admin', function (RouteCollectorProxy $group) use (
             $realmsController,
@@ -314,7 +325,10 @@ final class AppBuilder
             $keysController,
             $sessionsController,
             $loginsController,
-            $offlineSessionsController
+            $offlineSessionsController,
+            $rolesController,
+            $userRolesController,
+            $scopeRolesController
         ) {
             $group->post('/keys', [$keysController, 'generate']);
 
@@ -346,6 +360,21 @@ final class AppBuilder
             $group->get('/offline-sessions', [$offlineSessionsController, 'list']);
             $group->get('/offline-sessions/{id}', [$offlineSessionsController, 'read']);
             $group->delete('/offline-sessions/{id}', [$offlineSessionsController, 'delete']);
+
+            $group->get('/roles', [$rolesController, 'list']);
+            $group->post('/roles', [$rolesController, 'create']);
+            $group->get(self::ROLES_ID_ROUTE, [$rolesController, 'read']);
+            $group->put(self::ROLES_ID_ROUTE, [$rolesController, 'update']);
+            $group->delete(self::ROLES_ID_ROUTE, [$rolesController, 'delete']);
+
+            $group->get(self::USER_ROLES_ROUTE, [$userRolesController, 'list']);
+            $group->post(self::USER_ROLES_ROUTE, [$userRolesController, 'assign']);
+            $group->delete(self::USER_ROLE_BY_ID_ROUTE, [$userRolesController, 'remove']);
+
+            $group->get(self::CLIENT_SCOPE_ROLES_ROUTE, [$scopeRolesController, 'list']);
+            $group->post(self::CLIENT_SCOPE_ROLES_ROUTE, [$scopeRolesController, 'create']);
+            $group->put(self::CLIENT_SCOPE_ROLE_BY_ID_ROUTE, [$scopeRolesController, 'update']);
+            $group->delete(self::CLIENT_SCOPE_ROLE_BY_ID_ROUTE, [$scopeRolesController, 'delete']);
         })->add($adminMiddleware);
     }
 

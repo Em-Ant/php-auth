@@ -12,6 +12,7 @@ namespace AuthServer\Models;
 final class ScopeRoleMapping
 {
     public function __construct(
+        public readonly string $roleId,
         public readonly string $scope,
         public readonly string $roleName,
         public readonly ?string $roleClientName,
