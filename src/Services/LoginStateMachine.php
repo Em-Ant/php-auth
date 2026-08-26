@@ -142,6 +142,11 @@ class LoginStateMachine
         if ($this->isExpired($login, $realm)) {
             $login->setStatus(LoginStatus::Expired);
             $login->setUpdatedAt(new \DateTime());
+
+            $ok = $this->loginRepository->setExpired($login->getId());
+            if (!$ok) {
+                throw new StorageFailed('failed to persist expired login');
+            }
         }
 
         return $login;

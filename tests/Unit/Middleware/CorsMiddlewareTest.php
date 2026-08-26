@@ -37,7 +37,7 @@ class CorsMiddlewareTest extends TestCase
             'content-type,accept,origin,authorization',
             $response->getHeaderLine('Access-Control-Allow-Headers'),
         );
-        self::assertSame('GET,POST,OPTIONS', $response->getHeaderLine('Access-Control-Allow-Methods'));
+        self::assertSame('GET,POST,PUT,DELETE,OPTIONS', $response->getHeaderLine('Access-Control-Allow-Methods'));
     }
 
     public function testOptionsRequestWithOriginIncludesCredentials(): void

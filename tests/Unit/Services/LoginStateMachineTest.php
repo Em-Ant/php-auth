@@ -200,6 +200,9 @@ class LoginStateMachineTest extends TestCase
     {
         $login = $this->makeLogin(LoginStatus::Pending, createdAt: '2000-01-01 00:00:00');
 
+        $this->loginRepo->expects($this->once())->method('setExpired')
+            ->with($login->getId())->willReturn(true);
+
         $result = $this->machine->transition($login, LoginEvent::CheckExpiry, $this->realm);
 
         self::assertSame(LoginStatus::Expired, $result->getStatus());

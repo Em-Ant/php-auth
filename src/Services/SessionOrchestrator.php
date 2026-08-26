@@ -45,7 +45,8 @@ class SessionOrchestrator
             new \DateInterval("PT{$expiresIn}S")
         ) < $now;
 
-        $isIdleForTooLong = (clone $createdAt)->add(
+        $lastActivity = $session->getUpdatedAt() ?? $createdAt;
+        $isIdleForTooLong = (clone $lastActivity)->add(
             new \DateInterval("PT{$idleExpiresIn}S")
         ) < $now;
 

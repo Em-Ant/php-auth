@@ -24,7 +24,7 @@ class CorsMiddleware implements MiddlewareInterface
                     'Access-Control-Allow-Headers',
                     'content-type,accept,origin,authorization'
                 )
-                ->withHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
+                ->withHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS')
                 ->withStatus(204);
             if ($origin !== '') {
                 $response = $response->withHeader('Access-Control-Allow-Credentials', 'true');

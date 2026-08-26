@@ -16,7 +16,7 @@ final class ClientCredentials
             return $body;
         }
 
-        $cred = explode(':', base64_decode(substr($authHeader, 6)));
+        $cred = explode(':', base64_decode(substr($authHeader, 6)), 2);
         if (!isset($body['client_id'])) {
             $body['client_id'] = $cred[0];
         }
