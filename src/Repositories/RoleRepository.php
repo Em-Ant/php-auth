@@ -419,6 +419,19 @@ class RoleRepository implements IRoleRepo
         }
     }
 
+    public function countScopeRoleMappingsByRoleId(string $roleId): int
+    {
+        try {
+            $stmt = $this->db->prepare(
+                'SELECT COUNT(*) FROM client_scope_roles WHERE role_id = :role_id'
+            );
+            $stmt->execute([':role_id' => $roleId]);
+            return (int) $stmt->fetchColumn();
+        } catch (\PDOException $e) {
+            throw new StorageFailed('failed to count scope role mappings for role', 0, $e);
+        }
+    }
+
     private static function buildFromData(array $r): Role
     {
         $utc = new \DateTimeZone('UTC');

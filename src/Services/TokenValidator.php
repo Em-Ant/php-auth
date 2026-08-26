@@ -53,8 +53,9 @@ class TokenValidator
         }
 
         if ($expectedAud !== null) {
-            $aud = (string) ($claims['aud'] ?? $claims['azp'] ?? '');
-            if ($aud !== $expectedAud) {
+            $rawAud = $claims['aud'] ?? $claims['azp'] ?? '';
+            $audList = is_array($rawAud) ? $rawAud : [(string) $rawAud];
+            if (!in_array($expectedAud, $audList, true)) {
                 return null;
             }
         }

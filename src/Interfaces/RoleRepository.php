@@ -70,4 +70,6 @@ interface RoleRepository
     public function deleteScopeRoleMapping(string $clientId, string $scope, string $roleId): bool;
 
     public function findScopeRoleMapping(string $clientId, string $scope, string $roleId): ?array;
+
+    public function countScopeRoleMappingsByRoleId(string $roleId): int;
 }

@@ -22,9 +22,11 @@ final class GrantContext
 
     public static function fromSession(Session $session, Login $login): self
     {
+        $authenticatedAt = $login->getAuthenticatedAt();
+
         return new self(
             subject: $session->getUserId(),
-            authTime: date_timestamp_get($login->getAuthenticatedAt()),
+            authTime: $authenticatedAt !== null ? date_timestamp_get($authenticatedAt) : time(),
             acr: $session->getAcr(),
             sid: $session->getId(),
             nonce: $login->getNonce(),

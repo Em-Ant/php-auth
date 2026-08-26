@@ -133,6 +133,28 @@ class SessionLoginManagementTest extends TestCase
         $this->assertStatus(400, $this->adminRequest('POST', '/admin/sessions/invalidate', []));
     }
 
+    public function testInvalidateWithBothUserIdAndClientIdDoesNotDoubleCount(): void
+    {
+        $pdo = self::$app->getContainer()->get(\PDO::class);
+        $userId = getGuid();
+
+        $hash = password_hash('pass', PASSWORD_BCRYPT, ['cost' => 4]);
+        $pdo->exec("INSERT INTO users (id, realm_id, name, email, password, valid)
+                     VALUES ('$userId', '" . self::TEST_REALM . "', 'DoubleCount', 'dc-".getGuid()."@example.com', '$hash', 'TRUE')");
+
+        $s1 = getGuid();
+        $l1 = getGuid();
+        $pdo->exec("INSERT INTO sessions (id, realm_id, user_id, acr, status) VALUES ('$s1', '" . self::TEST_REALM . "', '$userId', '0', 'ACTIVE')");
+        $pdo->exec("INSERT INTO logins (id, client_id, session_id, state, nonce, scope, redirect_uri, response_mode, status) VALUES ('$l1', '" . self::TEST_CLIENT . "', '$s1', 'st', 'nc', 'openid', 'https://example.com', 'query', 'ACTIVE')");
+
+        $data = $this->assertStatus(200, $this->adminRequest('POST', '/admin/sessions/invalidate', [
+            'user_id' => $userId,
+            'client_id' => self::TEST_CLIENT,
+        ]));
+
+        self::assertSame(1, $data['invalidated']);
+    }
+
     // ── Logins ────────────────────────────────────────────────
 
     public function testListLoginsReturnsData(): void

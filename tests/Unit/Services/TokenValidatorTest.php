@@ -283,4 +283,37 @@ class TokenValidatorTest extends TestCase
         $this->expectException(ValidationFailed::class);
         $this->validator->parseValidToken($this->createToken($payload), $this->realm);
     }
+
+    // ── Multi-audience token handling ─────────────────────────
+
+    public function testValidateAcceptsArrayAudienceContainingExpectedClient(): void
+    {
+        $payload = $this->validPayload('Bearer', 'my-app');
+        $payload['aud'] = ['my-app', 'other-client'];
+
+        $claims = $this->validator->validate(
+            $this->createToken($payload),
+            $this->realm,
+            'Bearer',
+            'my-app'
+        );
+
+        self::assertIsArray($claims);
+        self::assertSame('user-1', $claims['sub']);
+    }
+
+    public function testValidateRejectsArrayAudienceNotContainingExpectedClient(): void
+    {
+        $payload = $this->validPayload('Bearer', 'other-client');
+        $payload['aud'] = ['other-client', 'third-client'];
+
+        self::assertNull(
+            $this->validator->validate(
+                $this->createToken($payload),
+                $this->realm,
+                'Bearer',
+                'my-app'
+            )
+        );
+    }
 }

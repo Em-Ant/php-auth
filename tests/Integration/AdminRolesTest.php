@@ -410,4 +410,21 @@ class AdminRolesTest extends TestCase
             "/admin/clients/" . self::KC_APP_CLIENT . "/scope-roles/nonexistent/" . self::ADMIN_ROLE
         ));
     }
+
+    public function testDeleteRoleWithScopeRoleMappingReturns409(): void
+    {
+        $roleId = getGuid();
+        self::$pdo->prepare(
+            "INSERT INTO roles (id, realm_id, name) VALUES (?, ?, ?)"
+        )->execute([$roleId, self::TEST_REALM, 'scoped-role']);
+
+        self::$pdo->prepare(
+            "INSERT INTO client_scope_roles (client_id, scope, role_id, required) VALUES (?, ?, ?, 0)"
+        )->execute([self::KC_APP_CLIENT, 'email', $roleId]);
+
+        $this->assertStatus(409, $this->adminRequest(
+            'DELETE',
+            "/admin/roles/$roleId"
+        ));
+    }
 }

@@ -136,6 +136,10 @@ class RolesController
             throw new ConflictException("role '$id' is still assigned to users");
         }
 
+        if ($this->roles->countScopeRoleMappingsByRoleId($id) > 0) {
+            throw new ConflictException("role '$id' is still referenced in scope-role mappings");
+        }
+
         $this->roles->delete($id);
 
         return $response->withStatus(204);
