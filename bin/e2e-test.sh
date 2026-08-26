@@ -654,8 +654,16 @@ ADMIN_CREATED_KID=""
 ADMIN_CREATED_REALM_ID=""
 ADMIN_CREATED_CLIENT_ID=""
 ADMIN_CREATED_USER_ID=""
+ADMIN_CREATED_ROLE_ID=""
+ADMIN_CREATED_CLIENT_ROLE_ID=""
+ADMIN_CREATED_SCOPE_ROLE_SCOPE=""
 
 admin_cleanup() {
+    # Remove scope-role mappings first (FK dependency on roles)
+    [[ -n "${ADMIN_CREATED_SCOPE_ROLE_SCOPE:-}" && -n "${ADMIN_CREATED_ROLE_ID:-}" && -n "${ADMIN_CREATED_CLIENT_ID:-}" ]] \
+        && curl -sf -X DELETE -H "$ADMIN_HDR" "$BASE/admin/clients/$ADMIN_CREATED_CLIENT_ID/scope-roles/$ADMIN_CREATED_SCOPE_ROLE_SCOPE/$ADMIN_CREATED_ROLE_ID" >/dev/null 2>&1 || true
+    [[ -n "${ADMIN_CREATED_ROLE_ID:-}" ]]       && curl -sf -X DELETE -H "$ADMIN_HDR" "$BASE/admin/roles/$ADMIN_CREATED_ROLE_ID" >/dev/null 2>&1 || true
+    [[ -n "${ADMIN_CREATED_CLIENT_ROLE_ID:-}" ]] && curl -sf -X DELETE -H "$ADMIN_HDR" "$BASE/admin/roles/$ADMIN_CREATED_CLIENT_ROLE_ID" >/dev/null 2>&1 || true
     [[ -n "${ADMIN_CREATED_USER_ID:-}" ]]  && curl -sf -X DELETE -H "$ADMIN_HDR" "$BASE/admin/users/$ADMIN_CREATED_USER_ID" >/dev/null 2>&1 || true
     [[ -n "${ADMIN_CREATED_CLIENT_ID:-}" ]] && curl -sf -X DELETE -H "$ADMIN_HDR" "$BASE/admin/clients/$ADMIN_CREATED_CLIENT_ID" >/dev/null 2>&1 || true
     [[ -n "${ADMIN_CREATED_REALM_ID:-}" ]] && curl -sf -X DELETE -H "$ADMIN_HDR" "$BASE/admin/realms/$ADMIN_CREATED_REALM_ID" >/dev/null 2>&1 || true
@@ -828,6 +836,178 @@ BAD_REALM_USER=$(curl -sS -o /dev/null -w "%{http_code}" -X POST -H "$ADMIN_HDR"
     -d '{"realm_id":"nonexistent","email":"ghost@example.com","password":"pass"}' \
     "$BASE/admin/users")
 [[ "$BAD_REALM_USER" = "400" ]] && ok "User with unknown realm returns 400" || fail "Expected 400, got $BAD_REALM_USER"
+
+# ═══════════════════════════════════════════════════════════════
+# Admin Roles CRUD (F-12)
+# ═══════════════════════════════════════════════════════════════
+
+# ── Step 18b: Admin roles CRUD ──────────────────────────────
+echo ""
+echo "=== Step 18b: Admin — roles CRUD ==="
+
+# List seeded roles
+ROLES_LIST=$(curl -sS -H "$ADMIN_HDR" "$BASE/admin/roles?realm_id=$ADMIN_CREATED_REALM_ID")
+ROLES_TOTAL=$(echo "$ROLES_LIST" | python3 -c "import sys,json; print(json.load(sys.stdin).get('total',0))" 2>/dev/null || echo 0)
+[[ "$ROLES_TOTAL" -ge 2 ]] && ok "List roles returns seeded roles ($ROLES_TOTAL found)" || fail "Expected >=2 seeded roles, got $ROLES_TOTAL"
+
+# Create realm role
+ROLE_RESP=$(curl -sS -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"name":"e2e-editor","realm_id":"'"$ADMIN_CREATED_REALM_ID"'","description":"E2E test role"}' \
+    "$BASE/admin/roles")
+ADMIN_CREATED_ROLE_ID=$(echo "$ROLE_RESP" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
+ROLE_NAME=$(echo "$ROLE_RESP" | sed -n 's/.*"name":"\([^"]*\)".*/\1/p')
+
+[[ -n "$ADMIN_CREATED_ROLE_ID" ]] && ok "Created role: $ROLE_NAME (${ADMIN_CREATED_ROLE_ID:0:8}...)" || { fail "No role id returned"; admin_cleanup; exit 1; }
+
+# Read role
+READ_ROLE=$(curl -sS -H "$ADMIN_HDR" "$BASE/admin/roles/$ADMIN_CREATED_ROLE_ID")
+READ_ROLE_NAME=$(echo "$READ_ROLE" | sed -n 's/.*"name":"\([^"]*\)".*/\1/p')
+[[ "$READ_ROLE_NAME" = "e2e-editor" ]] && ok "Read role returns correct data" || fail "Read role name mismatch: $READ_ROLE_NAME"
+
+# Update role description
+UPDATE_ROLE=$(curl -sS -X PUT -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"description":"Updated description"}' \
+    "$BASE/admin/roles/$ADMIN_CREATED_ROLE_ID")
+UPDATED_DESC=$(echo "$UPDATE_ROLE" | sed -n 's/.*"description":"\([^"]*\)".*/\1/p')
+[[ "$UPDATED_DESC" = "Updated description" ]] && ok "Updated role description" || fail "Expected 'Updated description', got '$UPDATED_DESC'"
+
+# Duplicate role name returns 409
+DUP_ROLE=$(curl -sS -o /dev/null -w "%{http_code}" -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"name":"e2e-editor","realm_id":"'"$ADMIN_CREATED_REALM_ID"'"}' \
+    "$BASE/admin/roles")
+[[ "$DUP_ROLE" = "409" ]] && ok "Duplicate role name returns 409" || fail "Expected 409, got $DUP_ROLE"
+
+# Unknown realm returns 400
+BAD_REALM_ROLE=$(curl -sS -o /dev/null -w "%{http_code}" -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"name":"ghost","realm_id":"nonexistent"}' \
+    "$BASE/admin/roles")
+[[ "$BAD_REALM_ROLE" = "400" ]] && ok "Role with unknown realm returns 400" || fail "Expected 400, got $BAD_REALM_ROLE"
+
+# Missing role returns 404
+MISSING_ROLE=$(curl -sS -o /dev/null -w "%{http_code}" -H "$ADMIN_HDR" "$BASE/admin/roles/nonexistent")
+[[ "$MISSING_ROLE" = "404" ]] && ok "Missing role returns 404" || fail "Expected 404, got $MISSING_ROLE"
+
+# Create client role
+CLIENT_ROLE_RESP=$(curl -sS -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"name":"e2e-client-role","realm_id":"'"$ADMIN_CREATED_REALM_ID"'","client_id":"'"$ADMIN_CREATED_CLIENT_ID"'"}' \
+    "$BASE/admin/roles")
+ADMIN_CREATED_CLIENT_ROLE_ID=$(echo "$CLIENT_ROLE_RESP" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
+[[ -n "$ADMIN_CREATED_CLIENT_ROLE_ID" ]] && ok "Created client role: ${ADMIN_CREATED_CLIENT_ROLE_ID:0:8}..." || { fail "No client role id"; admin_cleanup; exit 1; }
+
+# Delete role (not assigned → 204)
+DEL_ROLE=$(curl -sS -o /dev/null -w "%{http_code}" -X DELETE -H "$ADMIN_HDR" "$BASE/admin/roles/$ADMIN_CREATED_CLIENT_ROLE_ID")
+[[ "$DEL_ROLE" = "204" ]] && ok "Deleted unassigned role → 204" || fail "Expected 204, got $DEL_ROLE"
+ADMIN_CREATED_CLIENT_ROLE_ID=""
+
+# ── Step 18c: Admin user role assignments ───────────────────
+echo ""
+echo "=== Step 18c: Admin — user role assignments ==="
+
+# List user roles
+USER_ROLES=$(curl -sS -H "$ADMIN_HDR" "$BASE/admin/users/$ADMIN_CREATED_USER_ID/roles")
+USER_ROLES_COUNT=$(echo "$USER_ROLES" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo 0)
+[[ "$USER_ROLES_COUNT" -ge 1 ]] && ok "List user roles returns $USER_ROLES_COUNT role(s)" || fail "Expected >=1 role, got $USER_ROLES_COUNT"
+
+# Assign role to user
+ASSIGN_RESP=$(curl -sS -o /dev/null -w "%{http_code}" -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"role_id":"'"$ADMIN_CREATED_ROLE_ID"'"}' \
+    "$BASE/admin/users/$ADMIN_CREATED_USER_ID/roles")
+[[ "$ASSIGN_RESP" = "201" ]] && ok "Assigned role to user → 201" || fail "Expected 201, got $ASSIGN_RESP"
+
+# Verify assignment
+USER_ROLES_AFTER=$(curl -sS -H "$ADMIN_HDR" "$BASE/admin/users/$ADMIN_CREATED_USER_ID/roles")
+echo "$USER_ROLES_AFTER" | grep -q "$ADMIN_CREATED_ROLE_ID" \
+    && ok "Role appears in user's roles after assignment" \
+    || fail "Role not found in user's roles after assignment"
+
+# Assign same role again (idempotent via INSERT OR IGNORE)
+DUP_ASSIGN=$(curl -sS -o /dev/null -w "%{http_code}" -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"role_id":"'"$ADMIN_CREATED_ROLE_ID"'"}' \
+    "$BASE/admin/users/$ADMIN_CREATED_USER_ID/roles")
+[[ "$DUP_ASSIGN" = "201" ]] && ok "Duplicate assignment is idempotent → 201" || fail "Expected 201, got $DUP_ASSIGN"
+
+# Assign unknown role returns 400
+BAD_ASSIGN=$(curl -sS -o /dev/null -w "%{http_code}" -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"role_id":"nonexistent"}' \
+    "$BASE/admin/users/$ADMIN_CREATED_USER_ID/roles")
+[[ "$BAD_ASSIGN" = "400" ]] && ok "Assign unknown role returns 400" || fail "Expected 400, got $BAD_ASSIGN"
+
+# Unassign role from user
+UNASSIGN=$(curl -sS -o /dev/null -w "%{http_code}" -X DELETE -H "$ADMIN_HDR" \
+    "$BASE/admin/users/$ADMIN_CREATED_USER_ID/roles/$ADMIN_CREATED_ROLE_ID")
+[[ "$UNASSIGN" = "204" ]] && ok "Unassigned role from user → 204" || fail "Expected 204, got $UNASSIGN"
+
+# Verify unassignment
+USER_ROLES_UNASSIGNED=$(curl -sS -H "$ADMIN_HDR" "$BASE/admin/users/$ADMIN_CREATED_USER_ID/roles")
+echo "$USER_ROLES_UNASSIGNED" | grep -q "$ADMIN_CREATED_ROLE_ID" \
+    && fail "Role should not appear after unassignment" \
+    || ok "Role not in user's roles after unassignment"
+
+# ── Step 18d: Admin scope-role mappings ─────────────────────
+echo ""
+echo "=== Step 18d: Admin — scope-role mappings ==="
+
+# List scope-role mappings (empty for new client)
+SCOPE_LIST=$(curl -sS -H "$ADMIN_HDR" "$BASE/admin/clients/$ADMIN_CREATED_CLIENT_ID/scope-roles")
+SCOPE_COUNT=$(echo "$SCOPE_LIST" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo 0)
+[[ "$SCOPE_COUNT" -eq 0 ]] && ok "List scope-role mappings returns empty for new client" || fail "Expected 0 mappings, got $SCOPE_COUNT"
+
+# Create scope-role mapping
+SCOPE_MAP_RESP=$(curl -sS -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"scope":"profile","role_id":"'"$ADMIN_CREATED_ROLE_ID"'","required":true}' \
+    "$BASE/admin/clients/$ADMIN_CREATED_CLIENT_ID/scope-roles")
+SCOPE_MAP_SCOPE=$(echo "$SCOPE_MAP_RESP" | sed -n 's/.*"scope":"\([^"]*\)".*/\1/p')
+SCOPE_MAP_REQUIRED=$(echo "$SCOPE_MAP_RESP" | grep -c '"required":true' || true)
+
+[[ "$SCOPE_MAP_SCOPE" = "profile" ]] && ok "Created scope-role mapping: profile → role" || fail "Scope mismatch: $SCOPE_MAP_SCOPE"
+[[ "$SCOPE_MAP_REQUIRED" -gt 0 ]] && ok "Mapping required=true" || fail "required should be true"
+ADMIN_CREATED_SCOPE_ROLE_SCOPE="profile"
+
+# List scope-role mappings (now has 1)
+SCOPE_LIST_AFTER=$(curl -sS -H "$ADMIN_HDR" "$BASE/admin/clients/$ADMIN_CREATED_CLIENT_ID/scope-roles")
+SCOPE_COUNT_AFTER=$(echo "$SCOPE_LIST_AFTER" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo 0)
+[[ "$SCOPE_COUNT_AFTER" -ge 1 ]] && ok "List scope-role mappings returns $SCOPE_COUNT_AFTER mapping(s)" || fail "Expected >=1, got $SCOPE_COUNT_AFTER"
+
+# Duplicate mapping returns 409
+DUP_SCOPE=$(curl -sS -o /dev/null -w "%{http_code}" -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"scope":"profile","role_id":"'"$ADMIN_CREATED_ROLE_ID"'"}' \
+    "$BASE/admin/clients/$ADMIN_CREATED_CLIENT_ID/scope-roles")
+[[ "$DUP_SCOPE" = "409" ]] && ok "Duplicate scope-role mapping returns 409" || fail "Expected 409, got $DUP_SCOPE"
+
+# Unknown client returns 404
+BAD_CLIENT_SCOPE=$(curl -sS -o /dev/null -w "%{http_code}" -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"scope":"admin","role_id":"'"$ADMIN_CREATED_ROLE_ID"'"}' \
+    "$BASE/admin/clients/nonexistent/scope-roles")
+[[ "$BAD_CLIENT_SCOPE" = "404" ]] && ok "Scope-role mapping on unknown client returns 404" || fail "Expected 404, got $BAD_CLIENT_SCOPE"
+
+# Unknown role returns 400
+BAD_ROLE_SCOPE=$(curl -sS -o /dev/null -w "%{http_code}" -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"scope":"admin","role_id":"nonexistent"}' \
+    "$BASE/admin/clients/$ADMIN_CREATED_CLIENT_ID/scope-roles")
+[[ "$BAD_ROLE_SCOPE" = "400" ]] && ok "Scope-role mapping with unknown role returns 400" || fail "Expected 400, got $BAD_ROLE_SCOPE"
+
+# Update mapping (change required to false)
+UPDATE_SCOPE=$(curl -sS -X PUT -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"required":false}' \
+    "$BASE/admin/clients/$ADMIN_CREATED_CLIENT_ID/scope-roles/profile/$ADMIN_CREATED_ROLE_ID")
+UPDATED_REQUIRED=$(echo "$UPDATE_SCOPE" | grep -c '"required":false' || true)
+[[ "$UPDATED_REQUIRED" -gt 0 ]] && ok "Updated mapping required to false" || fail "Failed to update mapping"
+
+# Delete mapping
+DEL_SCOPE=$(curl -sS -o /dev/null -w "%{http_code}" -X DELETE -H "$ADMIN_HDR" \
+    "$BASE/admin/clients/$ADMIN_CREATED_CLIENT_ID/scope-roles/profile/$ADMIN_CREATED_ROLE_ID")
+[[ "$DEL_SCOPE" = "204" ]] && ok "Deleted scope-role mapping → 204" || fail "Expected 204, got $DEL_SCOPE"
+ADMIN_CREATED_SCOPE_ROLE_SCOPE=""
+
+# Verify empty again
+SCOPE_LIST_EMPTY=$(curl -sS -H "$ADMIN_HDR" "$BASE/admin/clients/$ADMIN_CREATED_CLIENT_ID/scope-roles")
+SCOPE_COUNT_EMPTY=$(echo "$SCOPE_LIST_EMPTY" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo 0)
+[[ "$SCOPE_COUNT_EMPTY" -eq 0 ]] && ok "Scope-role mappings empty after delete" || fail "Expected 0, got $SCOPE_COUNT_EMPTY"
+
+# Delete non-existent mapping is idempotent
+IDEMP_DEL=$(curl -sS -o /dev/null -w "%{http_code}" -X DELETE -H "$ADMIN_HDR" \
+    "$BASE/admin/clients/$ADMIN_CREATED_CLIENT_ID/scope-roles/nonexistent/$ADMIN_CREATED_ROLE_ID")
+[[ "$IDEMP_DEL" = "204" ]] && ok "Delete non-existent mapping is idempotent → 204" || fail "Expected 204, got $IDEMP_DEL"
 
 # ═══════════════════════════════════════════════════════════════
 # OIDC login using admin-created realm / client / user
@@ -1057,12 +1237,15 @@ BASIC_ROLE_ID=$(sqlite3 db/data.db "SELECT id FROM roles WHERE name='basic' AND 
 [[ -n "$ADMIN_ROLE_ID" ]] && ok "Found admin role_id: ${ADMIN_ROLE_ID:0:8}..." || { fail "admin role not found"; exit 1; }
 [[ -n "$BASIC_ROLE_ID" ]] && ok "Found basic role_id: ${BASIC_ROLE_ID:0:8}..." || { fail "basic role not found"; exit 1; }
 
-# Insert scope-role mappings:
-#   scope "openid"  → realm role "admin"  (required=0, included if held)
-#   scope "profile" → realm role "basic"  (required=0, included if held)
-sqlite3 db/data.db "INSERT INTO client_scope_roles (client_id, scope, role_id, required) VALUES ('$MAPPED_CLIENT_ID', 'openid', '$ADMIN_ROLE_ID', 0);"
-sqlite3 db/data.db "INSERT INTO client_scope_roles (client_id, scope, role_id, required) VALUES ('$MAPPED_CLIENT_ID', 'profile', '$BASIC_ROLE_ID', 0);"
-ok "Inserted scope-role mappings for mapped client (openid→admin, profile→basic)"
+# Map scope "openid" → realm role "admin" (required=0, included if held)
+# Map scope "profile" → realm role "basic" (required=0, included if held)
+curl -sf -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"scope":"openid","role_id":"'"$ADMIN_ROLE_ID"'","required":false}' \
+    "$BASE/admin/clients/$MAPPED_CLIENT_ID/scope-roles" >/dev/null
+curl -sf -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"scope":"profile","role_id":"'"$BASIC_ROLE_ID"'","required":false}' \
+    "$BASE/admin/clients/$MAPPED_CLIENT_ID/scope-roles" >/dev/null
+ok "Inserted scope-role mappings for mapped client (openid→admin, profile→basic) via admin API"
 
 # Run OIDC flow on mapped client with scope=openid profile
 MAPPED_COOKIE=$(mktemp)
@@ -1134,8 +1317,10 @@ REQUIRED_CLIENT_ID=$(echo "$REQUIRED_CLIENT_JSON" | sed -n 's/.*"id":"\([^"]*\)"
 
 # Map scope "email" → realm role "admin" (required=1)
 # The user HAS admin, so this scope should be kept
-sqlite3 db/data.db "INSERT INTO client_scope_roles (client_id, scope, role_id, required) VALUES ('$REQUIRED_CLIENT_ID', 'email', '$ADMIN_ROLE_ID', 1);"
-ok "Inserted required mapping: email→admin (required=1)"
+curl -sf -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"scope":"email","role_id":"'"$ADMIN_ROLE_ID"'","required":true}' \
+    "$BASE/admin/clients/$REQUIRED_CLIENT_ID/scope-roles" >/dev/null
+ok "Inserted required mapping: email→admin (required=1) via admin API"
 
 # Run OIDC flow with scope=openid email — user has admin, so email should be kept
 REQ_COOKIE=$(mktemp)
@@ -1263,19 +1448,22 @@ rm -f "$LIM_COOKIE" "$LIM_HEADERS"
 echo ""
 echo "--- 24a-5: resource_access client-namespace filtering ---"
 
-# Create a client role for the mapped client
-# First, we need to create a role on the mapped client via sqlite3 (no admin API for roles yet)
-MAPPED_CLIENT_ROLE_ID=$(python3 -c "import uuid; print(str(uuid.uuid4()))")
-sqlite3 db/data.db "INSERT INTO roles (id, name, realm_id, client_id) VALUES ('$MAPPED_CLIENT_ROLE_ID', 'app-user', '$ADMIN_REALM_ID', '$MAPPED_CLIENT_ID');"
-ok "Created client role 'app-user' on mapped client"
+# Create a client role for the mapped client via admin API
+MAPPED_CLIENT_ROLE_JSON=$(curl -sS -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"name":"app-user","realm_id":"'"$ADMIN_REALM_ID"'","client_id":"'"$MAPPED_CLIENT_ID"'"}' \
+    "$BASE/admin/roles")
+MAPPED_CLIENT_ROLE_ID=$(echo "$MAPPED_CLIENT_ROLE_JSON" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
+ok "Created client role 'app-user' on mapped client via admin API"
 
 # Assign the client role to the admin user
 sqlite3 db/data.db "INSERT INTO user_role_assignments (user_id, role_id) VALUES ('$ADMIN_CREATED_USER_ID', '$MAPPED_CLIENT_ROLE_ID');"
 ok "Assigned client role 'app-user' to admin user"
 
 # Map scope "email" → client role "app-user" (required=0, on mapped client)
-sqlite3 db/data.db "INSERT INTO client_scope_roles (client_id, scope, role_id, required) VALUES ('$MAPPED_CLIENT_ID', 'email', '$MAPPED_CLIENT_ROLE_ID', 0);"
-ok "Inserted mapping: email→app-user (client role, required=0)"
+curl -sf -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"scope":"email","role_id":"'"$MAPPED_CLIENT_ROLE_ID"'","required":false}' \
+    "$BASE/admin/clients/$MAPPED_CLIENT_ID/scope-roles" >/dev/null
+ok "Inserted mapping: email→app-user (client role, required=0) via admin API"
 
 # Run OIDC flow on mapped client with scope=openid profile email
 NS_COOKIE=$(mktemp)
@@ -1364,6 +1552,13 @@ curl -sf -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
 # Delete required client
 DEL_REQUIRED=$(curl -sS -o /dev/null -w "%{http_code}" -X DELETE -H "$ADMIN_HDR" "$BASE/admin/clients/$REQUIRED_CLIENT_ID")
 [[ "$DEL_REQUIRED" = "204" ]] && ok "Deleted required client → 204" || fail "Delete required client expected 204, got $DEL_REQUIRED"
+
+# Delete mapped client role before client (FK dependency)
+# Unassign from user first (role is assigned to ADMIN_CREATED_USER_ID)
+curl -sf -X DELETE -H "$ADMIN_HDR" \
+    "$BASE/admin/users/$ADMIN_CREATED_USER_ID/roles/$MAPPED_CLIENT_ROLE_ID" >/dev/null 2>&1 || true
+DEL_MAPPED_ROLE=$(curl -sS -o /dev/null -w "%{http_code}" -X DELETE -H "$ADMIN_HDR" "$BASE/admin/roles/$MAPPED_CLIENT_ROLE_ID")
+[[ "$DEL_MAPPED_ROLE" = "204" ]] && ok "Deleted mapped client role → 204" || fail "Delete mapped client role expected 204, got $DEL_MAPPED_ROLE"
 
 # Delete mapped client
 DEL_MAPPED=$(curl -sS -o /dev/null -w "%{http_code}" -X DELETE -H "$ADMIN_HDR" "$BASE/admin/clients/$MAPPED_CLIENT_ID")

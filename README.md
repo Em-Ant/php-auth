@@ -216,7 +216,7 @@ The `resource_access.<client>.roles` claim only emits client roles whose
 namespace matches the requesting client, matching full-scope behaviour.
 
 Scope-role mappings are stored in the `client_scope_roles` table and managed
-via direct database access (admin CRUD for mappings is planned for F-12).
+via the admin API (see [Admin API — Scope-role mappings](#scope-role-mappings)).
 
 ---
 
@@ -388,6 +388,71 @@ Create body:
 
 Passwords are hashed (argon2id) and never returned. `PUT` accepts the same
 fields as a partial update; omit `password` to keep the existing one.
+
+### Roles
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/admin/roles` | `GET` | List roles (`?realm_id=`, `?client_id=`) |
+| `/admin/roles` | `POST` | Create a role |
+| `/admin/roles/{id}` | `GET` | Read a role |
+| `/admin/roles/{id}` | `PUT` | Update a role |
+| `/admin/roles/{id}` | `DELETE` | Delete a role (409 while assigned to users) |
+
+Create body:
+
+```json
+{
+  "name": "editor",
+  "realm_id": "<realm-id>",
+  "client_id": null,
+  "description": "Can edit content"
+}
+```
+
+`client_id` is optional — omit or set to `null` for realm roles; set to a
+client ID for client roles. Role names must be unique within their realm (for
+realm roles) or client (for client roles).
+
+### User role assignments
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/admin/users/{id}/roles` | `GET` | List roles assigned to a user |
+| `/admin/users/{id}/roles` | `POST` | Assign a role to a user |
+| `/admin/users/{id}/roles/{role_id}` | `DELETE` | Unassign a role from a user |
+
+Assign body:
+
+```json
+{
+  "role_id": "<role-id>"
+}
+```
+
+### Scope-role mappings
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/admin/clients/{id}/scope-roles` | `GET` | List scope-role mappings for a client |
+| `/admin/clients/{id}/scope-roles` | `POST` | Create a scope-role mapping |
+| `/admin/clients/{id}/scope-roles/{scope}/{role_id}` | `PUT` | Update a mapping (change `required`) |
+| `/admin/clients/{id}/scope-roles/{scope}/{role_id}` | `DELETE` | Delete a mapping |
+
+Create body:
+
+```json
+{
+  "scope": "profile",
+  "role_id": "<role-id>",
+  "required": false
+}
+```
+
+When a client has scope-role mappings, only roles explicitly mapped to the
+requested scopes are emitted in tokens. A `required` mapping drops the entire
+scope from the grant when the user lacks the role. See
+[Scope-role mapping](#scope-role-mapping-f-05) for details.
 
 ### Sessions
 
