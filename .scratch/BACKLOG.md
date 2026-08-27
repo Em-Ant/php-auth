@@ -16,7 +16,6 @@ Single source of truth for what to work on next. **Local by design** (3 machines
 
 | ID | Type | Priority | Size | Blocked by | Why-now | Doc |
 |----|------|----------|------|------------|---------|-----|
-| R-15 | refactor | P1 | S | | standardize `users.valid` boolean to integer `1`/`0` — string `'TRUE'`/`'FALSE'` convention inconsistent with rest of schema; risky migration (data transform), needs release plan per ADR-0002 | `boolean-standardize/PRD.md` |
 | F-38 | fix | P2 | M | | check-session iframe mechanism: salted `KEYCLOAK_SESSION` cookie + client-side SHA-256 (premise verified live) | `keycloak-parity/PRD.md` |
 | F-40 | fix | P2 | S | | `acr` default `"1"` for password login (verified live) | `keycloak-parity/PRD.md` |
 | F-41 | fix | P2 | M | | userinfo claims per scope (`profile`/`email`) | `keycloak-parity/PRD.md` |

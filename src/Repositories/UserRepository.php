@@ -151,8 +151,18 @@ class UserRepository implements IUser
             ':name' => $user->getName(),
             ':email' => $user->getEmail(),
             ':password' => $user->getPassword(),
-            ':valid' => $user->getValid() ? 'TRUE' : 'FALSE',
+            ':valid' => $user->getValid() ? 1 : 0,
         ];
+    }
+
+    /**
+     * Accepts both boolean conventions found on disk: the integer 1/0 one
+     * used since migration 007 and the legacy 'TRUE'/'FALSE' strings it
+     * replaced, so rows not yet transformed still load correctly.
+     */
+    private static function readValid(int|string $value): bool
+    {
+        return $value === 'TRUE' || $value === 1 || $value === '1';
     }
 
     private function buildFromData(array $r): User
@@ -164,7 +174,7 @@ class UserRepository implements IUser
             $r['email'],
             $r['password'],
             $r['created_at'],
-            $r['valid'] === 'TRUE',
+            self::readValid($r['valid']),
         );
     }
 }

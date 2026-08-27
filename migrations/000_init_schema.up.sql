@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS 'users' (
   'password' varchar(128) NOT NULL,
   'realm_roles' varchar(100) DEFAULT 'basic' NOT NULL,
   'created_at' TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
-  'valid' boolean DEFAULT 'TRUE',
+  'valid' boolean DEFAULT 1,
   FOREIGN KEY ('realm_id') REFERENCES realms('id')
 );
 CREATE UNIQUE INDEX IF NOT EXISTS 'email_ind' ON 'users' ('email', 'realm_id');
