@@ -6,6 +6,7 @@ namespace AuthServer\Tests\Unit\Services;
 
 use AuthServer\Models\Realm;
 use AuthServer\Services\HttpSessionCookieHandler;
+use AuthServer\Services\Base64Utils;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -88,7 +89,12 @@ class HttpSessionCookieHandlerTest extends TestCase
         self::assertStringContainsString('HttpOnly', $sessionCookie);
 
         $checkCookie = $cookies[1];
-        self::assertStringStartsWith('AUTH_SESSION_CHECK=web%5Csession-123', $checkCookie);
+        // F-38: the JS-readable check cookie must hold a salted hash of the
+        // session id, never the id itself, so the login-status iframe can
+        // verify client-supplied session_state without exposing the id to JS.
+        $expectedCheck = Base64Utils::b64UrlEncode(hash('sha256', 'session-123', true));
+        self::assertStringStartsWith('AUTH_SESSION_CHECK=' . $expectedCheck, $checkCookie);
+        self::assertStringNotContainsString('session-123', $checkCookie);
         self::assertStringContainsString('Path=/realms/web', $checkCookie);
         self::assertStringContainsString('Secure', $checkCookie);
         self::assertStringContainsString('SameSite=None', $checkCookie);

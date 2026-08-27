@@ -182,7 +182,8 @@ fi
 ok "Login returned 302 redirect"
 
 # The SSO session cookie must be HttpOnly; a separate non-HttpOnly
-# check-session cookie carries the same value for the iframe (S-04).
+# check-session cookie (b64url SHA-256 of the session id, F-38) lets the
+# login-status iframe verify session_state without exposing the raw id to JS.
 AUTH_SESSION_HDR=$(grep -i '^set-cookie:' "$HEADER_DUMP" | grep -i '^set-cookie: *AUTH_SESSION=' | head -1 || true)
 CHECK_SESSION_HDR=$(grep -i '^set-cookie:' "$HEADER_DUMP" | grep -i 'AUTH_SESSION_CHECK=' | head -1 || true)
 

@@ -67,8 +67,11 @@
 
       // If the client and origin from the event match the verified ones from the server, signal if the cookie has changed.
       if (clientId === init.clientId && origin === init.origin) {
-        const cookieSessionId = parseSessionCookie(cookie);
-        return sessionState === cookieSessionId ? "unchanged" : "changed";
+        // The cookie holds b64url(SHA-256(session_state)) (F-38); recompute it
+        // from the client-supplied session state and compare, so the raw
+        // session id never reaches client-side JS.
+        const expected = await sha256B64Url(sessionState);
+        return expected === cookie ? "unchanged" : "changed";
       }
 
       // Otherwise, if there is no match, then signal an error.
@@ -104,17 +107,29 @@
     function getSessionCookie() {
       // AUTH_SESSION is HttpOnly and not readable from JS; the server also
       // sets a dedicated non-HttpOnly check-session cookie for this iframe.
+      // Its value is the base64url SHA-256 of the session id, never the id itself.
       return getCookieByName("AUTH_SESSION_CHECK");
     }
 
-    function parseSessionCookie(raw) {
-      if (!raw) return null;
-      try {
-        const parts = decodeURIComponent(raw).split("\\");
-        return parts[1] ?? null;
-      } catch {
-        return null;
+    async function sha256B64Url(input) {
+      const data = new TextEncoder().encode(input);
+      const digest = await crypto.subtle.digest("SHA-256", data);
+      return bytesToBase64Url(new Uint8Array(digest));
+    }
+
+    function bytesToBase64Url(bytes) {
+      const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+      let out = "";
+      for (let i = 0; i < bytes.length; i += 3) {
+        const a = bytes[i];
+        const b = bytes[i + 1];
+        const c = bytes[i + 2];
+        out += chars[a >> 2];
+        out += chars[((a & 3) << 4) | (b >> 4)];
+        if (i + 1 < bytes.length) out += chars[((b & 15) << 2) | ((c ?? 0) >> 6)];
+        if (i + 2 < bytes.length) out += chars[c & 63];
       }
+      return out;
     }
 
     function getCookieByName(name) {

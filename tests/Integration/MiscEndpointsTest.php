@@ -104,6 +104,13 @@ class MiscEndpointsTest extends TestCase
         ));
         $this->assertEquals(200, $res->getStatusCode());
         $this->assertStringContainsString('text/html', $res->getHeaderLine('Content-Type'));
+
+        $body = (string) $res->getBody();
+        // F-38: the iframe must recompute b64url(SHA-256(session_state)) and
+        // compare it against the JS-readable check cookie, not parse a raw id.
+        $this->assertStringContainsString('crypto.subtle.digest("SHA-256"', $body);
+        $this->assertStringContainsString('AUTH_SESSION_CHECK', $body);
+        $this->assertStringNotContainsString('parseSessionCookie', $body);
     }
 
     public function testLoginStatusIframeInitReturns200(): void

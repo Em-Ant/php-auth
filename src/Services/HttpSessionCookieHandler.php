@@ -47,9 +47,19 @@ class HttpSessionCookieHandler implements SessionCookieHandler
             $this->buildSetCookie($realm, self::SESSION_COOKIE_NAME, $value, $expires, true)
         );
 
+        // The check-session cookie is readable by the login-status iframe, so it
+        // carries a salted hash of the session id instead of the id itself
+        // (F-38): b64url(SHA-256(session_id)), which the iframe recomputes from
+        // the client-supplied `session_state`.
         return $response->withAddedHeader(
             'Set-Cookie',
-            $this->buildSetCookie($realm, self::CHECK_SESSION_COOKIE_NAME, $value, $expires, false)
+            $this->buildSetCookie(
+                $realm,
+                self::CHECK_SESSION_COOKIE_NAME,
+                $this->checkSessionValue($sessionId),
+                $expires,
+                false
+            )
         );
     }
 
@@ -69,6 +79,11 @@ class HttpSessionCookieHandler implements SessionCookieHandler
     private function cookieValue(Realm $realm, string $sessionId): string
     {
         return $realm->getName() . '\\' . $sessionId;
+    }
+
+    private function checkSessionValue(string $sessionId): string
+    {
+        return Base64Utils::b64UrlEncode(hash('sha256', $sessionId, true));
     }
 
     private function buildSetCookie(
