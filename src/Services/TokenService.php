@@ -364,7 +364,6 @@ class TokenService
             "iss" => $this->issuerFor($realm),
             "sub" => $context->subject,
             "azp" => $client->getName(),
-            "nonce" => $context->nonce,
             "session_state" => $context->sid,
         ];
     }
@@ -421,6 +420,11 @@ class TokenService
                 "preferred_username" => $user->getName()
             ]
         );
+        // Keycloak parity (F-42): `nonce` belongs in the ID token only, and
+        // only when the auth request carried one.
+        if ($context->nonce !== null && $context->nonce !== '') {
+            $claims["nonce"] = $context->nonce;
+        }
         return $this->createToken($claims, $realm->getKeysId());
     }
 

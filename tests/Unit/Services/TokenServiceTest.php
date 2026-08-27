@@ -244,6 +244,62 @@ class TokenServiceTest extends TestCase
         self::assertSame(['admin', 'basic'], $payload['realm_access']['roles']);
     }
 
+    // ── nonce placement (F-42) ────────────────────────────────
+
+    public function testAccessTokenAndRefreshTokenOmitNonce(): void
+    {
+        $bundle = $this->tokenService->createTokenBundle(
+            $this->realm, $this->session, $this->login, $this->client, $this->user,
+        );
+
+        $accessPayload = $this->tokenService->decodeTokenPayload($bundle['access_token']);
+        $refreshPayload = $this->tokenService->decodeTokenPayload($bundle['refresh_token']);
+
+        self::assertArrayNotHasKey('nonce', $accessPayload);
+        self::assertArrayNotHasKey('nonce', $refreshPayload);
+    }
+
+    public function testIdTokenCarriesRequestedNonce(): void
+    {
+        $bundle = $this->tokenService->createTokenBundle(
+            $this->realm, $this->session, $this->login, $this->client, $this->user,
+        );
+
+        $idPayload = $this->tokenService->decodeTokenPayload($bundle['id_token']);
+
+        self::assertSame('nonce-1', $idPayload['nonce']);
+    }
+
+    public function testIdTokenOmitsNonceWhenAuthRequestHadNone(): void
+    {
+        $login = new Login(
+            id: 'login-1',
+            client_id: 'client-1',
+            state: 'state-1',
+            nonce: '',
+            scope: 'openid',
+            redirect_uri: 'https://example.com/cb',
+            response_mode: 'query',
+            created_at: '2025-01-01 00:00:00',
+            session_id: 'session-1',
+            authenticated_at: '2025-01-01 00:01:00',
+            code: null,
+            code_challenge: null,
+            csrf_token: null,
+            updated_at: null,
+            refresh_token: null,
+            status: 'AUTHENTICATED',
+        );
+
+        $bundle = $this->tokenService->createTokenBundle(
+            $this->realm, $this->session, $login, $this->client, $this->user,
+        );
+
+        $idPayload = $this->tokenService->decodeTokenPayload($bundle['id_token']);
+
+        self::assertArrayNotHasKey('nonce', $idPayload);
+    }
+
     public function testAccessTokenOmitsResourceAccessWhenUserHasNoClientRoles(): void
     {
         $payload = $this->tokenService->decodeTokenPayload(

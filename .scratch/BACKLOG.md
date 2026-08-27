@@ -17,8 +17,6 @@ Single source of truth for what to work on next. **Local by design** (3 machines
 | ID | Type | Priority | Size | Blocked by | Why-now | Doc |
 |----|------|----------|------|------------|---------|-----|
 | F-38 | fix | P2 | M | | check-session iframe mechanism: salted `KEYCLOAK_SESSION` cookie + client-side SHA-256 (premise verified live) | `keycloak-parity/PRD.md` |
-| F-41 | fix | P2 | M | | userinfo claims per scope (`profile`/`email`) | `keycloak-parity/PRD.md` |
-| F-42 | fix | P2 | S | | drop `nonce` from access/refresh tokens (ID token only) | `keycloak-parity/PRD.md` |
 | F-08 | feature | P2 | S | | ROPC grant | `ROADMAP → Login Methods` |
 | F-11 | feature | P2 | S | | per-realm password policy | `ROADMAP → Admin API` |
 | F-13 | feature | P2 | S | | per-realm login page config | `ROADMAP → Login Form` |
