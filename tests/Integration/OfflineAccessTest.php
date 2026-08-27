@@ -173,6 +173,27 @@ class OfflineAccessTest extends TestCase
         $this->assertRefreshSucceeds($tokens['refresh_token']);
     }
 
+    public function testOfflineRefreshKeepsIssuanceSessionState(): void
+    {
+        $tokens = $this->offlineLogin();
+
+        $newTokens = $this->assertRefreshSucceeds($tokens['refresh_token']);
+
+        // OIDC Session Management 4.3 / Keycloak parity: session_state stays
+        // constant across refreshes — the SSO session id, never the offline
+        // record id. A changing value makes the check-session iframe report
+        // "changed" against the live SSO cookie (false logout).
+        self::assertSame($tokens['session_state'], $newTokens['session_state']);
+        self::assertSame(
+            $tokens['session_state'],
+            self::$tokenService->decodeTokenPayload($newTokens['id_token'])['sid']
+        );
+        self::assertSame(
+            $tokens['session_state'],
+            self::$tokenService->decodeTokenPayload($newTokens['refresh_token'])['sid']
+        );
+    }
+
     public function testOfflineRefreshSurvivesExpiredSsoSession(): void
     {
         $tokens = $this->offlineLogin();

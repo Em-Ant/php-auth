@@ -1644,6 +1644,15 @@ OFFLINE_NEW_RT=$(echo "$OFFLINE_REFRESH" | sed -n 's/.*"refresh_token":"\([^"]*\
     && ok "Offline refresh token rotated" \
     || fail "Offline refresh token not rotated"
 
+# session_state stays constant across offline refreshes (F-38 / Keycloak
+# parity): the check-session iframe hashes it against the live SSO cookie, so
+# it must keep matching the value published at the original auth-code exchange.
+OFFLINE_SS=$(echo "$OFFLINE_TOKENS" | sed -n 's/.*"session_state":"\([^"]*\)".*/\1/p')
+OFFLINE_REFRESH_SS=$(echo "$OFFLINE_REFRESH" | sed -n 's/.*"session_state":"\([^"]*\)".*/\1/p')
+[[ -n "$OFFLINE_SS" && "$OFFLINE_SS" = "$OFFLINE_REFRESH_SS" ]] \
+    && ok "Offline refresh keeps session_state stable ($OFFLINE_SS)" \
+    || fail "Offline refresh changed session_state: $OFFLINE_SS -> $OFFLINE_REFRESH_SS"
+
 OFFLINE_INTRO=$(curl -sS -X POST \
     -d "token=${OFFLINE_NEW_RT}&client_id=${ADMIN_CLIENT_NAME}" \
     "$ADMIN_AUTH_BASE/token/introspect")

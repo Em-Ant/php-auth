@@ -342,11 +342,15 @@ class TokenServiceTest extends TestCase
         );
 
         $idPayload = $this->tokenService->decodeTokenPayload($bundle['id_token']);
+        $refreshPayload = $this->tokenService->decodeTokenPayload($bundle['refresh_token']);
 
         // Published session_state / sid track the SSO session, matching the cookie.
         self::assertSame('session-1', $bundle['session_state']);
         self::assertSame('session-1', $idPayload['session_state']);
         self::assertSame('session-1', $idPayload['sid']);
+        // The refresh token carries the same sid, so an offline refresh can
+        // re-publish it and keep session_state constant (F-38 parity).
+        self::assertSame('session-1', $refreshPayload['sid']);
         // The offline session's own record id must NOT be advertised.
         self::assertNotSame('offline-1', $bundle['session_state']);
     }

@@ -251,16 +251,17 @@ class TokenService
      * realm-configured offline TTL.
      *
      * The published `sid` / `session_state` is the supplied `$sessionId`
-     * rather than the offline session's own id: when this is built from an
-     * auth-code exchange the online SSO session is still live, and the
-     * login-status iframe (F-38) hashes that SSO id against the `AUTH_SESSION`
-     * cookie -- so the two must agree. Keycloak parity: the iframe tracks the
-     * SSO session, not the offline grant. Pass the offline session id only
-     * when no live SSO session exists (offline refresh). The offline record's
-     * own id remains the source of truth for persistence/lookup.
+     * rather than the offline session's own id, so it matches the `AUTH_SESSION`
+     * cookie the login-status iframe (F-38) verifies against. Callers must
+     * pass the same value on every issuance for a grant: the auth-code
+     * exchange passes the live SSO session id, and the offline-refresh path
+     * re-passes the value embedded in the signed refresh token, keeping
+     * session_state constant across rotations (Keycloak parity). The offline
+     * record's own id remains the source of truth for persistence/lookup and
+     * is the fallback for legacy tokens that carry no sid.
      *
-     * @param non-empty-string $sessionId SSO session id to advertise when live;
-     *        the offline session id when refreshing without an SSO session.
+     * @param non-empty-string $sessionId session id to advertise: the SSO
+     *        session id, or the offline id for legacy grants without one.
      */
     public function createOfflineTokenBundle(
         Realm $realm,

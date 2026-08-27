@@ -137,12 +137,23 @@ class OfflineSessionService
             throw new StorageFailed('invalid offline session');
         }
 
+        // The published sid/session_state stays the value the grant's original
+        // issuance advertised — the SSO session id — so the check-session iframe
+        // keeps matching the live SSO cookie across refreshes (F-38 / Keycloak
+        // parity). The signed refresh token carries that value, so it stays
+        // constant through rotations. Pre-fix tokens without a sid claim fall
+        // back to the offline record id.
+        $publishedSid = (string) ($valid['sid'] ?? '');
+        if ($publishedSid === '') {
+            $publishedSid = $offlineSession->getId();
+        }
+
         $bundle = $this->tokenService->createOfflineTokenBundle(
             $realm,
             $offlineSession,
             $client,
             $user,
-            $offlineSession->getId()
+            $publishedSid
         );
 
         $ok = $this->offlineSessionRepository->refresh(
