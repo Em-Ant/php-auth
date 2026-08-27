@@ -90,6 +90,7 @@ final class Definitions
             'log_settings' => $config['log'] ?? [],
             'rate_limiting' => $config['rate_limiting'] ?? [],
             'migrations_dir' => $root . '/migrations/',
+            'allowed_origins' => self::parseAllowedOrigins($server['allowed_origins'] ?? null),
 
             // ── PDO (shared) ──
 
@@ -206,5 +207,22 @@ final class Definitions
             UserRolesController::class => \DI\autowire(),
             ScopeRolesController::class => \DI\autowire(),
         ];
+    }
+
+    /**
+     * Parses `allowed_origins` from `[server]` in config.ini. Absent or empty
+     * yields an empty list, which CorsMiddleware treats as allow-all ('*').
+     *
+     * @return list<string>
+     */
+    private static function parseAllowedOrigins(mixed $raw): array
+    {
+        if (!is_string($raw)) {
+            return [];
+        }
+
+        $origins = array_map(trim(...), explode(',', $raw));
+
+        return array_values(array_filter($origins, static fn(string $o): bool => $o !== ''));
     }
 }

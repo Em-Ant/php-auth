@@ -79,7 +79,7 @@ final class AppBuilder
 
         // -- Middleware (LIFO: last added runs first) --
         $app->add(self::bodyParser());
-        $app->add(new CorsMiddleware());
+        $app->add(new CorsMiddleware($container->get('allowed_origins')));
         $app->add(new RequestLogger($logger));
 
         $rateLimitMiddleware = $rateLimiting

@@ -100,4 +100,74 @@ class CorsMiddlewareTest extends TestCase
         self::assertSame('https://client.example.com', $response->getHeaderLine('Access-Control-Allow-Origin'));
         self::assertSame('true', $response->getHeaderLine('Access-Control-Allow-Credentials'));
     }
+
+    // ── allowlist mode (F-44) ──
+
+    public function testAllowlistedOriginIsReflectedWithCredentials(): void
+    {
+        $middleware = new CorsMiddleware(['https://app.example.com', 'https://other.com']);
+        $request = $this->createRequestWithOrigin('https://app.example.com');
+        $innerResponse = new Response();
+        $handler = $this->createHandlerReturning($innerResponse);
+
+        $response = $middleware->process($request, $handler);
+
+        self::assertSame('https://app.example.com', $response->getHeaderLine('Access-Control-Allow-Origin'));
+        self::assertSame('true', $response->getHeaderLine('Access-Control-Allow-Credentials'));
+    }
+
+    public function testUnlistedOriginGetsWildcardWithoutCredentials(): void
+    {
+        $middleware = new CorsMiddleware(['https://app.example.com']);
+        $request = $this->createRequestWithOrigin('https://evil.example.net');
+        $innerResponse = new Response();
+        $handler = $this->createHandlerReturning($innerResponse);
+
+        $response = $middleware->process($request, $handler);
+
+        self::assertSame('*', $response->getHeaderLine('Access-Control-Allow-Origin'));
+        self::assertFalse($response->hasHeader('Access-Control-Allow-Credentials'));
+    }
+
+    public function testUnlistedOriginPreflightGetsNoCredentials(): void
+    {
+        $middleware = new CorsMiddleware(['https://app.example.com']);
+        $request = $this->createRequestWithOrigin('https://evil.example.net', 'OPTIONS');
+        $handler = $this->createMock(RequestHandlerInterface::class);
+        $handler->expects(self::never())->method('handle');
+
+        $response = $middleware->process($request, $handler);
+
+        self::assertSame(204, $response->getStatusCode());
+        self::assertSame('*', $response->getHeaderLine('Access-Control-Allow-Origin'));
+        self::assertFalse($response->hasHeader('Access-Control-Allow-Credentials'));
+    }
+
+    public function testEmptyListBehavesAsAllowAll(): void
+    {
+        $middleware = new CorsMiddleware([]);
+        $request = $this->createRequestWithOrigin('https://anything.example');
+        $innerResponse = new Response();
+        $handler = $this->createHandlerReturning($innerResponse);
+
+        $response = $middleware->process($request, $handler);
+
+        self::assertSame('https://anything.example', $response->getHeaderLine('Access-Control-Allow-Origin'));
+        self::assertSame('true', $response->getHeaderLine('Access-Control-Allow-Credentials'));
+    }
+
+    private function createRequestWithOrigin(string $origin, string $method = 'GET'): ServerRequestInterface
+    {
+        $request = $this->createMock(ServerRequestInterface::class);
+        $request->method('getMethod')->willReturn($method);
+        $request->method('getHeaderLine')->with('Origin')->willReturn($origin);
+        return $request;
+    }
+
+    private function createHandlerReturning(ResponseInterface $response): RequestHandlerInterface
+    {
+        $handler = $this->createMock(RequestHandlerInterface::class);
+        $handler->method('handle')->willReturn($response);
+        return $handler;
+    }
 }
