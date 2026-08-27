@@ -93,6 +93,15 @@ class FullFlowTest extends TestCase
         }
     }
 
+    private function userinfo(array $tokens): array
+    {
+        $request = $this->createRequest('GET', '/realms/test/protocol/openid-connect/userinfo', [], null, [
+            'Authorization' => 'Bearer ' . $tokens['access_token'],
+        ]);
+
+        return $this->decodeJson($this->handle($request));
+    }
+
     private function promptAuth(
         string $state,
         string $redirectUri,
@@ -265,16 +274,42 @@ class FullFlowTest extends TestCase
     // ── UserInfo endpoint ─────────────────────────────────────
 
     #[Depends('testFullLoginFlow')]
-    public function testUserInfoReturnsSubAndUsername(array $tokens): void
+    public function testUserInfoHonorsProfileScope(): void
     {
-        $request = $this->createRequest('GET', '/realms/test/protocol/openid-connect/userinfo', [], null, [
-            'Authorization' => 'Bearer ' . $tokens['access_token'],
-        ]);
+        $this->resetSessionCookie();
+        $tokens = $this->completeLogin('st-profile', 'nc-profile', ['scope' => 'openid profile']);
 
-        $body = $this->decodeJson($this->handle($request));
+        $body = $this->userinfo($tokens);
         self::assertArrayHasKey('sub', $body);
-        self::assertArrayHasKey('preferred_username', $body);
+        self::assertSame('emant_test', $body['name']);
         self::assertSame('emant_test', $body['preferred_username']);
+        self::assertArrayNotHasKey('email', $body);
+        self::assertArrayNotHasKey('email_verified', $body);
+    }
+
+    #[Depends('testFullLoginFlow')]
+    public function testUserInfoHonorsEmailScope(): void
+    {
+        $this->resetSessionCookie();
+        $tokens = $this->completeLogin('st-email', 'nc-email', ['scope' => 'openid email']);
+
+        $body = $this->userinfo($tokens);
+        self::assertArrayHasKey('sub', $body);
+        self::assertSame('test@example.com', $body['email']);
+        self::assertTrue($body['email_verified']);
+        self::assertArrayNotHasKey('preferred_username', $body);
+    }
+
+    #[Depends('testFullLoginFlow')]
+    public function testUserInfoReturnsOnlySubForOpenidScope(): void
+    {
+        $this->resetSessionCookie();
+        $tokens = $this->completeLogin('st-openid', 'nc-openid', ['scope' => 'openid']);
+
+        $body = $this->userinfo($tokens);
+        self::assertArrayHasKey('sub', $body);
+        self::assertArrayNotHasKey('preferred_username', $body);
+        self::assertArrayNotHasKey('email', $body);
     }
 
     // ── Logout endpoint ───────────────────────────────────────
