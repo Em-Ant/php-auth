@@ -16,6 +16,8 @@ Single source of truth for what to work on next. **Local by design** (3 machines
 
 | ID | Type | Priority | Size | Blocked by | Why-now | Doc |
 |----|------|----------|------|------------|---------|-----|
+| F-47 | feature | P2 | S | | admin realm + role + clients seed (SSO+offline, admin-ui w/o offline, ci-deployer w/ offline) | `admin-auth/PRD.md #01` |
+| F-48 | feature | P2 | M | F-47 | JWT admin auth middleware (dual-mode, SSO+offline, role check; UI PKCE can run migrations) | `admin-auth/PRD.md #02` |
 | F-08 | feature | P2 | S | | ROPC grant | `ROADMAP → Login Methods` |
 | F-11 | feature | P2 | S | | per-realm password policy | `ROADMAP → Admin API` |
 | F-13 | feature | P2 | S | | per-realm login page config | `ROADMAP → Login Form` |
@@ -29,6 +31,7 @@ Single source of truth for what to work on next. **Local by design** (3 machines
 | F-18 | feature | P3 | S | | SMTP adapter (VPS) | `ROADMAP → Login Methods` |
 | F-43 | fix | P3 | S | | deferred batch: `login_hint`/`max_age`/`ui_locales`, `WWW-Authenticate` on 401, `X-Powered-By` removal — with a future hardening pass | `keycloak-parity/PRD.md` |
 | F-46 | feature | P3 | S | wait F-09 (Mailer) | email verification flow — one-time link flips `email_verified`; **blocked until the mail system (Mailer / SMTP) is ready**; admin API + model wiring for the flag already done | `email-verification/PRD.md` |
+| F-49 | feature | P2 | S | F-19, F-48 | migrate ops auth from api_key to offline token (CI) — end-state JWT only (SSO+offline) | `admin-auth/PRD.md #03` |
 | F-15 | feature | P3 | L | | social login (Google/GitHub/GitLab) | `ROADMAP → Login Methods` |
 | F-16 | feature | P3 | L | | 2FA/TOTP | `ROADMAP → Login Methods` |
 | F-17 | feature | P3 | L | | Google-style modal widget (SAM iframe) | `ROADMAP → Login Form` |

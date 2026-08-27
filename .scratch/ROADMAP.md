@@ -26,6 +26,14 @@
 - [x] Offline revocation: revoke a user's `offline_sessions` (SSO session/login revoke already shipped) — [token-lifecycle #04](token-lifecycle/issues/04-offline-revocation.md) (done 2026-08-23, F-06)
 - [ ] Maintenance task: blacklist purge + expired-session cleanup (admin-triggered; manual / deploy-time / CI-scheduled) — see [token-lifecycle #05](token-lifecycle/issues/05-cleanup-job.md)
 
+## Admin Auth & Tools
+
+Admin API auth evolution for a separate Admin UI (React+Vite+shadcn, different repo) and headless ops. See [admin-auth/PRD.md](admin-auth/PRD.md).
+
+- [ ] Admin realm + role + clients seed (`admin` realm, realm role `admin`, clients `admin-ui`/`ci-deployer`) — [admin-auth #01](admin-auth/issues/01-seed-admin-realm.md)
+- [ ] JWT admin auth (dual-mode): `Authorization: Bearer <JWT>` with `admin` role check via `TokenValidator`; static `X-Admin-Key`/`Bearer api_key` retained **only** for `/admin/migrations/*` + `/admin/maintenance/cleanup` (offline `offline_access` token also accepted) — [admin-auth #02](admin-auth/issues/02-jwt-admin-middleware.md)
+- [ ] Migrate ops auth from api_key to offline token — [admin-auth #03](admin-auth/issues/03-narrow-static-and-docs.md) (depends on F-19 for cleanup shape)
+
 ## Scopes & Roles
 
 Scope/role model and mapping, Keycloak-style. See `.scratch/scopes/PRD.md`.
