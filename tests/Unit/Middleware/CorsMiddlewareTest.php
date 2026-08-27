@@ -17,22 +17,21 @@ class CorsMiddlewareTest extends TestCase
 
     protected function setUp(): void
     {
+        // Default (no args) lists '*': reflect any origin (backward compat).
         $this->middleware = new CorsMiddleware();
     }
 
-    public function testOptionsRequestReturns204WithCorsHeaders(): void
+    public function testAllowedOriginIsReflectedWithCredentials(): void
     {
-        $request = $this->createMock(ServerRequestInterface::class);
-        $request->method('getMethod')->willReturn('OPTIONS');
-        $request->method('getHeaderLine')->with('Origin')->willReturn('');
-
-        $handler = $this->createMock(RequestHandlerInterface::class);
-        $handler->expects(self::never())->method('handle');
+        $request = $this->createRequestWithOrigin('https://example.com');
+        $innerResponse = new Response();
+        $handler = $this->createHandlerReturning($innerResponse);
 
         $response = $this->middleware->process($request, $handler);
 
-        self::assertSame(204, $response->getStatusCode());
-        self::assertSame('*', $response->getHeaderLine('Access-Control-Allow-Origin'));
+        self::assertSame(200, $response->getStatusCode());
+        self::assertSame('https://example.com', $response->getHeaderLine('Access-Control-Allow-Origin'));
+        self::assertSame('true', $response->getHeaderLine('Access-Control-Allow-Credentials'));
         self::assertSame(
             'content-type,accept,origin,authorization',
             $response->getHeaderLine('Access-Control-Allow-Headers'),
@@ -40,68 +39,48 @@ class CorsMiddlewareTest extends TestCase
         self::assertSame('GET,POST,PUT,DELETE,OPTIONS', $response->getHeaderLine('Access-Control-Allow-Methods'));
     }
 
-    public function testOptionsRequestWithOriginIncludesCredentials(): void
+    public function testOptionsForAllowedOriginReturns204WithCorsHeaders(): void
     {
-        $request = $this->createMock(ServerRequestInterface::class);
-        $request->method('getMethod')->willReturn('OPTIONS');
-        $request->method('getHeaderLine')->with('Origin')->willReturn('https://example.com');
-
+        $request = $this->createRequestWithOrigin('https://example.com', 'OPTIONS');
         $handler = $this->createMock(RequestHandlerInterface::class);
+        $handler->expects(self::never())->method('handle');
 
         $response = $this->middleware->process($request, $handler);
+
         self::assertSame(204, $response->getStatusCode());
         self::assertSame('https://example.com', $response->getHeaderLine('Access-Control-Allow-Origin'));
         self::assertSame('true', $response->getHeaderLine('Access-Control-Allow-Credentials'));
+        self::assertSame(
+            'content-type,accept,origin,authorization',
+            $response->getHeaderLine('Access-Control-Allow-Headers'),
+        );
+        self::assertSame('GET,POST,PUT,DELETE,OPTIONS', $response->getHeaderLine('Access-Control-Allow-Methods'));
     }
 
-    public function testGetRequestPassesToHandlerAndAddsWildcardOrigin(): void
+    public function testRequestWithoutOriginGetsNoCorsHeaders(): void
     {
-        $request = $this->createMock(ServerRequestInterface::class);
-        $request->method('getMethod')->willReturn('GET');
-        $request->method('getHeaderLine')->with('Origin')->willReturn('');
-
+        $request = $this->createRequestWithOrigin('');
         $innerResponse = new Response();
-        $handler = $this->createMock(RequestHandlerInterface::class);
-        $handler->method('handle')->willReturn($innerResponse);
+        $handler = $this->createHandlerReturning($innerResponse);
 
         $response = $this->middleware->process($request, $handler);
 
         self::assertSame(200, $response->getStatusCode());
-        self::assertSame('*', $response->getHeaderLine('Access-Control-Allow-Origin'));
+        self::assertFalse($response->hasHeader('Access-Control-Allow-Origin'));
+        self::assertFalse($response->hasHeader('Access-Control-Allow-Credentials'));
     }
 
-    public function testNonOptionsFallbackIncludesPutAndDeleteInMethods(): void
+    public function testOptionsWithoutOriginGetsNoCorsHeaders(): void
     {
-        $request = $this->createMock(ServerRequestInterface::class);
-        $request->method('getMethod')->willReturn('GET');
-        $request->method('getHeaderLine')->with('Origin')->willReturn('');
-
-        $innerResponse = new Response();
+        $request = $this->createRequestWithOrigin('', 'OPTIONS');
         $handler = $this->createMock(RequestHandlerInterface::class);
-        $handler->method('handle')->willReturn($innerResponse);
+        $handler->expects(self::never())->method('handle');
 
         $response = $this->middleware->process($request, $handler);
 
-        self::assertSame('GET,POST,PUT,DELETE,OPTIONS', $response->getHeaderLine('Access-Control-Allow-Methods'));
+        self::assertSame(204, $response->getStatusCode());
+        self::assertFalse($response->hasHeader('Access-Control-Allow-Origin'));
     }
-
-    public function testGetRequestWithOriginSetsSpecificOrigin(): void
-    {
-        $request = $this->createMock(ServerRequestInterface::class);
-        $request->method('getMethod')->willReturn('GET');
-        $request->method('getHeaderLine')->with('Origin')->willReturn('https://client.example.com');
-
-        $innerResponse = new Response();
-        $handler = $this->createMock(RequestHandlerInterface::class);
-        $handler->method('handle')->willReturn($innerResponse);
-
-        $response = $this->middleware->process($request, $handler);
-
-        self::assertSame('https://client.example.com', $response->getHeaderLine('Access-Control-Allow-Origin'));
-        self::assertSame('true', $response->getHeaderLine('Access-Control-Allow-Credentials'));
-    }
-
-    // ── allowlist mode (F-44) ──
 
     public function testAllowlistedOriginIsReflectedWithCredentials(): void
     {
@@ -116,7 +95,7 @@ class CorsMiddlewareTest extends TestCase
         self::assertSame('true', $response->getHeaderLine('Access-Control-Allow-Credentials'));
     }
 
-    public function testUnlistedOriginGetsWildcardWithoutCredentials(): void
+    public function testDisallowedOriginGetsNoCorsHeaders(): void
     {
         $middleware = new CorsMiddleware(['https://app.example.com']);
         $request = $this->createRequestWithOrigin('https://evil.example.net');
@@ -125,11 +104,13 @@ class CorsMiddlewareTest extends TestCase
 
         $response = $middleware->process($request, $handler);
 
-        self::assertSame('*', $response->getHeaderLine('Access-Control-Allow-Origin'));
+        self::assertFalse($response->hasHeader('Access-Control-Allow-Origin'));
         self::assertFalse($response->hasHeader('Access-Control-Allow-Credentials'));
+        self::assertFalse($response->hasHeader('Access-Control-Allow-Headers'));
+        self::assertFalse($response->hasHeader('Access-Control-Allow-Methods'));
     }
 
-    public function testUnlistedOriginPreflightGetsNoCredentials(): void
+    public function testUnlistedOriginPreflightGetsNoCorsHeaders(): void
     {
         $middleware = new CorsMiddleware(['https://app.example.com']);
         $request = $this->createRequestWithOrigin('https://evil.example.net', 'OPTIONS');
@@ -139,11 +120,11 @@ class CorsMiddlewareTest extends TestCase
         $response = $middleware->process($request, $handler);
 
         self::assertSame(204, $response->getStatusCode());
-        self::assertSame('*', $response->getHeaderLine('Access-Control-Allow-Origin'));
+        self::assertFalse($response->hasHeader('Access-Control-Allow-Origin'));
         self::assertFalse($response->hasHeader('Access-Control-Allow-Credentials'));
     }
 
-    public function testEmptyListBehavesAsAllowAll(): void
+    public function testEmptyListDeniesAllOrigins(): void
     {
         $middleware = new CorsMiddleware([]);
         $request = $this->createRequestWithOrigin('https://anything.example');
@@ -152,8 +133,22 @@ class CorsMiddlewareTest extends TestCase
 
         $response = $middleware->process($request, $handler);
 
-        self::assertSame('https://anything.example', $response->getHeaderLine('Access-Control-Allow-Origin'));
-        self::assertSame('true', $response->getHeaderLine('Access-Control-Allow-Credentials'));
+        self::assertFalse($response->hasHeader('Access-Control-Allow-Origin'));
+        self::assertFalse($response->hasHeader('Access-Control-Allow-Credentials'));
+    }
+
+    public function testDisallowedOriginStripsHardcodedInnerOriginHeader(): void
+    {
+        // Inner handlers (e.g. JsonResponse) may set ACAO '*' themselves; the
+        // middleware must strip them for disallowed origins, not leave them.
+        $middleware = new CorsMiddleware(['https://app.example.com']);
+        $request = $this->createRequestWithOrigin('https://evil.example.net');
+        $innerResponse = (new Response())->withHeader('Access-Control-Allow-Origin', '*');
+        $handler = $this->createHandlerReturning($innerResponse);
+
+        $response = $middleware->process($request, $handler);
+
+        self::assertFalse($response->hasHeader('Access-Control-Allow-Origin'));
     }
 
     private function createRequestWithOrigin(string $origin, string $method = 'GET'): ServerRequestInterface

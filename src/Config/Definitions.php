@@ -211,7 +211,8 @@ final class Definitions
 
     /**
      * Parses `allowed_origins` from `[server]` in config.ini. Absent or empty
-     * yields an empty list, which CorsMiddleware treats as allow-all ('*').
+     * yields an empty list, which CorsMiddleware treats as deny-all (no CORS
+     * headers). A single '*' entry reflects any origin (dev-friendly).
      *
      * @return list<string>
      */

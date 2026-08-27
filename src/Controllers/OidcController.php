@@ -30,8 +30,7 @@ class OidcController
         return JsonResponse::create(
             $response,
             $keySet->jwks,
-            200,
-            '*'
+            200
         );
     }
 
@@ -79,7 +78,7 @@ class OidcController
         $claims = ['sub' => (string) $token['sub']];
         $user = $this->userRepository->findById((string) $token['sub']);
         if ($user === null) {
-            return JsonResponse::create($response, $claims, 200, '*');
+            return JsonResponse::create($response, $claims, 200);
         }
 
         $scopes = preg_split('/\s+/', trim((string) ($token['scope'] ?? ''))) ?: [];
@@ -97,7 +96,7 @@ class OidcController
             $claims['email_verified'] = $user->getEmailVerified();
         }
 
-        return JsonResponse::create($response, $claims, 200, '*');
+        return JsonResponse::create($response, $claims, 200);
     }
 
     /**
