@@ -94,7 +94,7 @@ class OidcController
 
         if (in_array('email', $scopes, true)) {
             $claims['email'] = $user->getEmail();
-            $claims['email_verified'] = true;
+            $claims['email_verified'] = $user->getEmailVerified();
         }
 
         return JsonResponse::create($response, $claims, 200, '*');

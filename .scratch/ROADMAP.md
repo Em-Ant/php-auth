@@ -41,6 +41,7 @@ Scope/role model and mapping, Keycloak-style. See `.scratch/scopes/PRD.md`.
 - [x] Client Credentials grant (`grant_type=client_credentials`)
 - [ ] Resource Owner Password grant (`grant_type=password`)
 - [ ] Email magic link (`Mailer` interface + `NativeMailer` adapter)
+- [ ] Email verification flow (one-time link flips `email_verified`) — **blocked until the Mailer lands** — [email-verification/PRD.md](email-verification/PRD.md)
 - [ ] SMTP adapter (future VPS deployment)
 - [ ] Social login (generic OAuth2 adapter for Google, GitHub, GitLab)
 - [ ] 2FA/TOTP (authenticator app)

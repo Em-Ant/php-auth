@@ -52,8 +52,8 @@ class UserRepository implements IUser
             $id = $user->getId() !== '' ? $user->getId() : getGuid();
 
             $statement = $this->db->prepare(
-                "INSERT INTO users (id, realm_id, name, email, password, valid)
-                 VALUES (:id, :realm_id, :name, :email, :password, :valid)"
+                "INSERT INTO users (id, realm_id, name, email, email_verified, password, valid)
+                 VALUES (:id, :realm_id, :name, :email, :email_verified, :password, :valid)"
             );
             $statement->execute(self::userParams($user, $id));
 
@@ -71,6 +71,7 @@ class UserRepository implements IUser
                     realm_id = :realm_id,
                     name = :name,
                     email = :email,
+                    email_verified = :email_verified,
                     password = :password,
                     valid = :valid
                 WHERE id = :id"
@@ -150,17 +151,23 @@ class UserRepository implements IUser
             ':realm_id' => $user->getRealmId(),
             ':name' => $user->getName(),
             ':email' => $user->getEmail(),
+            ':email_verified' => $user->getEmailVerified() ? 1 : 0,
             ':password' => $user->getPassword(),
             ':valid' => $user->getValid() ? 1 : 0,
         ];
     }
 
     /**
-     * Accepts both boolean conventions found on disk: the integer 1/0 one
-     * used since migration 007 and the legacy 'TRUE'/'FALSE' strings it
-     * replaced, so rows not yet transformed still load correctly.
+     * Accepts both boolean conventions found on disk: the integer 1/0 one and
+     * the legacy 'TRUE'/'FALSE' strings written before migration 007, so rows
+     * not yet transformed still load correctly.
      */
     private static function readValid(int|string $value): bool
+    {
+        return $value === 'TRUE' || $value === 1 || $value === '1';
+    }
+
+    private static function readEmailVerified(int|string $value): bool
     {
         return $value === 'TRUE' || $value === 1 || $value === '1';
     }
@@ -175,6 +182,7 @@ class UserRepository implements IUser
             $r['password'],
             $r['created_at'],
             self::readValid($r['valid']),
+            self::readEmailVerified($r['email_verified']),
         );
     }
 }

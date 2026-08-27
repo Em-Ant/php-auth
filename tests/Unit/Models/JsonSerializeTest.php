@@ -35,6 +35,7 @@ class JsonSerializeTest extends TestCase
         self::assertSame('Alice', $data['name']);
         self::assertSame('alice@example.com', $data['email']);
         self::assertTrue($data['valid']);
+        self::assertTrue($data['email_verified']);
         self::assertSame(self::NOW, $data['created_at']);
     }
 

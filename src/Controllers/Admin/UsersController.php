@@ -86,7 +86,8 @@ class UsersController
                 $email,
                 $this->secretsService->hashPassword($password),
                 sqlNow(),
-                $this->optionalBool($body, 'valid', true)
+                $this->optionalBool($body, 'valid', true),
+                $this->optionalBool($body, 'email_verified', true)
             );
 
             $created = $this->userAdmin->createUser($user, $realmRoles);
@@ -131,7 +132,8 @@ class UsersController
                 $email,
                 $this->updatedPassword($body, $existing),
                 formatSqlDatetime($existing->getCreatedAt()),
-                $this->optionalBool($body, 'valid', $existing->getValid())
+                $this->optionalBool($body, 'valid', $existing->getValid()),
+                $this->optionalBool($body, 'email_verified', $existing->getEmailVerified())
             );
 
             $this->userAdmin->updateUser($user, $realmRoles);
@@ -209,6 +211,7 @@ class UsersController
             'name' => $user->getName(),
             'email' => $user->getEmail(),
             'valid' => $user->getValid(),
+            'email_verified' => $user->getEmailVerified(),
             'created_at' => formatSqlDatetime($user->getCreatedAt()),
         ];
     }

@@ -20,6 +20,7 @@ class User implements \JsonSerializable
     private string $password;
     private DateTime $created_at;
     private bool $valid;
+    private bool $email_verified;
 
     public function __construct(
         string $id,
@@ -28,7 +29,8 @@ class User implements \JsonSerializable
         string $email,
         string $password,
         string $created_at,
-        ?bool $valid = true
+        ?bool $valid = true,
+        ?bool $emailVerified = true
     ) {
         $this->id = $id;
         $this->realm_id = $realm_id;
@@ -39,6 +41,7 @@ class User implements \JsonSerializable
         $this->created_at =
             \DateTime::createFromFormat('Y-m-d H:i:s', $created_at, $utc);
         $this->valid = $valid;
+        $this->email_verified = $emailVerified;
     }
 
     public function getId(): string
@@ -69,6 +72,10 @@ class User implements \JsonSerializable
     {
         return $this->valid;
     }
+    public function getEmailVerified(): bool
+    {
+        return $this->email_verified;
+    }
 
     public function jsonSerialize(): array
     {
@@ -78,6 +85,7 @@ class User implements \JsonSerializable
             'name' => $this->name,
             'email' => $this->email,
             'valid' => $this->valid,
+            'email_verified' => $this->email_verified,
             'created_at' => $this->created_at->format('Y-m-d H:i:s'),
         ];
     }

@@ -28,6 +28,7 @@ Single source of truth for what to work on next. **Local by design** (3 machines
 | F-14 | feature | P3 | S | | fallback full-page login form | `ROADMAP → Login Form` |
 | F-18 | feature | P3 | S | | SMTP adapter (VPS) | `ROADMAP → Login Methods` |
 | F-43 | fix | P3 | S | | deferred batch: `login_hint`/`max_age`/`ui_locales`, `WWW-Authenticate` on 401, `X-Powered-By` removal — with a future hardening pass | `keycloak-parity/PRD.md` |
+| F-46 | feature | P3 | S | wait F-09 (Mailer) | email verification flow — one-time link flips `email_verified`; **blocked until the mail system (Mailer / SMTP) is ready**; admin API + model wiring for the flag already done | `email-verification/PRD.md` |
 | F-15 | feature | P3 | L | | social login (Google/GitHub/GitLab) | `ROADMAP → Login Methods` |
 | F-16 | feature | P3 | L | | 2FA/TOTP | `ROADMAP → Login Methods` |
 | F-17 | feature | P3 | L | | Google-style modal widget (SAM iframe) | `ROADMAP → Login Form` |

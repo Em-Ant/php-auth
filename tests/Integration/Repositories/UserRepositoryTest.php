@@ -31,6 +31,30 @@ class UserRepositoryTest extends RepositoryTestCase
         self::assertSame('test@example.com', $user->getEmail());
     }
 
+    public function testCreatePersistsEmailVerifiedIntegerConvention(): void
+    {
+        $user = $this->repo->create($this->user('unverified@example.com', true, '', false));
+
+        $stored = self::$pdo->prepare('SELECT email_verified FROM users WHERE id = :id');
+        $stored->execute([':id' => $user->getId()]);
+
+        self::assertSame(0, (int) $stored->fetchColumn());
+
+        $loaded = $this->repo->findById($user->getId());
+        self::assertNotNull($loaded);
+        self::assertFalse($loaded->getEmailVerified());
+    }
+
+    public function testSeedUsersAreEmailVerified(): void
+    {
+        // Hand-created seed users become verified (see db/seed.sql UPDATE).
+        foreach (['586d7bb3-d386-4b57-9e99-b2a460f20b47', 'b0aa0c22-a356-40c7-9fa2-6f973c3f614a'] as $id) {
+            $user = $this->repo->findById($id);
+            self::assertNotNull($user);
+            self::assertTrue($user->getEmailVerified());
+        }
+    }
+
     public function testFindByIdReturnsNullForMissing(): void
     {
         self::assertNull($this->repo->findById('nonexistent'));
@@ -117,7 +141,7 @@ class UserRepositoryTest extends RepositoryTestCase
         self::assertFalse($disabled->getValid());
     }
 
-    private function user(string $email, bool $valid, string $id = ''): User
+    private function user(string $email, bool $valid, string $id = '', bool $emailVerified = true): User
     {
         return new User(
             $id,
@@ -127,6 +151,7 @@ class UserRepositoryTest extends RepositoryTestCase
             password_hash('pass', PASSWORD_BCRYPT, ['cost' => 4]),
             '2025-01-01 00:00:00',
             $valid,
+            $emailVerified,
         );
     }
 
