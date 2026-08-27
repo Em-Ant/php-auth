@@ -133,4 +133,5 @@ INSERT OR IGNORE INTO user_role_assignments (user_id, role_id) VALUES
   ('b0aa0c22-a356-40c7-9fa2-6f973c3f614a', '5a1a1000-0000-4000-8000-000000000005');
 -- Seed users are created by hand, so they are email-verified. The admin API
 -- defaults new users to verified=1 too (no verification flow exists yet).
-UPDATE users SET email_verified = 1;
+-- Guarded update (Sonar): touches every non-verified row, NULL included.
+UPDATE users SET email_verified = 1 WHERE email_verified IS NOT 1;

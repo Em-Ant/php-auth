@@ -26,6 +26,8 @@ Run via CLI (`composer migrate`) or HTTP (`POST /db/migrations/migrate` with adm
 
 **SQLite floor: 3.31** (prod shared hosting, older bundled SQLite). Avoid newer constructs — notably `ALTER TABLE ... DROP COLUMN`; prefer retain-and-abandon for dead columns. If a migration is destructive/incompatible anyway, it is *risky* and needs a release plan with precomputed manual remediation SQL — see `docs/adr/0002`.
 
+**Sonar: never write an `UPDATE` (or `DELETE`) without a `WHERE` clause** — in migrations, `db/seed.sql`, or any SQL. An unguarded `UPDATE` fails Sonar's quality gate and blocks the release. For deliberate full-table transforms, write an explicit guarded condition that preserves the semantics (e.g. a NULL-safe backfill: `UPDATE users SET email_verified = 1 WHERE email_verified IS NOT 1;`).
+
 **Seed data (`db/seed.sql`)** is dev-only and never runs in production. Invoke manually via `composer seed` (idempotent — skips if a realm already exists).
 
 ## Agent skills

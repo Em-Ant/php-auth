@@ -7,4 +7,8 @@
 -- Data transform note (ADR-0002 convention): this rewrites existing rows. The
 -- down migration resets them to the schema default (0), so it is only safe to
 -- roll back before a real verification flow exists.
-UPDATE users SET email_verified = 1;
+--
+-- Guarded update (Sonar): the WHERE is deliberately full-table but explicit —
+-- `IS NOT 1` also covers NULLs and any legacy text values, so every existing
+-- row still ends up verified without an unguarded UPDATE.
+UPDATE users SET email_verified = 1 WHERE email_verified IS NOT 1;
