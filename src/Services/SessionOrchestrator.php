@@ -63,7 +63,8 @@ class SessionOrchestrator
 
     public function create(string $realmId, string $userId): Session
     {
-        $session = $this->sessionRepository->create($realmId, $userId, '0');
+        // Keycloak parity (F-40): password authentication reports "1".
+        $session = $this->sessionRepository->create($realmId, $userId, '1');
         if ($session === null) {
             throw new StorageFailed('unable to create session');
         }

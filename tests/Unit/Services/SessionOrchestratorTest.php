@@ -48,6 +48,27 @@ class SessionOrchestratorTest extends TestCase
         self::assertNull($this->svc->ensureValidSession('s-id', 86400, 1800));
     }
 
+    // ── create ────────────────────────────────────────────────
+
+    public function testCreatePersistsPasswordAcrOne(): void
+    {
+        $session = new Session('s-id', 'r-id', 'u-id', '1', gmdate('Y-m-d H:i:s'), null, 'ACTIVE');
+        $this->sessionRepo->expects(self::once())
+            ->method('create')
+            ->with('r-id', 'u-id', '1')
+            ->willReturn($session);
+
+        self::assertSame($session, $this->svc->create('r-id', 'u-id'));
+    }
+
+    public function testCreateThrowsOnStorageFailure(): void
+    {
+        $this->sessionRepo->method('create')->willReturn(null);
+
+        $this->expectException(StorageFailed::class);
+        $this->svc->create('r-id', 'u-id');
+    }
+
     // ── checkExpiry ───────────────────────────────────────────
 
     public function testCheckExpiryReturnsTrueForValidSession(): void
