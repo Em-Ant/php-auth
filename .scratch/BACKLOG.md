@@ -28,6 +28,7 @@ Single source of truth for what to work on next. **Local by design** (3 machines
 | F-14 | feature | P3 | S | | fallback full-page login form | `ROADMAP → Login Form` |
 | F-18 | feature | P3 | S | | SMTP adapter (VPS) | `ROADMAP → Login Methods` |
 | F-43 | fix | P3 | S | | deferred batch: `login_hint`/`max_age`/`ui_locales`, `WWW-Authenticate` on 401, `X-Powered-By` removal — with a future hardening pass | `keycloak-parity/PRD.md` |
+| KEY-P-01 | fix | P3 | S | | offline grant `session_state`/`sid` when refreshing with **no live SSO session**: the auth-code issuance path is fixed (online id published, regression-tested), but the offline-refresh path has no online session id available — needs a live Keycloak probe to decide whether `session_state` should track the (now‑gone) SSO session or the offline record | `keycloak-parity/issues/01-offline-session-state-iframe.md` |
 | F-46 | feature | P3 | S | wait F-09 (Mailer) | email verification flow — one-time link flips `email_verified`; **blocked until the mail system (Mailer / SMTP) is ready**; admin API + model wiring for the flag already done | `email-verification/PRD.md` |
 | F-15 | feature | P3 | L | | social login (Google/GitHub/GitLab) | `ROADMAP → Login Methods` |
 | F-16 | feature | P3 | L | | 2FA/TOTP | `ROADMAP → Login Methods` |

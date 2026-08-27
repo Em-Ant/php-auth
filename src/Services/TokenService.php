@@ -248,18 +248,32 @@ class TokenService
 
     /**
      * Offline token bundle: the refresh token carries `typ: Offline` and the
-     * realm-configured offline TTL, and the session claims (sid, acr,
-     * auth_time) come from the offline session — which survives SSO logout.
+     * realm-configured offline TTL.
+     *
+     * The published `sid` / `session_state` is the supplied `$sessionId`
+     * rather than the offline session's own id: when this is built from an
+     * auth-code exchange the online SSO session is still live, and the
+     * login-status iframe (F-38) hashes that SSO id against the `AUTH_SESSION`
+     * cookie -- so the two must agree. Keycloak parity: the iframe tracks the
+     * SSO session, not the offline grant. Pass the offline session id only
+     * when no live SSO session exists (offline refresh). The offline record's
+     * own id remains the source of truth for persistence/lookup.
+     *
+     * @param non-empty-string $sessionId SSO session id to advertise when live;
+     *        the offline session id when refreshing without an SSO session.
      */
     public function createOfflineTokenBundle(
         Realm $realm,
         OfflineSession $offlineSession,
         Client $client,
-        User $user
+        User $user,
+        string $sessionId
     ): array {
+        $context = GrantContext::fromOfflineSession($offlineSession)->withSid($sessionId);
+
         return $this->createTokenBundleFromContext(
             $realm,
-            GrantContext::fromOfflineSession($offlineSession),
+            $context,
             $client,
             $user,
             RefreshTokenKind::Offline

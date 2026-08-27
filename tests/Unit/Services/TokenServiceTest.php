@@ -10,6 +10,7 @@ use AuthServer\Interfaces\RoleRepository;
 use AuthServer\Models\KeySet;
 use AuthServer\Models\Client;
 use AuthServer\Models\Login;
+use AuthServer\Models\OfflineSession;
 use AuthServer\Models\Realm;
 use AuthServer\Models\Session;
 use AuthServer\Models\User;
@@ -308,6 +309,49 @@ class TokenServiceTest extends TestCase
 
         self::assertArrayNotHasKey('resource_access', $payload);
     }
+
+    // ── createOfflineTokenBundle (sid / session_state parity, F-38) ────────
+    //
+    // The login-status iframe hashes `session_state` (the value published in the
+    // token response / ID token) and compares it to the `AUTH_SESSION` cookie,
+    // which `HttpSessionCookieHandler` writes as `b64url(SHA-256(onlineSessionId))`.
+    // That cookie is always derived from the *online* SSO session (set on the
+    // authorization redirect), so the published `sid` MUST be the online SSO
+    // session id — never the offline session's own record id — whenever a live
+    // SSO session exists (i.e. at the auth-code exchange). See F-38 / the
+    // keycloak-parity tracking issue.
+    public function testOfflineBundlePublishesOnlineSessionIdNotOfflineId(): void
+    {
+        $offlineSession = new OfflineSession(
+            id: 'offline-1',
+            realm_id: 'r-id',
+            user_id: 'user-1',
+            client_id: 'client-1',
+            scope: 'openid offline_access',
+            acr: '1',
+            nonce: 'nonce-1',
+            authenticated_at: '2025-01-01 00:01:00',
+        );
+
+        $bundle = $this->tokenService->createOfflineTokenBundle(
+            $this->realm,
+            $offlineSession,
+            $this->client,
+            $this->user,
+            $this->session->getId() // 'session-1' — the live online SSO session id
+        );
+
+        $idPayload = $this->tokenService->decodeTokenPayload($bundle['id_token']);
+
+        // Published session_state / sid track the SSO session, matching the cookie.
+        self::assertSame('session-1', $bundle['session_state']);
+        self::assertSame('session-1', $idPayload['session_state']);
+        self::assertSame('session-1', $idPayload['sid']);
+        // The offline session's own record id must NOT be advertised.
+        self::assertNotSame('offline-1', $bundle['session_state']);
+    }
+
+    // ── private helpers ─────────────────────────────────────────
 
     /**
      * @param array<string, list<string>> $clientRolesForUser

@@ -63,4 +63,22 @@ final class GrantContext
             scope: $scope,
         );
     }
+
+    /**
+     * Overrides the `sid` published in the issued tokens without touching the
+     * grant's own session record. Lets offline grants advertise the live
+     * online SSO session id (Keycloak parity for the check-session iframe,
+     * F‑38) while the offline session keeps its own id for persistence.
+     */
+    public function withSid(string $sid): self
+    {
+        return new self(
+            subject: $this->subject,
+            authTime: $this->authTime,
+            acr: $this->acr,
+            sid: $sid,
+            nonce: $this->nonce,
+            scope: $this->scope,
+        );
+    }
 }

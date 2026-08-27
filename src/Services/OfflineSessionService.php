@@ -75,7 +75,8 @@ class OfflineSessionService
             $realm,
             $offlineSession,
             $client,
-            $user
+            $user,
+            $session->getId()
         );
 
         $offlineSession->setRefreshToken($bundle['refresh_token']);
@@ -140,7 +141,8 @@ class OfflineSessionService
             $realm,
             $offlineSession,
             $client,
-            $user
+            $user,
+            $offlineSession->getId()
         );
 
         $ok = $this->offlineSessionRepository->refresh(

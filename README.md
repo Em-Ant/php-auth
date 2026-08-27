@@ -516,6 +516,33 @@ composer check          # stan + cs_check — run before committing
 
 ---
 
+## Deployment
+
+php-auth is supported on **HTTPS-only** deployments. TLS is a hard dependency,
+not a recommendation:
+
+- **`AUTH_SESSION` / `AUTH_SESSION_CHECK` cookies are always sent with
+  `Secure` and `SameSite=None`** (see `HttpSessionCookieHandler`), so the
+  server-side cookie never works over plain HTTP in a real browser.
+- **The 3rd-party cookie check-session iframe
+  (`login-status-iframe.html`) uses the Web Crypto API
+  (`crypto.subtle.digest`) to verify the session state.** `crypto.subtle` is
+  only available in a **secure context** (HTTPS, or a `localhost` exception).
+  Over plain HTTP the digest promise rejects and session monitoring silently
+  stops working, so HTTP is not supported.
+- Serving behind a reverse proxy is fine — set `issuer`/`base_path` in
+  `config.ini` accordingly — but the proxy must terminate TLS and forward the
+  request as `https`.
+
+Local development on `http://localhost:8000` still works (the `localhost`
+secure-context exception covers the iframe, and the dev server is not
+user-facing).
+
+See **[ADR-0003](docs/adr/0003-https-only-deployments.md)** for the full
+decision and reasoning.
+
+---
+
 ## Development commands
 
 | Command | Action |
