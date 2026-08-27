@@ -80,24 +80,7 @@ class TokenServiceTest extends TestCase
             status: 'ACTIVE',
         );
 
-        $this->login = new Login(
-            id: 'login-1',
-            client_id: 'client-1',
-            state: 'state-1',
-            nonce: 'nonce-1',
-            scope: 'openid',
-            redirect_uri: 'https://example.com/cb',
-            response_mode: 'query',
-            created_at: '2025-01-01 00:00:00',
-            session_id: 'session-1',
-            authenticated_at: '2025-01-01 00:01:00',
-            code: null,
-            code_challenge: null,
-            csrf_token: null,
-            updated_at: null,
-            refresh_token: null,
-            status: 'AUTHENTICATED',
-        );
+        $this->login = $this->makeLogin();
 
         $this->client = new Client(
             id: 'client-1',
@@ -249,9 +232,7 @@ class TokenServiceTest extends TestCase
 
     public function testAccessTokenAndRefreshTokenOmitNonce(): void
     {
-        $bundle = $this->tokenService->createTokenBundle(
-            $this->realm, $this->session, $this->login, $this->client, $this->user,
-        );
+        $bundle = $this->bundleForUser($this->user);
 
         $accessPayload = $this->tokenService->decodeTokenPayload($bundle['access_token']);
         $refreshPayload = $this->tokenService->decodeTokenPayload($bundle['refresh_token']);
@@ -262,41 +243,20 @@ class TokenServiceTest extends TestCase
 
     public function testIdTokenCarriesRequestedNonce(): void
     {
-        $bundle = $this->tokenService->createTokenBundle(
-            $this->realm, $this->session, $this->login, $this->client, $this->user,
+        $idPayload = $this->tokenService->decodeTokenPayload(
+            $this->bundleForUser($this->user)['id_token']
         );
-
-        $idPayload = $this->tokenService->decodeTokenPayload($bundle['id_token']);
 
         self::assertSame('nonce-1', $idPayload['nonce']);
     }
 
     public function testIdTokenOmitsNonceWhenAuthRequestHadNone(): void
     {
-        $login = new Login(
-            id: 'login-1',
-            client_id: 'client-1',
-            state: 'state-1',
-            nonce: '',
-            scope: 'openid',
-            redirect_uri: 'https://example.com/cb',
-            response_mode: 'query',
-            created_at: '2025-01-01 00:00:00',
-            session_id: 'session-1',
-            authenticated_at: '2025-01-01 00:01:00',
-            code: null,
-            code_challenge: null,
-            csrf_token: null,
-            updated_at: null,
-            refresh_token: null,
-            status: 'AUTHENTICATED',
-        );
+        $login = $this->makeLogin(nonce: '');
 
-        $bundle = $this->tokenService->createTokenBundle(
-            $this->realm, $this->session, $login, $this->client, $this->user,
+        $idPayload = $this->tokenService->decodeTokenPayload(
+            $this->bundleForUser($this->user, $login)['id_token']
         );
-
-        $idPayload = $this->tokenService->decodeTokenPayload($bundle['id_token']);
 
         self::assertArrayNotHasKey('nonce', $idPayload);
     }
@@ -393,10 +353,32 @@ class TokenServiceTest extends TestCase
         );
     }
 
-    private function bundleForUser(User $user): array
+    private function bundleForUser(User $user, ?Login $login = null): array
     {
         return $this->tokenService->createTokenBundle(
-            $this->realm, $this->session, $this->login, $this->client, $user,
+            $this->realm, $this->session, $login ?? $this->login, $this->client, $user,
+        );
+    }
+
+    private function makeLogin(string $nonce = 'nonce-1'): Login
+    {
+        return new Login(
+            id: 'login-1',
+            client_id: 'client-1',
+            state: 'state-1',
+            nonce: $nonce,
+            scope: 'openid',
+            redirect_uri: 'https://example.com/cb',
+            response_mode: 'query',
+            created_at: '2025-01-01 00:00:00',
+            session_id: 'session-1',
+            authenticated_at: '2025-01-01 00:01:00',
+            code: null,
+            code_challenge: null,
+            csrf_token: null,
+            updated_at: null,
+            refresh_token: null,
+            status: 'AUTHENTICATED',
         );
     }
 
