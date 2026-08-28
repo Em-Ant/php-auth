@@ -15,7 +15,7 @@
 ## First-time setup
 
 1. Create `db/data.db` (empty file, SQLite)
-2. `composer setup` — runs migrations then seeds dev data (realms `web`, `test`, users, clients)
+2. `composer setup` — runs migrations, then seeds dev data (realms `web`, `test`, `admin`; users; clients; roles), then ensures RSA key pairs exist in `keys/<kid>/` for every realm (`bin/seed-keys.php`)
 3. Generate RSA key pairs in `keys/<kid>/` (call `TokenService::createKeys()` or manually)
 4. `composer dump-autoload` after adding new classes (PSR-4, not classmap)
 
@@ -28,7 +28,7 @@ Run via CLI (`composer migrate`) or HTTP (`POST /db/migrations/migrate` with adm
 
 **Sonar: never write an `UPDATE` (or `DELETE`) without a `WHERE` clause** — in migrations, `db/seed.sql`, or any SQL. An unguarded `UPDATE` fails Sonar's quality gate and blocks the release. For deliberate full-table transforms, write an explicit guarded condition that preserves the semantics (e.g. a NULL-safe backfill: `UPDATE users SET email_verified = 1 WHERE email_verified IS NOT 1;`).
 
-**Seed data (`db/seed.sql`)** is dev-only and never runs in production. Invoke manually via `composer seed` (idempotent — skips if a realm already exists).
+**Seed data (`db/seed.sql`)** is dev-only and never runs in production. Invoke manually via `composer seed` (idempotent — every row is `INSERT OR IGNORE`, so re-running on an existing dev DB is safe and applies any newly added rows).
 
 ## Agent skills
 

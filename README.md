@@ -29,14 +29,11 @@ touch db/data.db
 # 2. Install PHP dependencies
 composer install
 
-# 3. Run migrations and seed dev data (realms, users, clients)
+# 3. Run migrations, seed dev data (realms, users, clients, roles) and
+#    generate RSA key pairs into keys/<kid>/ for every realm
 composer setup
 
-# 4. Generate RSA key pairs for token signing
-#    (run once; keys go into keys/<kid>/)
-php -r 'require "vendor/autoload.php"; \AuthServer\Services\TokenService::createKeys();'
-
-# 5. Start the dev server
+# 4. Start the dev server
 composer serve
 ```
 
@@ -55,16 +52,33 @@ or configure any OIDC client with:
 
 ## Seed data
 
-`composer setup` seeds two realms with test data:
+`composer setup` seeds three realms (and generates an RSA key pair for each):
 
 | Realm | Client | User (email / password) |
 |---|---|---|
 | `test` | `local` (redirect: `http://localhost:5173`) | `test@example.com` / `tst` |
 | `test` | `kc_app` (redirect: `https://www.keycloak.org/app`) | `test@example.com` / `tst` |
 | `web` | `playground` | `test@example.com` / `tst` |
+| `admin` | `admin-ui` (public, PKCE — no secret) | `admin@example.com` / `ChangeMe!dev` |
+| `admin` | `ci-deployer` (confidential) | — |
 
-Clients have `require_auth = false` in seed data (no client secret needed for
-the token endpoint).
+The `admin` realm backs the Admin UI / Admin API auth contract (SSO + offline
+CI) — see `admin-auth/PRD.md`. Most `test`/`web` clients are `require_auth =
+false` (no client secret needed for the token endpoint); `ci-deployer` is
+confidential and requires its secret.
+
+### Dev credentials
+
+`db/seed.sql` stores secrets as **argon2id hashes**; the plaintext values below
+are the known dev secrets a local developer uses to log in / authenticate.
+**Dev-only** — prod never runs `seed.sql` (it bootstraps via the Admin API).
+
+| What | Plaintext | Hash stored in the DB |
+|---|---|---|
+| seed user `test@example.com` (all realms) | `tst` | `$argon2id$v=19$m=1024,t=2,p=2$VkZ0NDBpVmlKMWIwTHgxeg$thxvsbc3yVD9DbC+FjowJ59W+orWxHCT8vuhSi6cmlk` |
+| seed clients `local` / `kc_app` / `playground` | `c_id` | `$argon2id$v=19$m=1024,t=2,p=2$YUM1NlEwLkxBS09xbGJWQw$bGDwvY/HzVl7SsOsGhgYwQkwB4QCamL/SU2EjzOtd2o` |
+| `admin` user `admin@example.com` (role `admin`) | `ChangeMe!dev` | `$argon2id$v=19$m=1024,t=2,p=2$ZmQuZ0UuNTF3c1ZZMnRxcw$Fd9VMo9mHW9bGrpNxdzMyNgMF8oh6sicFRctedTayI0` |
+| `admin` client `ci-deployer` (confidential) | `ci-deployer-dev-secret` | `$argon2id$v=19$m=1024,t=2,p=2$RUxrZ3Z0UzcvLi9XOHZrRQ$S7xt8rgPz3DJlw2PT/BVTIMdnbnGrU/pMRLANrfBO7s` |
 
 ---
 

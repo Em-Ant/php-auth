@@ -8,13 +8,9 @@ require __DIR__ . '/../vendor/autoload.php';
 $dbPath = __DIR__ . '/../db/data.db';
 $pdo = \AuthServer\Services\Database::connect("sqlite:{$dbPath}");
 
-// Idempotent: skip if seed data already present
-$existing = $pdo->query('SELECT COUNT(*) FROM realms')->fetchColumn();
-if ($existing > 0) {
-    echo "Seed data already present — skipping.\n";
-    exit(0);
-}
-
+// Idempotent: every statement in db/seed.sql is INSERT OR IGNORE (the one
+// UPDATE is NULL-safe with a WHERE guard), so re-running on an existing dev
+// DB is safe and applies any newly added seed rows (e.g. the admin realm).
 $seedSql = file_get_contents(__DIR__ . '/../db/seed.sql');
 if ($seedSql === false) {
     fwrite(STDERR, "Cannot read db/seed.sql\n");
