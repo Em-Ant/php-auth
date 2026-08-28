@@ -99,6 +99,10 @@ Apply these almost religiously. If a pragmatic violation is needed, consult the 
 - no nested ternaries
 - avoid nested if blocks if possible, use early returns instead. Mandatory to avoid 3 levels of nested conditional blocks
 
+## Shell scripts
+
+- **Prefer `[[` over `[`** for conditional tests in bash (`shell:S1128`). The `[[` construct is a bash builtin that is safer (no word splitting or pathname expansion) and more feature-rich (supports `&&`, `||`, regex `=~`, and unquoted variables safely). Reserve `[` (the `test` external command) for POSIX `sh` scripts only.
+
 ## Language
 
 Always communicate in English only.

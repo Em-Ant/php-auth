@@ -23,8 +23,8 @@ CI_SECRET="${CI_SECRET:-}"
 AUTH="X-Admin-Key: $API_KEY"
 H_JSON="Content-Type: application/json"
 
-if [ -z "$ADMIN_PASSWORD" ]; then ADMIN_PASSWORD="$(openssl rand -base64 24)"; fi
-if [ -z "$CI_SECRET" ]; then CI_SECRET="$(openssl rand -base64 32)"; fi
+if [[ -z "$ADMIN_PASSWORD" ]]; then ADMIN_PASSWORD="$(openssl rand -base64 24)"; fi
+if [[ -z "$CI_SECRET" ]]; then CI_SECRET="$(openssl rand -base64 32)"; fi
 
 echo "==> Bootstrapping realm '$REALM_NAME' on $BASE_URL"
 echo "    admin password: $ADMIN_PASSWORD"
@@ -32,7 +32,7 @@ echo "    ci-deployer secret: $CI_SECRET"
 echo
 
 REALM_ID="$(curl -sf -H "$AUTH" "$BASE_URL/admin/realms" | jq -r --arg name "$REALM_NAME" 'first(.realms[]? | select(.name==$name)) | .id?')"
-if [ -z "$REALM_ID" ]; then
+if [[ -z "$REALM_ID" ]]; then
     KID="$(curl -sf -X POST -H "$AUTH" -H "$H_JSON" "$BASE_URL/admin/keys" | jq -er '.kid')"
     echo "==> created keys: kid=$KID"
     REALM_ID="$(curl -sf -X POST -H "$AUTH" -H "$H_JSON" -d "{\"name\":\"$REALM_NAME\",\"keys_id\":\"$KID\",\"scope\":\"$REALM_SCOPE\",\"access_token_expires_in\":$ACCESS_TOKEN_EXPIRES_IN,\"refresh_token_expires_in\":$REFRESH_TOKEN_EXPIRES_IN,\"session_expires_in\":$SESSION_EXPIRES_IN,\"idle_session_expires_in\":$IDLE_SESSION_EXPIRES_IN}" "$BASE_URL/admin/realms" | jq -er '.id')"
@@ -42,7 +42,7 @@ else
 fi
 
 ROLE_ID="$(curl -sf -H "$AUTH" "$BASE_URL/admin/roles?realm_id=$REALM_ID" | jq -r --arg name "admin" 'first(.items[]? | select(.name==$name and .client_id==null)) | .id?')"
-if [ -z "$ROLE_ID" ]; then
+if [[ -z "$ROLE_ID" ]]; then
     ROLE_ID="$(curl -sf -X POST -H "$AUTH" -H "$H_JSON" -d "{\"name\":\"admin\",\"realm_id\":\"$REALM_ID\",\"client_id\":null}" "$BASE_URL/admin/roles" | jq -er '.id')"
     echo "==> created role 'admin': id=$ROLE_ID"
 else
@@ -50,7 +50,7 @@ else
 fi
 
 USER_ID="$(curl -sf -H "$AUTH" "$BASE_URL/admin/users?realm_id=$REALM_ID" | jq -r --arg email "$ADMIN_EMAIL" 'first(.items[]? | select(.email==$email)) | .id?')"
-if [ -z "$USER_ID" ]; then
+if [[ -z "$USER_ID" ]]; then
     USER_ID="$(curl -sf -X POST -H "$AUTH" -H "$H_JSON" -d "{\"realm_id\":\"$REALM_ID\",\"email\":\"$ADMIN_EMAIL\",\"name\":\"$ADMIN_USER_NAME\",\"password\":\"$ADMIN_PASSWORD\"}" "$BASE_URL/admin/users" | jq -er '.id')"
     echo "==> created admin user: id=$USER_ID"
 else
@@ -65,7 +65,7 @@ else
 fi
 
 ADMIN_UI_ID="$(curl -sf -H "$AUTH" "$BASE_URL/admin/clients?realm_id=$REALM_ID" | jq -r --arg name "$ADMIN_UI_NAME" --arg uri "$ADMIN_UI_URI" 'first(.items[]? | select(.name==$name and .uri==$uri)) | .id?')"
-if [ -z "$ADMIN_UI_ID" ]; then
+if [[ -z "$ADMIN_UI_ID" ]]; then
     ADMIN_UI_ID="$(curl -sf -X POST -H "$AUTH" -H "$H_JSON" -d "{\"name\":\"$ADMIN_UI_NAME\",\"realm_id\":\"$REALM_ID\",\"uri\":\"$ADMIN_UI_URI\",\"require_auth\":false,\"scope\":\"$ADMIN_UI_SCOPE\"}" "$BASE_URL/admin/clients" | jq -er '.id')"
     echo "==> created client '$ADMIN_UI_NAME': id=$ADMIN_UI_ID"
 else
@@ -73,7 +73,7 @@ else
 fi
 
 CI_ID="$(curl -sf -H "$AUTH" "$BASE_URL/admin/clients?realm_id=$REALM_ID" | jq -r --arg name "$CI_NAME" --arg uri "$CI_URI" 'first(.items[]? | select(.name==$name and .uri==$uri)) | .id?')"
-if [ -z "$CI_ID" ]; then
+if [[ -z "$CI_ID" ]]; then
     CI_ID="$(curl -sf -X POST -H "$AUTH" -H "$H_JSON" -d "{\"name\":\"$CI_NAME\",\"realm_id\":\"$REALM_ID\",\"uri\":\"$CI_URI\",\"require_auth\":true,\"client_secret\":\"$CI_SECRET\",\"scope\":\"$CI_SCOPE\"}" "$BASE_URL/admin/clients" | jq -er '.id')"
     echo "==> created client '$CI_NAME': id=$CI_ID"
 else
