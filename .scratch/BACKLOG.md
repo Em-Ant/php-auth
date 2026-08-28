@@ -16,8 +16,8 @@ Single source of truth for what to work on next. **Local by design** (3 machines
 
 | ID | Type | Priority | Size | Blocked by | Why-now | Doc |
 |----|------|----------|------|------------|---------|-----|
-| F-47 | feature | P2 | S | | admin realm + role + clients seed (SSO+offline, admin-ui w/o offline, ci-deployer w/ offline) | `admin-auth/PRD.md #01` |
-| F-48 | feature | P2 | M | F-47 | JWT admin auth middleware (dual-mode, SSO+offline, role check; UI PKCE can run migrations) | `admin-auth/PRD.md #02` |
+| F-48 | feature | P2 | M | | JWT admin auth middleware (dual-mode, SSO+offline, role check; UI PKCE can run migrations) | `admin-auth/PRD.md #02` |
+| F-50 | feature | P2 | M | | rotate admin credentials without delete/recreate — admin change-password + change-client-secret (admin API only, **not** self-service); prod bootstrap secrets are final until this ships | `password-change/PRD.md` |
 | F-08 | feature | P2 | S | | ROPC grant | `ROADMAP → Login Methods` |
 | F-11 | feature | P2 | S | | per-realm password policy | `ROADMAP → Admin API` |
 | F-13 | feature | P2 | S | | per-realm login page config | `ROADMAP → Login Form` |

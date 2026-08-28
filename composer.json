@@ -37,7 +37,8 @@
     "seed": "php bin/seed",
     "setup": [
       "@migrate",
-      "@seed"
+      "@seed",
+      "php bin/seed-keys.php"
     ],
     "stan": "phpstan analyse -l 5 src public/index.php",
     "cs_check": "phpcs src public/index.php --standard=PSR12",
