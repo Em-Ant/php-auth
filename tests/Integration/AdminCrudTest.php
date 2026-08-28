@@ -6,6 +6,7 @@ namespace AuthServer\Tests\Integration;
 
 use AuthServer\Services\SecretsService;
 use AuthServer\Tests\Support\AdminApiTrait;
+use AuthServer\Tests\Support\TempDirTrait;
 use AuthServer\Tests\Support\TestAppFactory;
 use PHPUnit\Framework\TestCase;
 
@@ -14,6 +15,7 @@ use function AuthServer\getGuid;
 class AdminCrudTest extends TestCase
 {
     use AdminApiTrait;
+    use TempDirTrait;
 
     private const TEST_REALM = 'c03aa58c-2888-4f40-821c-4aadf5c58f6f';
     private const TEST_CLIENT = 'a540c566-dfbf-430a-9941-fb8531c022d4';
@@ -42,25 +44,6 @@ class AdminCrudTest extends TestCase
     public static function tearDownAfterClass(): void
     {
         self::removeDir(self::$keysRoot);
-    }
-
-    private static function removeDir(string $dir): void
-    {
-        if (!is_dir($dir)) {
-            return;
-        }
-        foreach (scandir($dir) as $entry) {
-            if ($entry === '.' || $entry === '..') {
-                continue;
-            }
-            $path = "$dir/$entry";
-            if (is_dir($path)) {
-                self::removeDir($path);
-            } else {
-                unlink($path);
-            }
-        }
-        rmdir($dir);
     }
 
     // ── Auth ──────────────────────────────────────────────────
