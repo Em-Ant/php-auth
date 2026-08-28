@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AuthServer\Tests\Integration;
 
 use AuthServer\Tests\Support\AdminApiTrait;
+use AuthServer\Tests\Support\TempDirTrait;
 use AuthServer\Tests\Support\TestAppFactory;
 use PHPUnit\Framework\TestCase;
 
@@ -13,6 +14,7 @@ use function AuthServer\getGuid;
 class SessionLoginManagementTest extends TestCase
 {
     use AdminApiTrait;
+    use TempDirTrait;
 
     private const TEST_REALM = 'c03aa58c-2888-4f40-821c-4aadf5c58f6f';
     private const TEST_CLIENT = 'a540c566-dfbf-430a-9941-fb8531c022d4';
@@ -20,12 +22,22 @@ class SessionLoginManagementTest extends TestCase
 
     private static \Slim\App $app;
     private static string $adminKey = 'test-admin-key';
+    private static string $keysRoot;
 
     public static function setUpBeforeClass(): void
     {
+        self::$keysRoot = sys_get_temp_dir() . '/auth-keys-' . getGuid();
+        mkdir(self::$keysRoot);
+
         self::$app = TestAppFactory::createApp([
             'admin_api_key' => self::$adminKey,
+            'keys_root' => self::$keysRoot,
         ]);
+    }
+
+    public static function tearDownAfterClass(): void
+    {
+        self::removeDir(self::$keysRoot);
     }
 
     // ── Sessions ──────────────────────────────────────────────
