@@ -305,6 +305,10 @@ Request and response bodies are JSON (`Content-Type: application/json`).
 Validation errors return `400`, duplicate/guarded operations return `409`,
 missing resources return `404`, success without a body returns `204`.
 
+Boolean body fields are strict: they accept JSON booleans (`true`/`false`,
+with `1`/`0` and `"true"`/`"false"` tolerated) and reject anything else with
+`400` — an unrecognized value is never silently coerced to `false`.
+
 ### Signing keys
 
 | Endpoint | Method | Description |
@@ -368,14 +372,28 @@ Create body:
   "name": "myapp",
   "realm_id": "<realm-id>",
   "uri": "https://app.example.com/callback",
-  "require_auth": false,
+  "require_auth": true,
   "scope": "openid profile email",
-  "client_secret": "optional-secret"
+  "client_secret": "my-secret"
 }
 ```
 
 `client_secret` is stored hashed; responses only report `has_secret: true/false`.
 `require_auth` toggles whether the token endpoint demands client authentication.
+
+The API enforces the client/secret invariant — **confidential
+(`require_auth: true`) ⇒ has a `client_secret`, public ⇒ no secret** — with
+`409 Conflict` otherwise:
+
+- Create/update with `require_auth: true` requires a `client_secret` in the
+  same call (a confidential client without one could never authenticate).
+- A `client_secret` on a public client is rejected.
+- Demoting a confidential client to public (`require_auth: false`) clears its
+  stored secret; issue a new one when promoting it back.
+- **Secret rotation** = `PUT` with just `client_secret`. The old secret stops
+  working immediately; issued access tokens are stateless and stay valid until
+  they expire, and calls authenticated with the old secret fail until the
+  caller adopts the new one.
 
 ### Users
 
@@ -402,6 +420,15 @@ Create body:
 
 Passwords are hashed (argon2id) and never returned. `PUT` accepts the same
 fields as a partial update; omit `password` to keep the existing one.
+
+**Password rotation is defensive**: sending a `password` also revokes the
+user's active SSO sessions (and their logins) and expires their offline
+refresh grants — the same effect as `POST /admin/sessions/invalidate` with
+that `user_id`. Update, role sync and revocation happen in one transaction:
+either the rotation fully applies or nothing does, so a failed attempt is
+safe to retry. A `PUT` that omits `password` leaves sessions alone.
+Submitting a password value counts as a rotation even when it equals the
+current one — there is no "rotate without logout".
 
 ### Roles
 

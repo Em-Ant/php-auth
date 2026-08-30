@@ -167,6 +167,43 @@ class SessionLoginManagementTest extends TestCase
         self::assertSame(1, $data['invalidated']);
     }
 
+    public function testInvalidateCountsOfflineGrantsAndSessions(): void
+    {
+        $pdo = self::$app->getContainer()->get(\PDO::class);
+        $userId = getGuid();
+
+        $hash = password_hash('pass', PASSWORD_BCRYPT, ['cost' => 4]);
+        $pdo->exec("INSERT INTO users (id, realm_id, name, email, password, valid)
+                     VALUES ('$userId', '" . self::TEST_REALM . "', 'CountBoth', 'cb-" . getGuid() . "@example.com', '$hash', 1)");
+
+        $s1 = getGuid();
+        $s2 = getGuid();
+        $pdo->exec("INSERT INTO sessions (id, realm_id, user_id, acr, status) VALUES ('$s1', '" . self::TEST_REALM . "', '$userId', '0', 'ACTIVE')");
+        $pdo->exec("INSERT INTO sessions (id, realm_id, user_id, acr, status) VALUES ('$s2', '" . self::TEST_REALM . "', '$userId', '0', 'ACTIVE')");
+
+        $stmt = $pdo->prepare(
+            "INSERT INTO offline_sessions (id, realm_id, user_id, client_id, acr, scope, nonce, refresh_token, status)
+             VALUES (:id, :realm, :user, :client, '0', 'openid offline_access', 'nc', :refresh, 'ACTIVE')"
+        );
+        $stmt->execute([
+            ':id' => getGuid(),
+            ':realm' => self::TEST_REALM,
+            ':user' => $userId,
+            ':client' => self::TEST_CLIENT,
+            ':refresh' => getGuid(),
+        ]);
+
+        $data = $this->assertStatus(200, $this->adminRequest('POST', '/admin/sessions/invalidate', [
+            'user_id' => $userId,
+        ]));
+
+        // The total counts both the expired offline grant and the deleted sessions.
+        self::assertSame(3, $data['invalidated']);
+
+        self::assertSame(0, (int) $pdo->query("SELECT COUNT(*) FROM sessions WHERE user_id = '$userId'")->fetchColumn());
+        self::assertSame('EXPIRED', $pdo->query("SELECT status FROM offline_sessions WHERE user_id = '$userId'")->fetchColumn());
+    }
+
     // ── Logins ────────────────────────────────────────────────
 
     public function testListLoginsReturnsData(): void

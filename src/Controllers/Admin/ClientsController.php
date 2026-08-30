@@ -67,7 +67,16 @@ class ClientsController
                 throw new ValidationFailed("unknown realm '$realmId'");
             }
 
+            $requireAuth = $this->strictBool($body, 'require_auth', false);
+            $secretProvided = array_key_exists('client_secret', $body) && $body['client_secret'] !== null;
+            self::assertPublicHasNoSecret($requireAuth, $secretProvided);
+            // Invariant check on the raw value before any hashing, matching
+            // the update path: '' counts as "no secret" and surfaces as 409,
+            // and a rejected request costs no argon2 work.
+            self::assertConfidentialHasSecret($requireAuth, $body['client_secret'] ?? null);
+
             $clientSecret = $this->optionalSecret($body);
+
             if ($this->findDuplicate($name, $uri, null) !== null) {
                 throw new ConflictException("client '$name' with this uri already exists");
             }
@@ -78,7 +87,7 @@ class ClientsController
                 $realmId,
                 $clientSecret,
                 $uri,
-                $this->optionalBool($body, 'require_auth', false),
+                $requireAuth,
                 sqlNow(),
                 $this->optionalString($body, 'scope', null)
             );
@@ -117,17 +126,38 @@ class ClientsController
                 throw new ValidationFailed("unknown realm '$realmId'");
             }
 
-            $clientSecret = array_key_exists('client_secret', $body) && $body['client_secret'] !== null
-                ? $this->hashSecret($body['client_secret'])
-                : $existing->getClientSecret();
+            $newRequireAuth = $this->strictBool($body, 'require_auth', $existing->requiresAuth());
+            $secretProvided = array_key_exists('client_secret', $body) && $body['client_secret'] !== null;
+
+            // Invariant checks run before any hashing: a rejected request
+            // costs no argon2 work and surfaces as 409, not as a value error.
+            if (!$newRequireAuth) {
+                // A secret in a demotion request is contradictory input; an
+                // existing secret (or a legacy empty-string hash) is cleared
+                // so 'public ⇒ no secret' stays honest. It can be re-issued
+                // on a later promotion.
+                self::assertPublicHasNoSecret(false, $secretProvided);
+                $newSecret = null;
+            } else {
+                // Promotion to confidential requires the secret in the same
+                // call: a confidential client without one cannot authenticate
+                // at the token endpoint.
+                self::assertConfidentialHasSecret(
+                    $newRequireAuth,
+                    $secretProvided ? $body['client_secret'] : $existing->getClientSecret()
+                );
+                $newSecret = $secretProvided
+                    ? $this->hashSecret($body['client_secret'])
+                    : $existing->getClientSecret();
+            }
 
             $client = new Client(
                 $existing->getId(),
                 $name,
                 $realmId,
-                $clientSecret,
+                $newSecret,
                 $uri,
-                $this->optionalBool($body, 'require_auth', $existing->requiresAuth()),
+                $newRequireAuth,
                 formatSqlDatetime($existing->getCreatedAt()),
                 $this->optionalString($body, 'scope', $existing->getScopeString())
             );
@@ -195,6 +225,25 @@ class ClientsController
         return $this->secretsService->hashPassword($secret);
     }
 
+    private static function assertConfidentialHasSecret(bool $requireAuth, mixed $secret): void
+    {
+        // 'null' and the legacy empty-string hash are both "no secret": a
+        // confidential client with either can never authenticate. Non-string
+        // input is malformed rather than absent — it passes the invariant and
+        // is rejected by hashSecret as a value error (400).
+        $hasSecret = is_string($secret) ? Client::isSecretPresent($secret) : $secret !== null;
+        if ($requireAuth && !$hasSecret) {
+            throw new ConflictException("a confidential client requires a 'client_secret'");
+        }
+    }
+
+    private static function assertPublicHasNoSecret(bool $requireAuth, bool $secretProvided): void
+    {
+        if (!$requireAuth && $secretProvided) {
+            throw new ConflictException("a public client cannot have a 'client_secret'");
+        }
+    }
+
     private static function toArray(Client $client): array
     {
         return [
@@ -204,7 +253,7 @@ class ClientsController
             'uri' => $client->getUri(),
             'require_auth' => $client->requiresAuth(),
             'scope' => $client->getScopeString(),
-            'has_secret' => $client->getClientSecret() !== null && $client->getClientSecret() !== '',
+            'has_secret' => $client->hasSecret(),
             'created_at' => formatSqlDatetime($client->getCreatedAt()),
         ];
     }

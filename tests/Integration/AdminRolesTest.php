@@ -367,6 +367,12 @@ class AdminRolesTest extends TestCase
         self::assertTrue($data['required']);
     }
 
+    public function testCreateScopeRoleMappingMalformedRequiredReturns400(): void
+    {
+        $route = '/admin/clients/' . self::KC_APP_CLIENT . '/scope-roles';
+        $this->assertStatus(400, $this->adminRequest('POST', $route, ['scope' => 'email', 'role_id' => self::BASIC_ROLE, 'required' => 'yes']));
+    }
+
     public function testCreateScopeRoleMappingDuplicateReturns409(): void
     {
         $this->assertStatus(409, $this->adminRequest(

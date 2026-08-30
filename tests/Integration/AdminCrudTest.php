@@ -183,9 +183,7 @@ class AdminCrudTest extends TestCase
         self::assertTrue($data['has_secret']);
         self::assertArrayNotHasKey('client_secret', $data);
 
-        $stored = self::$pdo->query(
-            "SELECT client_secret FROM clients WHERE id = '" . $data['id'] . "'"
-        )->fetchColumn();
+        $stored = $this->storedClientSecret($data['id']);
         self::assertNotSame(self::CLIENT_SECRET, $stored);
         self::assertTrue((new SecretsService())->validatePassword(self::CLIENT_SECRET, $stored));
     }
@@ -238,6 +236,233 @@ class AdminCrudTest extends TestCase
         self::assertTrue($data['require_auth']);
         self::assertSame('local', $data['name']);
         self::assertSame('http://localhost:5173/*', $data['uri']);
+    }
+
+    public function testUpdateClientRotatesSecret(): void
+    {
+        $client = $this->confidentialTestClient();
+
+        $data = $this->assertStatus(200, $this->adminRequest('PUT', '/admin/clients/' . $client['id'], [
+            'client_secret' => 'second-secret',
+        ]));
+
+        self::assertTrue($data['has_secret']);
+        self::assertArrayNotHasKey('client_secret', $data);
+
+        $stored = $this->storedClientSecret($client['id']);
+        self::assertTrue((new SecretsService())->validatePassword('second-secret', $stored));
+        self::assertFalse((new SecretsService())->validatePassword(self::CLIENT_SECRET, $stored));
+    }
+
+    public function testUpdateClientPromotesToConfidentialWithSecret(): void
+    {
+        $client = $this->createTestClient();
+
+        $data = $this->assertStatus(200, $this->adminRequest('PUT', '/admin/clients/' . $client['id'], [
+            'require_auth' => true,
+            'client_secret' => self::CLIENT_SECRET,
+        ]));
+
+        self::assertTrue($data['require_auth']);
+        self::assertTrue($data['has_secret']);
+    }
+
+    public function testUpdatePublicClientToConfidentialWithoutSecretReturns409(): void
+    {
+        $client = $this->createTestClient();
+
+        $this->assertStatus(409, $this->adminRequest('PUT', '/admin/clients/' . $client['id'], [
+            'require_auth' => true,
+        ]));
+    }
+
+    public function testUpdateClientDemotionClearsSecret(): void
+    {
+        $client = $this->confidentialTestClient();
+
+        $data = $this->assertStatus(200, $this->adminRequest('PUT', '/admin/clients/' . $client['id'], [
+            'require_auth' => false,
+        ]));
+
+        self::assertFalse($data['require_auth']);
+        self::assertFalse($data['has_secret']);
+        self::assertNull($this->storedClientSecret($client['id']));
+    }
+
+    public function testUpdatePublicClientWithSecretReturns409(): void
+    {
+        $client = $this->createTestClient();
+
+        $this->assertStatus(409, $this->adminRequest('PUT', '/admin/clients/' . $client['id'], [
+            'client_secret' => self::CLIENT_SECRET,
+        ]));
+
+        self::assertFalse((bool) self::$pdo->query(
+            "SELECT client_secret IS NOT NULL FROM clients WHERE id = '" . $client['id'] . "'"
+        )->fetchColumn());
+    }
+
+    /**
+     * Creates a client in the test realm with unique name/uri defaults;
+     * $overrides replace or add body fields.
+     */
+    private function createTestClient(array $overrides = []): array
+    {
+        $body = array_merge([
+            'name' => 'client-' . getGuid(),
+            'realm_id' => self::TEST_REALM,
+            'uri' => 'https://' . getGuid() . '.example.com',
+        ], $overrides);
+
+        return $this->assertStatus(201, $this->adminRequest('POST', '/admin/clients', $body));
+    }
+
+    /**
+     * A confidential test client: require_auth plus a known secret.
+     */
+    private function confidentialTestClient(): array
+    {
+        return $this->createTestClient([
+            'client_secret' => self::CLIENT_SECRET,
+            'require_auth' => true,
+        ]);
+    }
+
+    /**
+     * Reads back the stored (hashed) client secret directly from the DB.
+     */
+    private function storedClientSecret(string $clientId): string|null
+    {
+        $value = self::$pdo->query(
+            "SELECT client_secret FROM clients WHERE id = '" . $clientId . "'"
+        )->fetchColumn();
+
+        return is_string($value) ? $value : null;
+    }
+
+    public function testCreateConfidentialClientWithoutSecretReturns409(): void
+    {
+        $this->assertStatus(409, $this->adminRequest('POST', '/admin/clients', [
+            'name' => 'nosecret-' . getGuid(),
+            'realm_id' => self::TEST_REALM,
+            'uri' => 'https://nosecret.example.com',
+            'require_auth' => true,
+        ]));
+    }
+
+    public function testCreatePublicClientWithSecretReturns409(): void
+    {
+        $this->assertStatus(409, $this->adminRequest('POST', '/admin/clients', [
+            'name' => 'pubnew-' . getGuid(),
+            'realm_id' => self::TEST_REALM,
+            'uri' => 'https://pubnew.example.com',
+            'client_secret' => self::CLIENT_SECRET,
+        ]));
+    }
+
+    public function testCreateConfidentialClientWithEmptySecretReturns409(): void
+    {
+        // The invariant runs on the raw value before hashing, so an empty
+        // secret surfaces as 409 — same as the update path — and nothing is
+        // persisted.
+        $name = 'emptysecret-' . getGuid();
+        $this->assertStatus(409, $this->adminRequest('POST', '/admin/clients', [
+            'name' => $name,
+            'realm_id' => self::TEST_REALM,
+            'uri' => 'https://emptysecret.example.com',
+            'require_auth' => true,
+            'client_secret' => '',
+        ]));
+
+        self::assertSame(0, (int) self::$pdo->query(
+            "SELECT COUNT(*) FROM clients WHERE name = '" . $name . "'"
+        )->fetchColumn());
+    }
+
+    public function testUpdateClientWithMalformedRequireAuthReturns400AndKeepsSecret(): void
+    {
+        $client = $this->createTestClient([
+            'client_secret' => self::CLIENT_SECRET,
+            'require_auth' => true,
+        ]);
+
+        // A garbage boolean must be rejected (400), not coerced to false —
+        // coercion would hit the demotion branch and wipe the stored secret.
+        $this->assertStatus(400, $this->adminRequest('PUT', '/admin/clients/' . $client['id'], [
+            'require_auth' => 'treu',
+        ]));
+
+        $stored = $this->storedClientSecret($client['id']);
+        self::assertNotNull($stored);
+        self::assertTrue((new SecretsService())->validatePassword(self::CLIENT_SECRET, $stored));
+    }
+
+    public function testCreateClientWithMalformedRequireAuthReturns400(): void
+    {
+        $this->assertStatus(400, $this->adminRequest('POST', '/admin/clients', [
+            'name' => 'badbool-' . getGuid(),
+            'realm_id' => self::TEST_REALM,
+            'uri' => 'https://' . getGuid() . '.example.com',
+            'require_auth' => 'treu',
+            'client_secret' => self::CLIENT_SECRET,
+        ]));
+    }
+
+    public function testPromoteConfidentialWithLegacyEmptySecretHashReturns409(): void
+    {
+        $client = $this->createTestClient();
+
+        // Legacy row: empty-string hash counts as "no secret", so promoting
+        // it to confidential must demand a real secret instead of leaving a
+        // client that can never authenticate.
+        self::$pdo->exec(
+            "UPDATE clients SET client_secret = '' WHERE id = '" . $client['id'] . "'"
+        );
+
+        $this->assertStatus(409, $this->adminRequest('PUT', '/admin/clients/' . $client['id'], [
+            'require_auth' => true,
+        ]));
+    }
+
+    public function testUpdatePublicClientWithEmptySecretReturns409(): void
+    {
+        $client = $this->createTestClient();
+
+        // An empty secret on a public client is an invariant violation (409),
+        // not a value error (400) — the checks run before any hashing.
+        $this->assertStatus(409, $this->adminRequest('PUT', '/admin/clients/' . $client['id'], [
+            'client_secret' => '',
+        ]));
+    }
+
+    public function testCreateUserWithMalformedValidReturns400(): void
+    {
+        // A coerced typo would silently disable the account; it must be a 400.
+        $this->assertStatus(400, $this->adminRequest('POST', '/admin/users', [
+            'realm_id' => self::TEST_REALM,
+            'email' => 'badbool-' . getGuid() . '@example.com',
+            'password' => self::USER_PASSWORD,
+            'valid' => 'ture',
+        ]));
+    }
+
+    public function testUpdateUserWithMalformedEmailVerifiedReturns400(): void
+    {
+        $user = $this->assertStatus(201, $this->adminRequest('POST', '/admin/users', [
+            'realm_id' => self::TEST_REALM,
+            'email' => 'badbool-upd-' . getGuid() . '@example.com',
+            'password' => self::USER_PASSWORD,
+        ]));
+
+        $this->assertStatus(400, $this->adminRequest('PUT', '/admin/users/' . $user['id'], [
+            'email_verified' => 'yes',
+        ]));
+
+        // The rejection is total: nothing else in the request was applied.
+        $stored = self::$pdo->query(
+            "SELECT name FROM users WHERE id = '" . $user['id'] . "'"
+        )->fetchColumn();
+        self::assertSame('', $stored, 'co-issued fields must not be applied when validation fails');
     }
 
     public function testDeleteClientWithLoginsReturns409(): void
@@ -381,22 +606,93 @@ class AdminCrudTest extends TestCase
 
     public function testUpdateUserPasswordRehashes(): void
     {
+        $user = $this->createPasswordUser('pw-rotate');
+
+        $this->rotateUserPassword($user['id']);
+
+        $this->assertStoredUserPassword($user['id'], self::NEW_PASSWORD);
+    }
+
+    public function testUpdateUserPasswordRevokesSessionsAndOfflineGrants(): void
+    {
+        $user = $this->createPasswordUser('pw-revoke');
+
+        $sessionId = $this->insertActiveSession(self::TEST_REALM, $user['id']);
+
+        $stmt = self::$pdo->prepare(
+            "INSERT INTO logins (id, client_id, session_id, state, nonce, scope, redirect_uri, response_mode, status)
+             VALUES (:id, :client, :session, 'st', 'nc', 'openid', 'https://rp.example.com/cb', 'query', 'AUTHENTICATED')"
+        );
+        $stmt->execute([':id' => getGuid(), ':client' => self::TEST_CLIENT, ':session' => $sessionId]);
+
+        $this->insertOfflineSession(self::TEST_REALM, $user['id'], self::TEST_CLIENT);
+
+        $this->rotateUserPassword($user['id']);
+
+        self::assertSame(0, (int) self::$pdo->query(
+            "SELECT COUNT(*) FROM sessions WHERE user_id = '" . $user['id'] . "'"
+        )->fetchColumn());
+        self::assertSame(0, (int) self::$pdo->query(
+            "SELECT COUNT(*) FROM logins WHERE session_id = '$sessionId'"
+        )->fetchColumn());
+        $this->assertOfflineSessionExpired($user['id']);
+    }
+
+    public function testUpdateUserPasswordExpiresOfflineGrantsWhenUserHasNoSessions(): void
+    {
+        $user = $this->createPasswordUser('pw-offline');
+
+        // No sessions at all — only an offline refresh grant. The rotation
+        // must still expire the grant instead of assuming sessions exist.
+        $this->insertOfflineSession(self::TEST_REALM, $user['id'], self::TEST_CLIENT);
+
+        $this->rotateUserPassword($user['id']);
+
+        $this->assertOfflineSessionExpired($user['id']);
+    }
+
+    public function testUpdateUserWithoutPasswordKeepsSessions(): void
+    {
         $user = $this->assertStatus(201, $this->adminRequest('POST', '/admin/users', [
             'realm_id' => self::TEST_REALM,
-            'email' => 'pw-rotate@example.com',
-            'password' => self::OLD_PASSWORD,
+            'email' => 'pw-keep-' . getGuid() . '@example.com',
+            'password' => self::USER_PASSWORD,
         ]));
 
+        $this->insertActiveSession(self::TEST_REALM, $user['id']);
+
+        $this->assertStatus(200, $this->adminRequest('PUT', '/admin/users/' . $user['id'], [
+            'name' => 'renamed-only',
+        ]));
+
+        self::assertSame(1, (int) self::$pdo->query(
+            "SELECT COUNT(*) FROM sessions WHERE user_id = '" . $user['id'] . "'"
+        )->fetchColumn());
+    }
+
+    public function testUpdateUserWithNullPasswordDoesNotRotate(): void
+    {
+        $user = $this->createPasswordUser('pw-null');
+
+        $sessionId = $this->insertActiveSession(self::TEST_REALM, $user['id']);
+        $this->insertOfflineSession(self::TEST_REALM, $user['id'], self::TEST_CLIENT);
+
+        // A null password is "no password submitted": the update applies,
+        // but sessions and offline grants are left alone.
         $data = $this->assertStatus(200, $this->adminRequest('PUT', '/admin/users/' . $user['id'], [
-            'password' => self::NEW_PASSWORD,
+            'name' => 'renamed-with-null-pw',
+            'password' => null,
         ]));
+        self::assertSame('renamed-with-null-pw', $data['name']);
 
-        self::assertSame('pw-rotate@example.com', $data['email']);
+        $this->assertStoredUserPassword($user['id'], self::OLD_PASSWORD);
 
-        $stored = self::$pdo->query(
-            "SELECT password FROM users WHERE id = '" . $user['id'] . "'"
-        )->fetchColumn();
-        self::assertTrue((new SecretsService())->validatePassword(self::NEW_PASSWORD, $stored));
+        self::assertSame(1, (int) self::$pdo->query(
+            "SELECT COUNT(*) FROM sessions WHERE id = '$sessionId'"
+        )->fetchColumn());
+        self::assertSame('ACTIVE', self::$pdo->query(
+            "SELECT status FROM offline_sessions WHERE user_id = '" . $user['id'] . "'"
+        )->fetchColumn());
     }
 
     public function testDeleteUserWithSessionsReturns409(): void
@@ -407,16 +703,7 @@ class AdminCrudTest extends TestCase
             'password' => self::USER_PASSWORD,
         ]));
 
-        $sessionId = getGuid();
-        $stmt = self::$pdo->prepare(
-            "INSERT INTO sessions (id, realm_id, user_id, acr, status)
-             VALUES (:id, :realm, :user, '0', 'ACTIVE')"
-        );
-        $stmt->execute([
-            ':id' => $sessionId,
-            ':realm' => self::TEST_REALM,
-            ':user' => $user['id'],
-        ]);
+        $this->insertActiveSession(self::TEST_REALM, $user['id']);
 
         $this->assertStatus(409, $this->adminRequest('DELETE', '/admin/users/' . $user['id']));
     }
@@ -434,6 +721,59 @@ class AdminCrudTest extends TestCase
     }
 
     // ── Offline sessions (F-02 admin integration) ───────────────
+
+    /**
+     * Inserts an ACTIVE session row for the user and returns its id.
+     */
+    private function insertActiveSession(string $realmId, string $userId): string
+    {
+        $sessionId = getGuid();
+        $stmt = self::$pdo->prepare(
+            "INSERT INTO sessions (id, realm_id, user_id, acr, status)
+             VALUES (:id, :realm, :user, '0', 'ACTIVE')"
+        );
+        $stmt->execute([':id' => $sessionId, ':realm' => $realmId, ':user' => $userId]);
+        return $sessionId;
+    }
+
+    /**
+     * Creates a user in the test realm with the OLD_PASSWORD fixture and
+     * returns the created user array.
+     */
+    private function createPasswordUser(string $emailPrefix): array
+    {
+        return $this->assertStatus(201, $this->adminRequest('POST', '/admin/users', [
+            'realm_id' => self::TEST_REALM,
+            'email' => $emailPrefix . getGuid() . '@example.com',
+            'password' => self::OLD_PASSWORD,
+        ]));
+    }
+
+    /**
+     * Rotates the user's password via the admin API (the rotation path also
+     * revokes sessions and expires offline grants).
+     */
+    private function rotateUserPassword(string $userId): void
+    {
+        $this->assertStatus(200, $this->adminRequest('PUT', '/admin/users/' . $userId, [
+            'password' => self::NEW_PASSWORD,
+        ]));
+    }
+
+    private function assertStoredUserPassword(string $userId, string $plain): void
+    {
+        $stored = self::$pdo->query(
+            "SELECT password FROM users WHERE id = '" . $userId . "'"
+        )->fetchColumn();
+        self::assertTrue((new SecretsService())->validatePassword($plain, $stored));
+    }
+
+    private function assertOfflineSessionExpired(string $userId): void
+    {
+        self::assertSame('EXPIRED', self::$pdo->query(
+            "SELECT status FROM offline_sessions WHERE user_id = '" . $userId . "'"
+        )->fetchColumn());
+    }
 
     private function insertOfflineSession(
         string $realmId,

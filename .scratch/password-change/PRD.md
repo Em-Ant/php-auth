@@ -1,5 +1,11 @@
 # Admin Credential Rotation — change-password & change-client-secret (admin API only)
 
+> **Status: superseded.** F-50 shipped without new endpoints — rotation works
+> through `PUT /admin/users/{id}` (with session revocation) and
+> `PUT /admin/clients/{id}` (with the client/secret invariant). The original
+> problem statement below was stale: both `PUT`s already supported the
+> mutations. See `## Comments` and `issues/01-rotate-via-put-invariants.md`.
+
 ## Problem
 
 Admin credentials are seeded as static argon2id hashes baked into `db/seed.sql` (admin
@@ -100,8 +106,27 @@ them as a supported path.
 - **02** — change-client-secret admin endpoint (S)
 - **03** — temp argon2id hash CLI stopgap (S, optional / dev-only)
 
-## Issues
+## Comments
 
-- #01 — Admin change-password endpoint
-- #02 — Admin change-client-secret endpoint
-- #03 — Temp argon2id hash CLI stopgap (optional)
+### 2026-08-30 — F-50 implemented without new endpoints (supersedes Approach + Phased delivery)
+
+Investigation against the current code showed the PRD's problem statement was
+stale: `PUT /admin/users/{id}` already accepts a new `password` (hashed
+server-side, no current password required) and `PUT /admin/clients/{id}`
+already accepts a new `client_secret`. Both were added by later admin-CRUD
+work. Adding the dedicated action endpoints from the PRD would have created a
+second mutation path per resource, so the decision (grilled with the user) was:
+
+- **No new endpoints.** Rotation happens through the existing `PUT` resources.
+- **Password rotation revokes sessions**: `PUT /admin/users/{id}` with a new
+  password deletes the user's sessions+logins and expires their offline
+  refresh grants. Revocation logic extracted from `SessionsController` into
+  `SessionRevocationService` (single home, reused by invalidate/delete).
+- **Client invariant enforced in `POST`/`PUT /admin/clients`**: confidential
+  ⇒ has secret, public ⇒ no secret (409 otherwise); promotion requires the
+  secret in the same call; demotion auto-clears the stored secret.
+- **`ClientAuthenticator` fails closed** on confidential clients with a
+  missing stored hash (previously a TypeError/500 on legacy rows).
+- PRD issues #01/#02 are superseded by this decision; #03 (CLI stopgap) is
+  dropped as born-superseded. Details:
+  `issues/01-rotate-via-put-invariants.md`.

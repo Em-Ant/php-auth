@@ -25,12 +25,26 @@ trait ValidatesAdminInput
         return $this->requiredString($body, $field);
     }
 
-    private function optionalBool(array $body, string $field, bool $default): bool
+    /**
+     * Boolean body field: absent or null yields the default. Accepts JSON
+     * booleans plus their 1/0/"true"/"false" spellings; anything else is a
+     * 400 — a coerced wrong value must never be mistaken for a decision.
+     */
+    private function strictBool(array $body, string $field, bool $default): bool
     {
-        if (!array_key_exists($field, $body) || $body[$field] === null) {
+        $value = array_key_exists($field, $body) ? $body[$field] : null;
+        if ($value === null) {
             return $default;
         }
-        return filter_var($body[$field], FILTER_VALIDATE_BOOLEAN);
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        return match ($value) {
+            1, '1', 'true' => true,
+            0, '0', 'false' => false,
+            default => throw new ValidationFailed("'$field' must be a boolean (true/false/1/0)"),
+        };
     }
 
     private function optionalInt(array $body, string $field, int $default): int

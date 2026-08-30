@@ -38,13 +38,17 @@ class ClientAuthenticator
         }
 
         if ($client->requiresAuth()) {
+            $storedHash = $client->getClientSecret();
             $clientSecret = $params['client_secret'] ?? '';
+            // Fail closed on malformed input and missing stored hashes
+            // instead of crashing: a non-string secret, or a row predating
+            // the create/update invariant (confidential with no hash at
+            // all), must surface as an auth failure, never as a 500.
             if (
-                $clientSecret === ''
-                || !$this->secretsService->validatePassword(
-                    $clientSecret,
-                    $client->getClientSecret()
-                )
+                !is_string($clientSecret)
+                || $clientSecret === ''
+                || !$client->hasSecret()
+                || !$this->secretsService->validatePassword($clientSecret, $storedHash)
             ) {
                 $this->logger->info("invalid client secret for $clientId");
                 return null;

@@ -4,11 +4,10 @@ declare(strict_types=1);
 
 namespace AuthServer\Controllers\Admin;
 
-use AuthServer\Interfaces\LoginRepository;
-use AuthServer\Interfaces\OfflineSessionRepository;
 use AuthServer\Interfaces\SessionRepository;
 use AuthServer\Models\Session;
 use AuthServer\Response\JsonResponse;
+use AuthServer\Services\SessionRevocationService;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Slim\Exception\HttpNotFoundException;
@@ -19,8 +18,7 @@ class SessionsController
 
     public function __construct(
         private readonly SessionRepository $sessions,
-        private readonly LoginRepository $logins,
-        private readonly OfflineSessionRepository $offlineSessions,
+        private readonly SessionRevocationService $revocations,
     ) {
     }
 
@@ -53,7 +51,7 @@ class SessionsController
             throw new HttpNotFoundException($request, "session '$id' not found");
         }
 
-        $this->deleteSessionAndLogins($id);
+        $this->revocations->revokeSession($id);
 
         return $response->withStatus(204);
     }
@@ -74,43 +72,12 @@ class SessionsController
                 );
             }
 
-            $count = 0;
-            $invalidatedSessionIds = [];
-
-            if ($userId !== null) {
-                $sessions = $this->sessions->findAll(null, $userId);
-                foreach ($sessions as $session) {
-                    $invalidatedSessionIds[] = $session->getId();
-                }
-                $count += $this->offlineSessions->setExpiredByUserId($userId);
-            }
-
-            if ($clientId !== null) {
-                $logins = $this->logins->findAll(null, $clientId);
-                $clientSessionIds = array_unique(array_filter(
-                    array_map(fn($login) => $login->getSessionId(), $logins)
-                ));
-                foreach ($clientSessionIds as $sessionId) {
-                    $invalidatedSessionIds[] = $sessionId;
-                }
-                $count += $this->offlineSessions->setExpiredByClientId($clientId);
-            }
-
-            foreach (array_unique($invalidatedSessionIds) as $sessionId) {
-                $this->deleteSessionAndLogins($sessionId);
-                $count++;
-            }
+            $count = $this->revocations->revokeFor($userId, $clientId);
 
             return JsonResponse::create($response, ['invalidated' => $count]);
         } catch (\AuthServer\Exceptions\ValidationFailed $e) {
             return JsonResponse::error($response, 'invalid_request', $e->getMessage(), 400);
         }
-    }
-
-    private function deleteSessionAndLogins(string $sessionId): void
-    {
-        $this->logins->deleteBySessionId($sessionId);
-        $this->sessions->delete($sessionId);
     }
 
     private static function toArray(Session $session): array

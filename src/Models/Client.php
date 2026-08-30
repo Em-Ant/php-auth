@@ -58,6 +58,20 @@ class Client implements \JsonSerializable
     {
         return $this->client_secret;
     }
+
+    /**
+     * A stored secret is usable iff it is non-null and non-empty — null and
+     * the legacy empty-string hash both mean "no secret".
+     */
+    public static function isSecretPresent(?string $secret): bool
+    {
+        return $secret !== null && $secret !== '';
+    }
+
+    public function hasSecret(): bool
+    {
+        return self::isSecretPresent($this->client_secret);
+    }
     public function requiresAuth(): bool
     {
         return $this->require_auth;

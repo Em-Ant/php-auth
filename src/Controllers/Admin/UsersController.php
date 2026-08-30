@@ -86,8 +86,8 @@ class UsersController
                 $email,
                 $this->secretsService->hashPassword($password),
                 sqlNow(),
-                $this->optionalBool($body, 'valid', true),
-                $this->optionalBool($body, 'email_verified', true)
+                $this->strictBool($body, 'valid', true),
+                $this->strictBool($body, 'email_verified', true)
             );
 
             $created = $this->userAdmin->createUser($user, $realmRoles);
@@ -132,11 +132,20 @@ class UsersController
                 $email,
                 $this->updatedPassword($body, $existing),
                 formatSqlDatetime($existing->getCreatedAt()),
-                $this->optionalBool($body, 'valid', $existing->getValid()),
-                $this->optionalBool($body, 'email_verified', $existing->getEmailVerified())
+                $this->strictBool($body, 'valid', $existing->getValid()),
+                $this->strictBool($body, 'email_verified', $existing->getEmailVerified())
             );
 
-            $this->userAdmin->updateUser($user, $realmRoles);
+            // Sending a password counts as a rotation: the rotation
+            // transaction also drops the user's live SSO sessions and expires
+            // their offline refresh grants so credentials stolen under the
+            // old password die with it. Everything applies or nothing does —
+            // a failed rotation is safe to retry.
+            if (self::passwordProvided($body)) {
+                $this->userAdmin->rotatePassword($user, $realmRoles);
+            } else {
+                $this->userAdmin->updateUser($user, $realmRoles);
+            }
 
             return JsonResponse::create($response, self::toArray($user));
         } catch (ValidationFailed $e) {
@@ -186,6 +195,16 @@ class UsersController
         return self::splitRoles($raw);
     }
 
+    /**
+     * A password was submitted when the key is present and non-null. One
+     * rule drives both the hash decision (updatedPassword) and the rotation
+     * trigger, so a null value can never count as a rotation by accident.
+     */
+    private static function passwordProvided(array $body): bool
+    {
+        return array_key_exists('password', $body) && $body['password'] !== null;
+    }
+
     private static function splitRoles(string $roles): array
     {
         $parts = explode(' ', trim($roles));
@@ -194,7 +213,7 @@ class UsersController
 
     private function updatedPassword(array $body, User $existing): string
     {
-        if (!array_key_exists('password', $body) || $body['password'] === null) {
+        if (!self::passwordProvided($body)) {
             return $existing->getPassword();
         }
         if (!is_string($body['password']) || trim($body['password']) === '') {

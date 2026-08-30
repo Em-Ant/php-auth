@@ -56,6 +56,7 @@ use AuthServer\Services\RoleAdminService;
 use AuthServer\Services\ScopeResolver;
 use AuthServer\Services\SecretsService;
 use AuthServer\Services\SessionOrchestrator;
+use AuthServer\Services\SessionRevocationService;
 use AuthServer\Services\TokenGrantService;
 use AuthServer\Services\TokenIntrospectionService;
 use AuthServer\Services\TokenRevocationService;
@@ -162,6 +163,7 @@ final class Definitions
             SessionOrchestrator::class => \DI\autowire(),
             AuthenticationOrchestrator::class => \DI\autowire(),
             LogoutService::class => \DI\autowire(),
+            SessionRevocationService::class => \DI\autowire(),
             TokenGrantService::class => \DI\autowire(),
             TokenRevocationService::class => \DI\autowire(),
             TokenIntrospectionService::class => \DI\autowire(),

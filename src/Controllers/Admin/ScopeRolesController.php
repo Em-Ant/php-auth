@@ -66,7 +66,7 @@ class ScopeRolesController
             $body = (array) ($request->getParsedBody() ?? []);
             $scope = $this->requiredString($body, 'scope');
             $roleId = $this->requiredString($body, 'role_id');
-            $required = $this->optionalBool($body, 'required', false);
+            $required = $this->strictBool($body, 'required', false);
 
             $this->assertScopeIsValidForClient($clientId, $scope);
 
@@ -107,7 +107,7 @@ class ScopeRolesController
             }
 
             $body = (array) ($request->getParsedBody() ?? []);
-            $required = $this->optionalBool($body, 'required', $existing->required);
+            $required = $this->strictBool($body, 'required', $existing->required);
 
             $this->roles->updateScopeRoleMapping($clientId, $scope, $roleId, $required);
 

@@ -173,6 +173,57 @@ class ClientCredentialsGrantTest extends TestCase
         self::assertNotEmpty($body['access_token']);
     }
 
+    public function testConfidentialClientWithoutStoredSecretFailsClosed(): void
+    {
+        // Legacy row predating the create/update invariant: confidential with
+        // no stored hash. Must be an auth failure (401), never a crash (500).
+        $this->assertLegacyConfidentialClientFailsClosed(
+            '9e1c2f30-5b7a-4d4e-8f60-1a2b3c4d5e6f',
+            'svc-no-secret',
+            null
+        );
+    }
+
+    public function testConfidentialClientWithEmptyStringSecretFailsClosed(): void
+    {
+        // Legacy row whose stored hash is the empty string: that also counts
+        // as "no secret" (Client::hasSecret), so authentication must fail
+        // closed (401), never crash.
+        $this->assertLegacyConfidentialClientFailsClosed(
+            '7f2a1b90-3c4d-4e5f-9a0b-1c2d3e4f5a6b',
+            'svc-empty-secret',
+            ''
+        );
+    }
+
+    /**
+     * Inserts a confidential client whose stored hash is the given value
+     * (null and '' are the two "no secret" legacy states) and asserts that
+     * client-credentials authentication fails closed with 401.
+     */
+    private function assertLegacyConfidentialClientFailsClosed(string $id, string $name, ?string $storedHash): void
+    {
+        $stmt = self::$pdo->prepare(
+            "INSERT INTO clients (id, name, realm_id, client_secret, uri, require_auth)
+             VALUES (:id, :name, :realm, :hash, :uri, 1)"
+        );
+        $stmt->execute([
+            ':id' => $id,
+            ':name' => $name,
+            ':realm' => 'c03aa58c-2888-4f40-821c-4aadf5c58f6f',
+            ':hash' => $storedHash,
+            ':uri' => 'http://localhost:5173',
+        ]);
+
+        [$response] = $this->grantClientCredentials([
+            'grant_type' => 'client_credentials',
+            'client_id' => $name,
+            'client_secret' => 'anything',
+        ]);
+
+        self::assertSame(401, $response->getStatusCode());
+    }
+
     // ── Lifecycle (introspect / revoke) ────────────────────────
 
     public function testClientCredentialsTokenIntrospectsAsActive(): void
