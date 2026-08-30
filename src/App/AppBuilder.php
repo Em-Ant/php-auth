@@ -24,7 +24,7 @@ use AuthServer\Controllers\RevokeController;
 use AuthServer\Controllers\TokenController;
 use AuthServer\Exceptions\ConflictException;
 use AuthServer\Exceptions\StorageFailed;
-use AuthServer\Middleware\AdminMiddleware;
+use AuthServer\Middleware\AdminAuthMiddleware;
 use AuthServer\Middleware\CorsMiddleware;
 use AuthServer\Middleware\RateLimitingMiddleware;
 use AuthServer\Middleware\RequestLogger;
@@ -294,7 +294,7 @@ final class AppBuilder
 
     private static function registerAdminRoutes(App $app, ContainerInterface $container): void
     {
-        $adminMiddleware = new AdminMiddleware($container->get('admin_api_key'));
+        $adminMiddleware = $container->get(AdminAuthMiddleware::class);
         $migrationController = $container->get(MigrationsController::class);
 
         // Migrations API (DB utility, not app-internal)

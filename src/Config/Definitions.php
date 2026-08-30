@@ -77,6 +77,9 @@ final class Definitions
         $server = $config['server'];
 
         $GLOBALS['sub_path'] = $server['base_path'];
+        // Ops allow-list entries are matched against the full request path, so they
+        // must carry the base_path prefix (Slim only strips it for route matching).
+        $adminBasePath = rtrim((string) ($server['base_path'] ?? ''), '/');
 
         return [
 
@@ -86,6 +89,14 @@ final class Definitions
             'base_path' => $server['base_path'],
             'keys_root' => $root . '/keys',
             'admin_api_key' => $config['admin']['api_key'] ?? '',
+            'admin_realm' => $config['admin']['realm'] ?? 'admin',
+            'admin_allow_all' => filter_var($config['admin']['allow_all'] ?? true, FILTER_VALIDATE_BOOLEAN),
+            // Ops allow-list entries are matched against the full request path, so they
+            // must carry the base_path prefix (Slim only strips it for route matching).
+            'admin_ops_allow_list' => array_map(
+                static fn (string $prefix): string => $adminBasePath . $prefix,
+                ['/admin/migrations', '/db/migrations', '/admin/maintenance']
+            ),
             'password_hashing' => $config['password_hashing'] ?? [],
             'log_settings' => $config['log'] ?? [],
             'rate_limiting' => $config['rate_limiting'] ?? [],
@@ -181,6 +192,14 @@ final class Definitions
             // ── Realm provider middleware ──
 
             RealmProvider::class => \DI\autowire(),
+
+            // ── Admin auth middleware ──
+
+            \AuthServer\Middleware\AdminAuthMiddleware::class => \DI\autowire()
+                ->constructorParameter('adminApiKey', \DI\get('admin_api_key'))
+                ->constructorParameter('adminRealmName', \DI\get('admin_realm'))
+                ->constructorParameter('allowAll', \DI\get('admin_allow_all'))
+                ->constructorParameter('opsAllowList', \DI\get('admin_ops_allow_list')),
 
             // ── Controllers ──
 

@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace AuthServer\Tests\Integration;
 
-use AuthServer\Middleware\AdminMiddleware;
+use AuthServer\Middleware\AdminAuthMiddleware;
 use AuthServer\Exceptions\MigrationFailed;
+use AuthServer\Interfaces\RealmRepository as IRealmRepo;
+use AuthServer\Services\TokenValidator;
 use AuthServer\Repositories\MigrationRepository;
 use AuthServer\Services\Database;
 use AuthServer\Services\MigrationRunner;
@@ -14,6 +16,7 @@ use AuthServer\Tests\Support\IntegrationFlowTrait;
 use DI\Bridge\Slim\Bridge;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ServerRequestInterface;
+use Psr\Log\NullLogger;
 
 class MigrationsEndpointTest extends TestCase
 {
@@ -22,8 +25,12 @@ class MigrationsEndpointTest extends TestCase
     private static string $apiKey = 'test-admin-key';
     private static \PDO $pdo;
 
-    public static function setUpBeforeClass(): void
+    protected function setUp(): void
     {
+        if (isset(self::$app)) {
+            return;
+        }
+
         self::$pdo = Database::connect('sqlite::memory:');
 
         $migrationRepo = new MigrationRepository(self::$pdo);
@@ -32,7 +39,14 @@ class MigrationsEndpointTest extends TestCase
             __DIR__ . '/../../migrations/'
         );
         $controller = new MigrationsController($runner);
-        $adminMiddleware = new AdminMiddleware(self::$apiKey);
+        // Static-key-only app: validator mock never matches a JWT, so all requests
+        // fall through to the static api_key (allowAll defaults to true).
+        $adminMiddleware = new AdminAuthMiddleware(
+            self::$apiKey,
+            $this->createMock(TokenValidator::class),
+            $this->createMock(IRealmRepo::class),
+            new NullLogger()
+        );
 
         $container = new \DI\Container();
 
