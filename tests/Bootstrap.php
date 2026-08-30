@@ -13,6 +13,8 @@ if (!is_dir($keysDir)) {
 $kids = [
     '33ce4036-0a36-45b9-ba74-6087d03c3b35',
     '2daca932-9ae0-411b-9bec-d8dac4cbe70b',
+    // admin realm (db/seed.sql F-47) — integration tests mint admin-realm tokens
+    '787248fe-344f-4db3-a287-daef099867c6',
 ];
 
 foreach ($kids as $kid) {
