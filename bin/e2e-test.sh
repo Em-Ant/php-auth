@@ -801,13 +801,34 @@ echo "=== Step 18: Admin — users CRUD ==="
 
 # Create user
 USER_RESP=$(curl -sS -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
-    -d '{"realm_id":"'"$ADMIN_CREATED_REALM_ID"'","email":"e2e-admin@example.com","password":"secret123","name":"E2E Admin User","realm_roles":"admin basic"}' \
+    -d '{"realm_id":"'"$ADMIN_CREATED_REALM_ID"'","email":"e2e-admin@example.com","password":"secret123","name":"E2E Admin User"}' \
     "$BASE/admin/users")
 ADMIN_CREATED_USER_ID=$(echo "$USER_RESP" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
 USER_EMAIL=$(echo "$USER_RESP" | sed -n 's/.*"email":"\([^"]*\)".*/\1/p')
 
 [[ -n "$ADMIN_CREATED_USER_ID" ]] && ok "Created user: $USER_EMAIL (${ADMIN_CREATED_USER_ID:0:8}...)" || { fail "No user id returned"; admin_cleanup; exit 1; }
 echo "$USER_RESP" | grep -q '"password"' && fail "password must not be exposed in response" || ok "password not exposed in response"
+
+# Assign roles to user via dedicated endpoint
+ADMIN_ROLE_ID=$(curl -sS -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"name":"admin","realm_id":"'"$ADMIN_CREATED_REALM_ID"'"}' \
+    "$BASE/admin/roles" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
+BASIC_ROLE_ID=$(curl -sS -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"name":"basic","realm_id":"'"$ADMIN_CREATED_REALM_ID"'"}' \
+    "$BASE/admin/roles" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
+[[ -n "$ADMIN_ROLE_ID" && -n "$BASIC_ROLE_ID" ]] \
+    && ok "Created admin and basic roles" \
+    || { fail "Role creation failed"; admin_cleanup; exit 1; }
+ASSIGN_ADMIN=$(curl -sS -o /dev/null -w "%{http_code}" -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"role_id":"'"$ADMIN_ROLE_ID"'"}' \
+    "$BASE/admin/users/$ADMIN_CREATED_USER_ID/roles")
+[[ "$ASSIGN_ADMIN" = "201" ]] && ok "Assigned admin role to user" \
+    || { fail "Assign admin role: expected 201, got $ASSIGN_ADMIN"; admin_cleanup; exit 1; }
+ASSIGN_BASIC=$(curl -sS -o /dev/null -w "%{http_code}" -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"role_id":"'"$BASIC_ROLE_ID"'"}' \
+    "$BASE/admin/users/$ADMIN_CREATED_USER_ID/roles")
+[[ "$ASSIGN_BASIC" = "201" ]] && ok "Assigned basic role to user" \
+    || { fail "Assign basic role: expected 201, got $ASSIGN_BASIC"; admin_cleanup; exit 1; }
 
 # List users filtered by realm
 ULIST=$(curl -sS -H "$ADMIN_HDR" "$BASE/admin/users?realm_id=$ADMIN_CREATED_REALM_ID")
@@ -837,6 +858,24 @@ BAD_REALM_USER=$(curl -sS -o /dev/null -w "%{http_code}" -X POST -H "$ADMIN_HDR"
     -d '{"realm_id":"nonexistent","email":"ghost@example.com","password":"pass"}' \
     "$BASE/admin/users")
 [[ "$BAD_REALM_USER" = "400" ]] && ok "User with unknown realm returns 400" || fail "Expected 400, got $BAD_REALM_USER"
+
+# The removed realm_roles field must be rejected, not silently ignored
+STALE_ROLES=$(curl -sS -o /dev/null -w "%{http_code}" -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"realm_id":"'"$ADMIN_CREATED_REALM_ID"'","email":"stale-roles@example.com","password":"pass","realm_roles":"basic"}' \
+    "$BASE/admin/users")
+[[ "$STALE_ROLES" = "400" ]] && ok "realm_roles field rejected with 400" || fail "Expected 400 for realm_roles, got $STALE_ROLES"
+
+# A user cannot be moved to another realm: realm is fixed at creation.
+# Realm id comes from the DB itself (never from request input).
+OTHER_REALM_ID=$(sqlite3 db/data.db "SELECT id FROM realms WHERE id != '$ADMIN_CREATED_REALM_ID' LIMIT 1;" 2>/dev/null || true)
+if [[ -n "$OTHER_REALM_ID" ]]; then
+    MOVE_USER=$(curl -sS -o /dev/null -w "%{http_code}" -X PUT -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+        -d '{"realm_id":"'"$OTHER_REALM_ID"'"}' \
+        "$BASE/admin/users/$ADMIN_CREATED_USER_ID")
+    [[ "$MOVE_USER" = "400" ]] && ok "Cross-realm user move rejected with 400" || fail "Expected 400 for realm move, got $MOVE_USER"
+else
+    ok "Skipped cross-realm move check (no other realm available)"
+fi
 
 # ═══════════════════════════════════════════════════════════════
 # Admin Roles CRUD (F-12)
@@ -1376,10 +1415,17 @@ echo "--- 24a-4: Required scope dropped (user lacks required role) ---"
 
 # Create a limited user with only "basic" role (not "admin")
 LIMITED_USER_JSON=$(curl -sS -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
-    -d '{"realm_id":"'"$ADMIN_CREATED_REALM_ID"'","email":"e2e-limited@example.com","password":"secret456","name":"E2E Limited User","realm_roles":"basic"}' \
+    -d '{"realm_id":"'"$ADMIN_CREATED_REALM_ID"'","email":"e2e-limited@example.com","password":"secret456","name":"E2E Limited User"}' \
     "$BASE/admin/users")
 LIMITED_USER_ID=$(echo "$LIMITED_USER_JSON" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
 [[ -n "$LIMITED_USER_ID" ]] && ok "Created limited user: ${LIMITED_USER_ID:0:8}..." || { fail "No limited user id"; exit 1; }
+
+# Assign only the basic role (created in Step 18) to the limited user
+ASSIGN_LIMITED=$(curl -sS -o /dev/null -w "%{http_code}" -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"role_id":"'"$BASIC_ROLE_ID"'"}' \
+    "$BASE/admin/users/$LIMITED_USER_ID/roles")
+[[ "$ASSIGN_LIMITED" = "201" ]] && ok "Assigned basic role to limited user" \
+    || { fail "Assign basic role: expected 201, got $ASSIGN_LIMITED"; exit 1; }
 
 # The required-client has email→admin (required=1).
 # The limited user does NOT have admin → scope "email" should be dropped.

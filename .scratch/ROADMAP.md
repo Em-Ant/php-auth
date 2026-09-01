@@ -22,7 +22,7 @@
 - [x] Session/login management: list/delete sessions & logins, invalidate-by-user/client, user deactivation (`valid=FALSE`) — the SSO part of offline revocation
 - [ ] Audit log table + query endpoint
 - [ ] Password policy per realm (min length, complexity)
-- [ ] Retire the `realm_roles` string field on user create/update (ADR-0001 D4 shim) — breaking admin-API change, roles become explicit entities assigned via `POST /admin/users/{id}/roles`
+- [x] Retire the `realm_roles` string field on user create/update (ADR-0001 D4 shim) — breaking admin-API change, roles become explicit entities assigned via `POST /admin/users/{id}/roles` (done 2026-09-01, F-45)
 - [x] Offline revocation: revoke a user's `offline_sessions` (SSO session/login revoke already shipped) — [token-lifecycle #04](token-lifecycle/issues/04-offline-revocation.md) (done 2026-08-23, F-06)
 - [ ] Maintenance task: blacklist purge + expired-session cleanup (admin-triggered; manual / deploy-time / CI-scheduled) — see [token-lifecycle #05](token-lifecycle/issues/05-cleanup-job.md)
 - [ ] Admin credential rotation: change-password + change-client-secret (admin API only, not self-service) — [password-change/PRD.md](password-change/PRD.md) (F-50)

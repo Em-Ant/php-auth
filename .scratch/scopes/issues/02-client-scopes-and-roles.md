@@ -1,6 +1,10 @@
 # Phase 2 — Client scopes + client roles
 
-status: **DONE** — client-scope gating (2026-08-07); client roles (2026-08-21)
+status: **DONE** — client-scope gating (2026-08-07); client roles (2026-08-21).
+Amended 2026-09-01 (F-45): `syncRealmRoles` no longer upserts/auto-creates
+missing realm roles — unknown names throw `ValidationFailed` before any write
+— and the user create/update path no longer syncs roles at all (ADR-0001
+D4/D5).
 
 ## Problem
 
@@ -127,6 +131,9 @@ Chose the **normalized** option: `roles(id, realm_id, client_id NULL, name)`
   (only the requesting client, only roles the user holds);
   introspection passes `resource_access`/`realm_access` through.
 * `syncRealmRoles` upserts missing realm roles; client assignments untouched.
+  *(Amended 2026-09-01, F-45: upsert/auto-create removed — all names must
+  already exist as realm roles; unknown names throw `ValidationFailed` before
+  any assignment row is modified. See ADR-0001 D4.)*
   No write path for client roles yet — admin CRUD is F-12 (issue 04),
   scope↔role mapping is F-05 (issue 03).
 * Tests: `RolesMigrationTest` (migration data path), `RoleRepositoryTest`,

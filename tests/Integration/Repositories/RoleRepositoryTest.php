@@ -48,12 +48,55 @@ class RoleRepositoryTest extends RepositoryTestCase
         self::assertSame([], $this->repo->findClientRoleNamesByUserId(self::EMANT, self::WEB_REALM));
     }
 
-    public function testSyncRealmRolesReplacesAssignmentsAndCreatesMissingRoles(): void
+    public function testSyncRealmRolesReplacesAssignmentsAndRequiresExistingRoles(): void
     {
+        $this->repo->create($this->role(null, 'manager'));
+
         $this->repo->syncRealmRoles(self::EMANT_TEST, self::TEST_REALM, ['basic', 'manager']);
 
         self::assertSame(
             ['basic', 'manager'],
+            $this->repo->findRealmRoleNamesByUserId(self::EMANT_TEST, self::TEST_REALM)
+        );
+    }
+
+    public function testSyncRealmRolesRejectsUnknownRoleNameWithoutMutating(): void
+    {
+        // Establish a known baseline first: this class shares one DB across
+        // tests, so assertions must not depend on seeded state.
+        $this->repo->syncRealmRoles(self::EMANT_TEST, self::TEST_REALM, ['basic']);
+
+        try {
+            $this->repo->syncRealmRoles(self::EMANT_TEST, self::TEST_REALM, ['nonexistent']);
+            self::fail('expected ValidationFailed');
+        } catch (\AuthServer\Exceptions\ValidationFailed) {
+            // Validation happens before any write: the existing assignments
+            // must survive a rejected sync untouched.
+            self::assertSame(
+                ['basic'],
+                $this->repo->findRealmRoleNamesByUserId(self::EMANT_TEST, self::TEST_REALM)
+            );
+        }
+    }
+
+    public function testSyncRealmRolesRejectsUnknownNameInCallerTransaction(): void
+    {
+        // Same shared-DB baseline as above.
+        $this->repo->syncRealmRoles(self::EMANT_TEST, self::TEST_REALM, ['basic']);
+
+        self::$pdo->beginTransaction();
+        try {
+            $this->repo->syncRealmRoles(self::EMANT_TEST, self::TEST_REALM, ['basic', 'nonexistent']);
+            self::$pdo->commit();
+            self::fail('expected ValidationFailed');
+        } catch (\AuthServer\Exceptions\ValidationFailed) {
+            self::$pdo->rollBack();
+        }
+
+        // The failed call must not have deleted the existing assignments,
+        // even though the caller owned the transaction.
+        self::assertSame(
+            ['basic'],
             $this->repo->findRealmRoleNamesByUserId(self::EMANT_TEST, self::TEST_REALM)
         );
     }
@@ -84,6 +127,8 @@ class RoleRepositoryTest extends RepositoryTestCase
 
     public function testSyncRealmRolesJoinsCallerTransaction(): void
     {
+        $this->repo->create($this->role(null, 'joined'));
+
         self::$pdo->beginTransaction();
         $this->repo->syncRealmRoles(self::EMANT_TEST, self::TEST_REALM, ['joined']);
         self::$pdo->commit();

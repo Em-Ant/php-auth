@@ -8,7 +8,6 @@ use AuthServer\Exceptions\ConflictException;
 use AuthServer\Exceptions\ValidationFailed;
 use AuthServer\Interfaces\OfflineSessionRepository;
 use AuthServer\Interfaces\RealmRepository;
-use AuthServer\Interfaces\RoleRepository;
 use AuthServer\Interfaces\SessionRepository;
 use AuthServer\Interfaces\UserRepository;
 use AuthServer\Models\User;
@@ -18,22 +17,21 @@ use function AuthServer\getGuid;
 use function AuthServer\sqlNow;
 
 /**
- * Owns the atomic admin write path for users: the user row, its realm-role
- * assignments and — for password rotations — the session revocation are
- * persisted in a single transaction, so a failure in any half leaves no
- * partial state behind. Also owns the pre-write guards (realm existence,
- * duplicate email) and the guarded delete cascade.
+ * Owns the atomic admin write path for users: the user row and — for password
+ * rotations — the session revocation are persisted in a single transaction, so
+ * a failure in any half leaves no partial state behind. Also owns the pre-write
+ * guards (realm existence, duplicate email) and the guarded delete cascade.
+ *
+ * Role assignments are no longer handled here — consumers must create roles
+ * explicitly and assign them via POST /admin/users/{id}/roles.
  */
 class UserAdminService
 {
     use RunsTransactions;
 
-    private const DEFAULT_ROLES = 'basic';
-
     public function __construct(
         private readonly \PDO $db,
         private readonly UserRepository $users,
-        private readonly RoleRepository $roles,
         private readonly SessionRevocationService $revocations,
         private readonly SecretsService $secretsService,
         private readonly RealmRepository $realms,
@@ -50,7 +48,6 @@ class UserAdminService
      *     name?: string|null,
      *     valid?: bool,
      *     email_verified?: bool,
-     *     realm_roles?: string|null,
      * } $params
      */
     public function createUser(array $params): User
@@ -65,8 +62,6 @@ class UserAdminService
             throw new ConflictException("user '$email' already exists in this realm");
         }
 
-        $realmRoles = self::splitRoles($params['realm_roles'] ?? self::DEFAULT_ROLES);
-
         $user = new User(
             getGuid(),
             $realmId,
@@ -78,10 +73,8 @@ class UserAdminService
             $params['email_verified'] ?? true
         );
 
-        return $this->transact(function () use ($user, $realmRoles): User {
-            $created = $this->users->create($user);
-            $this->roles->syncRealmRoles($created->getId(), $created->getRealmId(), $realmRoles);
-            return $created;
+        return $this->transact(function () use ($user): User {
+            return $this->users->create($user);
         });
     }
 
@@ -93,8 +86,11 @@ class UserAdminService
      *     name?: string|null,
      *     valid?: bool,
      *     email_verified?: bool,
-     *     realm_roles?: string|null,
      * } $params
+     *
+     * `realm_id`, when provided, must equal the user's current realm:
+     * moving a user across realms is rejected because role assignments are
+     * realm-bound and would silently dangle against the old realm's roles.
      */
     public function updateUser(User $existing, array $params): User
     {
@@ -102,16 +98,18 @@ class UserAdminService
         if ($this->realms->findById($realmId) === null) {
             throw new ValidationFailed("unknown realm '$realmId'");
         }
+        if ($realmId !== $existing->getRealmId()) {
+            throw new ValidationFailed(
+                "cannot move user to another realm: roles are realm-bound and "
+                . 'the user\'s assignments would not follow'
+            );
+        }
 
         $email = $params['email'] ?? $existing->getEmail();
         $duplicate = $this->users->findByEmailAndRealmId($email, $realmId);
         if ($duplicate !== null && $duplicate->getId() !== $existing->getId()) {
             throw new ConflictException("user '$email' already exists in this realm");
         }
-
-        $realmRoles = ($params['realm_roles'] ?? null) !== null
-            ? self::splitRoles($params['realm_roles'])
-            : $this->roles->findRealmRoleNamesByUserId($existing->getId(), $existing->getRealmId());
 
         // A submitted password counts as a rotation: the rotation transaction
         // also drops the user's live SSO sessions and expires their offline
@@ -131,8 +129,8 @@ class UserAdminService
             $params['email_verified'] ?? $existing->getEmailVerified()
         );
 
-        $this->transact(function () use ($user, $realmRoles, $rotating): void {
-            $this->updateAndSync($user, $realmRoles);
+        $this->transact(function () use ($user, $rotating): void {
+            $this->users->update($user);
             if ($rotating) {
                 $this->revocations->revokeFor($user->getId(), null);
             }
@@ -170,23 +168,5 @@ class UserAdminService
             throw new ValidationFailed("'password' must be a non-empty string");
         }
         return $this->secretsService->hashPassword($password);
-    }
-
-    /**
-     * @return list<string>
-     */
-    private static function splitRoles(string $roles): array
-    {
-        $parts = explode(' ', trim($roles));
-        return array_values(array_filter($parts, fn(string $p) => $p !== ''));
-    }
-
-    /**
-     * @param list<string> $realmRoles
-     */
-    private function updateAndSync(User $user, array $realmRoles): void
-    {
-        $this->users->update($user);
-        $this->roles->syncRealmRoles($user->getId(), $user->getRealmId(), $realmRoles);
     }
 }

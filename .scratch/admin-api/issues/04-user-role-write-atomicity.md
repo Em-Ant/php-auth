@@ -5,6 +5,14 @@ the user-row write and `syncRealmRoles`; `syncRealmRoles` is re-entrant
 (`inTransaction()` guard), so it keeps standalone atomicity while joining the
 caller's transaction. Orchestration moved out of `UsersController`.
 
+Amended 2026-09-01 (F-45): role sync was removed from the user write path
+entirely — `UserAdminService` no longer calls `syncRealmRoles` on
+create/update. Roles are created via `POST /admin/roles` and assigned via
+`POST /admin/users/{id}/roles` (each atomic on its own), so the
+user-row/role-sync gap described below no longer exists. The "Fix" section
+below documents the pre-F-45 design and is retained for history; the current
+contract is in ADR-0001 D4/D5.
+
 ## Problem
 
 The admin user write path runs two statements without a wrapping

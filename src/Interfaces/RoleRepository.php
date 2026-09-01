@@ -40,9 +40,12 @@ interface RoleRepository
     public function findScopeRoleMappings(string $clientId): array;
 
     /**
-     * Replace the realm-role assignments for a user. Client-role assignments
-     * are left untouched. Participates in a caller-owned transaction when one
-     * is open; only opens its own otherwise.
+     * Replace the realm-role assignments for a user. All role names must
+     * already exist as realm roles — unknown names throw ValidationFailed
+     * before any assignment is modified. Client-role assignments are left
+     * untouched. Participates in a caller-owned transaction when one is
+     * open; only opens its own otherwise. A caller that owns the
+     * transaction must roll back on any exception.
      *
      * @param list<string> $roleNames
      */

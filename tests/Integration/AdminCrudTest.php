@@ -18,6 +18,7 @@ class AdminCrudTest extends TestCase
     use TempDirTrait;
 
     private const TEST_REALM = 'c03aa58c-2888-4f40-821c-4aadf5c58f6f';
+    private const WEB_REALM = '84be68b8-7936-4422-bb4d-b741d2292a9f';
     private const TEST_CLIENT = 'a540c566-dfbf-430a-9941-fb8531c022d4';
     private const CLIENT_SECRET = 'plain-secret';
     private const USER_PASSWORD = 'user-password';
@@ -509,7 +510,6 @@ class AdminCrudTest extends TestCase
             'email' => 'crud@example.com',
             'password' => self::USER_PASSWORD,
             'name' => 'crud user',
-            'realm_roles' => 'basic admin',
         ]));
 
         self::assertSame('crud@example.com', $data['email']);
@@ -538,6 +538,47 @@ class AdminCrudTest extends TestCase
             'realm_id' => 'nonexistent',
             'email' => 'ghost@example.com',
             'password' => self::USER_PASSWORD,
+        ]);
+        $this->assertStatus(400, $request);
+    }
+
+    public function testCreateUserRejectsRemovedRealmRolesField(): void
+    {
+        $request = $this->adminRequest('POST', '/admin/users', [
+            'realm_id' => self::TEST_REALM,
+            'email' => 'stale-roles@example.com',
+            'password' => self::USER_PASSWORD,
+            'realm_roles' => 'basic',
+        ]);
+        $this->assertStatus(400, $request);
+    }
+
+    public function testUpdateUserRejectsRemovedRealmRolesField(): void
+    {
+        $user = $this->assertStatus(201, $this->adminRequest('POST', '/admin/users', [
+            'realm_id' => self::TEST_REALM,
+            'email' => 'stale-roles-update@example.com',
+            'password' => self::USER_PASSWORD,
+            'name' => 'stale roles update',
+        ]));
+
+        $request = $this->adminRequest('PUT', '/admin/users/' . $user['id'], [
+            'name' => 'renamed',
+            'realm_roles' => 'admin',
+        ]);
+        $this->assertStatus(400, $request);
+    }
+
+    public function testUpdateUserRejectsRealmChange(): void
+    {
+        $user = $this->assertStatus(201, $this->adminRequest('POST', '/admin/users', [
+            'realm_id' => self::TEST_REALM,
+            'email' => 'realm-move@example.com',
+            'password' => self::USER_PASSWORD,
+        ]));
+
+        $request = $this->adminRequest('PUT', '/admin/users/' . $user['id'], [
+            'realm_id' => self::WEB_REALM,
         ]);
         $this->assertStatus(400, $request);
     }

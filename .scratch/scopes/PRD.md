@@ -1,5 +1,13 @@
 # Scopes & Roles — scope/role model and mapping
 
+> **Status (2026-09-01):** implemented and superseded by
+> [ADR-0001](../../docs/adr/0001-role-storage-and-claim-loading.md). The
+> `users.realm_roles` string column described below is abandoned — realm roles
+> are normalized rows (`roles` + `user_role_assignments`) created via
+> `POST /admin/roles` and assigned via `POST /admin/users/{id}/roles`
+> (F-12, F-45). The model table below is the historical proposal; ADR-0001
+> D1–D5 is the current contract.
+
 ## Problem Statement
 
 The auth server is a Keycloak-style clone but its scope/role handling is a

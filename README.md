@@ -413,7 +413,6 @@ Create body:
   "email": "user@example.com",
   "password": "secret",
   "name": "Optional name",
-  "realm_roles": "basic",
   "valid": true
 }
 ```
@@ -424,11 +423,51 @@ fields as a partial update; omit `password` to keep the existing one.
 **Password rotation is defensive**: sending a `password` also revokes the
 user's active SSO sessions (and their logins) and expires their offline
 refresh grants — the same effect as `POST /admin/sessions/invalidate` with
-that `user_id`. Update, role sync and revocation happen in one transaction:
-either the rotation fully applies or nothing does, so a failed attempt is
-safe to retry. A `PUT` that omits `password` leaves sessions alone.
+that `user_id`. Update and revocation happen in one transaction: either the
+rotation fully applies or nothing does, so a failed attempt is safe to retry.
+A `PUT` that omits `password` leaves sessions alone.
 Submitting a password value counts as a rotation even when it equals the
 current one — there is no "rotate without logout".
+
+**`realm_id` is fixed at creation**: a `PUT` that tries to move a user to
+another realm returns `400 invalid_request`. Role assignments are realm-bound,
+so a realm change would silently orphan them against the old realm's roles;
+"moving" a user means creating one in the target realm and deleting the old
+one.
+
+**Roles are assigned separately** via `POST /admin/users/{id}/roles`. The
+legacy `realm_roles` string field on create/update was removed (F-45): sending
+it now returns `400 invalid_request` instead of being silently ignored. New
+users are created without any role — create roles via `POST /admin/roles`
+first, then assign them:
+
+```json
+POST /admin/users
+{
+  "realm_id": "<realm-id>",
+  "email": "user@example.com",
+  "password": "secret"
+}
+
+POST /admin/roles
+{
+  "name": "editor",
+  "realm_id": "<realm-id>"
+}
+
+POST /admin/users/{id}/roles
+{
+  "role_id": "<role-id>"
+}
+```
+
+> **Migrating from `realm_roles` (breaking change, F-45):** consumers that
+> sent `realm_roles` on user create/update must now create each role once via
+> `POST /admin/roles` and assign it with `POST /admin/users/{id}/roles`.
+> Previously every new user implicitly received the `basic` realm role; that
+> default is gone, so verify role assignments after migrating, and note that
+> `syncRealmRoles` (bulk replacement) rejects role names that do not already
+> exist as realm roles.
 
 ### Roles
 

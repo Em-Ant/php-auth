@@ -49,6 +49,7 @@ class UsersController
     {
         try {
             $body = (array) ($request->getParsedBody() ?? []);
+            $this->rejectRemovedRealmRoles($body);
 
             $user = $this->userAdmin->createUser([
                 'realm_id' => $this->requiredString($body, 'realm_id'),
@@ -57,7 +58,6 @@ class UsersController
                 'name' => $this->optionalString($body, 'name', null),
                 'valid' => $this->strictBool($body, 'valid', true),
                 'email_verified' => $this->strictBool($body, 'email_verified', true),
-                'realm_roles' => $this->optionalString($body, 'realm_roles', null),
             ]);
 
             return JsonResponse::create($response, self::toArray($user), 201);
@@ -79,6 +79,7 @@ class UsersController
             $existing = $this->findUserOrFail($request, $request->getAttribute('id'));
 
             $body = (array) ($request->getParsedBody() ?? []);
+            $this->rejectRemovedRealmRoles($body);
 
             $user = $this->userAdmin->updateUser($existing, [
                 'realm_id' => $this->optionalString($body, 'realm_id', null),
@@ -87,7 +88,6 @@ class UsersController
                 'name' => $this->optionalString($body, 'name', null),
                 'valid' => $this->optionalBool($body, 'valid'),
                 'email_verified' => $this->optionalBool($body, 'email_verified'),
-                'realm_roles' => $this->optionalString($body, 'realm_roles', null),
             ]);
 
             return JsonResponse::create($response, self::toArray($user));
@@ -121,6 +121,22 @@ class UsersController
             return null;
         }
         return $this->strictBool($body, $field, false);
+    }
+
+    /**
+     * `realm_roles` was removed in F-45: roles are explicit entities created
+     * via POST /admin/roles and assigned via POST /admin/users/{id}/roles.
+     * Fail loudly instead of silently creating a user with no roles — a
+     * consumer still sending the old field gets a 400, never a silent no-op.
+     */
+    private function rejectRemovedRealmRoles(array $body): void
+    {
+        if (array_key_exists('realm_roles', $body)) {
+            throw new ValidationFailed(
+                "'realm_roles' is removed (F-45): create roles via POST /admin/roles "
+                . 'and assign them via POST /admin/users/{id}/roles'
+            );
+        }
     }
 
     private static function toArray(User $user): array

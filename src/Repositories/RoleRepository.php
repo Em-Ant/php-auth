@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AuthServer\Repositories;
 
 use AuthServer\Exceptions\StorageFailed;
+use AuthServer\Exceptions\ValidationFailed;
 use AuthServer\Interfaces\RoleRepository as IRoleRepo;
 use AuthServer\Models\Role;
 use AuthServer\Models\ScopeRoleMapping;
@@ -203,12 +204,29 @@ class RoleRepository implements IRoleRepo
     }
 
     /**
-     * Replace the realm-role assignments for a user. Participates in an
-     * already-open transaction when the caller owns one (re-entrant), and
-     * only opens its own otherwise.
+     * Replace the realm-role assignments for a user. All role names must
+     * already exist as realm roles — unknown names throw ValidationFailed
+     * BEFORE any assignment row is modified, so a failed call never leaves
+     * a partial write behind, even inside a caller-owned transaction.
+     *
+     * Participates in an already-open transaction when the caller owns one
+     * (re-entrant), and only opens its own otherwise. A caller that owns
+     * the transaction must roll back on any exception (e.g. StorageFailed
+     * from a mid-write storage error) since the delete may already have
+     * been applied.
      */
     public function syncRealmRoles(string $userId, string $realmId, array $roleNames): void
     {
+        // Resolve every name up-front: validation happens before any write.
+        $roleIds = [];
+        foreach ($roleNames as $roleName) {
+            $roleId = $this->findRealmRoleIdByName($realmId, $roleName);
+            if ($roleId === null) {
+                throw new ValidationFailed("unknown realm role '$roleName'");
+            }
+            $roleIds[] = $roleId;
+        }
+
         $ownsTransaction = !$this->db->inTransaction();
 
         if ($ownsTransaction) {
@@ -218,12 +236,11 @@ class RoleRepository implements IRoleRepo
         try {
             $this->deleteRealmRoleAssignments($userId, $realmId);
 
-            foreach ($roleNames as $roleName) {
-                $roleId = $this->ensureRealmRole($realmId, $roleName);
-                $insert = $this->db->prepare(
-                    'INSERT OR IGNORE INTO user_role_assignments (user_id, role_id)
-                     VALUES (:user_id, :role_id)'
-                );
+            $insert = $this->db->prepare(
+                'INSERT OR IGNORE INTO user_role_assignments (user_id, role_id)
+                 VALUES (:user_id, :role_id)'
+            );
+            foreach ($roleIds as $roleId) {
                 $insert->execute([':user_id' => $userId, ':role_id' => $roleId]);
             }
 
@@ -235,6 +252,11 @@ class RoleRepository implements IRoleRepo
                 $this->db->rollBack();
             }
             throw new StorageFailed('failed to sync realm roles', 0, $e);
+        } catch (\Throwable $e) {
+            if ($ownsTransaction) {
+                $this->db->rollBack();
+            }
+            throw $e;
         }
     }
 
@@ -248,25 +270,19 @@ class RoleRepository implements IRoleRepo
         $delete->execute([':user_id' => $userId, ':realm_id' => $realmId]);
     }
 
-    private function ensureRealmRole(string $realmId, string $roleName): string
+    private function findRealmRoleIdByName(string $realmId, string $roleName): ?string
     {
-        $insert = $this->db->prepare(
-            'INSERT OR IGNORE INTO roles (id, realm_id, client_id, name)
-             VALUES (:id, :realm_id, NULL, :name)'
-        );
-        $insert->execute([
-            ':id' => getGuid(),
-            ':realm_id' => $realmId,
-            ':name' => $roleName,
-        ]);
+        try {
+            $select = $this->db->prepare(
+                'SELECT id FROM roles WHERE realm_id = :realm_id AND client_id IS NULL AND name = :name'
+            );
+            $select->execute([':realm_id' => $realmId, ':name' => $roleName]);
 
-        $select = $this->db->prepare(
-            'SELECT id FROM roles WHERE realm_id = :realm_id AND client_id IS NULL AND name = :name'
-        );
-        $select->execute([':realm_id' => $realmId, ':name' => $roleName]);
-
-        $id = $select->fetchColumn();
-        return $id !== false ? (string) $id : '';
+            $id = $select->fetchColumn();
+            return $id !== false ? (string) $id : null;
+        } catch (\PDOException $e) {
+            throw new StorageFailed('failed to look up realm role by name', 0, $e);
+        }
     }
 
     public function searchAll(?string $realmId, ?string $clientId, int $limit, int $offset): array

@@ -6,7 +6,7 @@ Admin API (`/admin/*`, `src/App/AppBuilder.php:295`) is protected by a single st
 
 - A separate Admin UI repo (React+Vite+shadcn) that should log in via OIDC code+PKCE — no user/role concept today.
 - Least-privilege / auditability — one shared secret, no per-admin identity, no revocation.
-- Future RBAC (audit log, password policy, realm_roles retirement).
+- Future RBAC (audit log, password policy; realm_roles retirement done — F-45).
 
 But ops/CI tasks — `POST /admin/migrations/*` and `F-19` blacklist/expired-session cleanup — must stay usable headless (no browser, no interactive login), via an **offline token** at end-state; **for now** the static secret stays as interim.
 

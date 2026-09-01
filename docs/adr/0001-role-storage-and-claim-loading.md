@@ -69,21 +69,35 @@ tenants; email uniqueness is per realm. If one-human-many-realms ever becomes
 a requirement, the Keycloak-shaped answer is IdP brokering with one local user
 per realm — not schema changes.
 
-### D4 — The string dialect is a shim, not architecture
+### D4 — The string dialect shim has been retired
 
-The admin API still accepts `realm_roles` as a full-set, space-separated
-string on user create/update. `RoleRepository::syncRealmRoles` reconciles that
-desired state into rows, auto-creating unknown role names
-(`ensureRealmRole`). The request dialect is preserved; the response shape is
-not — user representations no longer include a `realm_roles` field, and role
-state must be read through the (future F-12) role endpoints instead. This
-preserves the v0 request contract, but:
+The admin API no longer accepts `realm_roles` on user create/update (F-45,
+shipped 2026-09-01). Roles are now explicit entities created via
+`POST /admin/roles` and assigned via `POST /admin/users/{id}/roles`.
 
-- it exists solely as a compatibility layer until F-12 ships granular role
-  CRUD and per-user assignment endpoints;
-- new features must not extend or imitate it (no new string-encoded fields);
-- when F-12 lands, auto-creation of roles from assignment requests should be
-  retired — roles become explicit entities created before assignment.
+- Sending `realm_roles` on `POST`/`PUT /admin/users` returns
+  `400 invalid_request` — it is rejected, never silently ignored, so a stale
+  consumer cannot accidentally create a role-less user.
+- New users are created without any role: the implicit `basic` default from
+  the string-dialect era is gone, and role creation + assignment are two
+  explicit calls.
+- `RoleRepository::syncRealmRoles` still exists for bulk replacement but no
+  longer auto-creates unknown role names (`ensureRealmRole` removed) — all
+  names must already exist, and unknown names throw `ValidationFailed`
+  *before* any assignment row is modified, so a rejected sync never leaves a
+  partial write (a caller that owns the transaction must still roll back on
+  mid-write storage errors).
+
+### D5 — A user's realm is fixed at creation
+
+`PUT /admin/users/{id}` accepts `realm_id` only when it equals the user's
+current realm; changing it returns `400 invalid_request` (F-45, shipped
+2026-09-01). Role assignments are realm-bound rows, so a realm move would
+silently orphan them against the old realm's roles: the user would appear
+role-less in token claims (`realm_access.roles` is realm-filtered) while
+`GET /admin/users/{id}/roles` and the role-delete guard (`countUsersByRoleId`)
+would still see the stale assignment. Moving a user means creating one in the
+target realm and deleting the old one.
 
 ## Consequences
 
@@ -102,12 +116,17 @@ preserves the v0 request contract, but:
 - ~~Until F-12, client roles have no write path beyond seed data.~~ — F-12
   shipped 2026-08-26 (roles CRUD + user role assignments + scope-role
   mappings).
-- **The shim's auto-create can materialize typos as real roles** — still
-  open. F-12 makes retirement *possible* (explicit role entities + per-user
-  assignment endpoints exist), but the `realm_roles` string field on user
-  create/update is still accepted and `ensureRealmRole` still auto-creates
-  unknown names. Removing them is a breaking admin-API change; tracked as
-  **F-45** (BACKLOG).
+- ~~The shim's auto-create can materialize typos as real roles~~ — F-45
+  shipped 2026-09-01: `realm_roles` removed from user create/update and now
+  rejected with 400, `ensureRealmRole` removed from
+  `RoleRepository::syncRealmRoles`, `syncRealmRoles` validates all names
+  before mutating any assignment row.
+- **Realm moves are rejected** (D5) — `PUT /admin/users/{id}` cannot change
+  `realm_id`; stale cross-realm role assignments are impossible by
+  construction.
+- **New users have no default role** — the implicit `basic` assignment is
+  gone; sending `realm_roles` fails with 400 and role creation/assignment are
+  explicit (`POST /admin/roles`, `POST /admin/users/{id}/roles`).
 - ~~Admin list pagination and write atomicity remain open gaps~~ — pagination
   shipped with F-03 (2026-08-26); delete-role atomicity shipped with F-04
   (guards + delete inside one reentrant transaction).
