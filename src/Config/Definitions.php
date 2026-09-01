@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AuthServer\Config;
 
+use AuthServer\Controllers\Admin\AuditLogController;
 use AuthServer\Controllers\Admin\ClientsController;
 use AuthServer\Controllers\Admin\KeysController;
 use AuthServer\Controllers\Admin\LoginsController;
@@ -23,6 +24,7 @@ use AuthServer\Controllers\OidcController;
 use AuthServer\Controllers\RevokeController;
 use AuthServer\Controllers\TokenController;
 use AuthServer\Interfaces\ClientRepository as IClientRepo;
+use AuthServer\Interfaces\AuditLogRepository as IAuditLogRepo;
 use AuthServer\Interfaces\KeyStore;
 use AuthServer\Interfaces\LoginRepository as ILoginRepo;
 use AuthServer\Interfaces\OfflineSessionRepository as IOfflineSessionRepo;
@@ -33,6 +35,7 @@ use AuthServer\Interfaces\SessionRepository as ISessionRepo;
 use AuthServer\Interfaces\UserRepository as IUserRepo;
 use AuthServer\Middleware\RealmProvider;
 use AuthServer\Repositories\ClientRepository;
+use AuthServer\Repositories\AuditLogRepository;
 use AuthServer\Repositories\LoginRepository;
 use AuthServer\Repositories\MigrationRepository;
 use AuthServer\Repositories\OfflineSessionRepository;
@@ -41,6 +44,7 @@ use AuthServer\Repositories\RoleRepository;
 use AuthServer\Repositories\SessionRepository;
 use AuthServer\Repositories\TokenBlacklistRepository;
 use AuthServer\Repositories\UserRepository;
+use AuthServer\Services\AuditLogWriter;
 use AuthServer\Services\AuthenticationOrchestrator;
 use AuthServer\Services\ActiveSessionResolver;
 use AuthServer\Services\ClientAdminService;
@@ -162,6 +166,7 @@ final class Definitions
             IUserRepo::class => \DI\autowire(UserRepository::class),
             IRealmRepo::class => \DI\autowire(RealmRepository::class),
             IRoleRepo::class => \DI\autowire(RoleRepository::class),
+            IAuditLogRepo::class => \DI\autowire(AuditLogRepository::class),
 
             // ── Domain services ──
 
@@ -235,6 +240,8 @@ final class Definitions
             RoleAdminService::class => \DI\autowire(),
             UserRolesController::class => \DI\autowire(),
             ScopeRolesController::class => \DI\autowire(),
+            AuditLogController::class => \DI\autowire(),
+            AuditLogWriter::class => \DI\autowire(),
             KeyProvisioning::class => \DI\autowire()
                 ->constructorParameter('keysRoot', \DI\get('keys_root')),
         ];

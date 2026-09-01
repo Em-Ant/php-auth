@@ -68,7 +68,7 @@ class ScopeRolesController
             $roleId = $this->requiredString($body, 'role_id');
             $required = $this->strictBool($body, 'required', false);
 
-            $mapping = $this->scopeRoleAdmin->create($clientId, $scope, $roleId, $required);
+            $mapping = $this->scopeRoleAdmin->create($clientId, $scope, $roleId, $required, $request);
 
             $data = self::mappingToArray($mapping->roleId, $mapping->scope, $mapping->roleName, $mapping->required);
 
@@ -95,7 +95,7 @@ class ScopeRolesController
             $body = (array) ($request->getParsedBody() ?? []);
             $required = $this->strictBool($body, 'required', $existing->required);
 
-            $this->scopeRoleAdmin->update($clientId, $scope, $roleId, $required);
+            $this->scopeRoleAdmin->update($clientId, $scope, $roleId, $required, $request);
 
             return JsonResponse::create($response, [
                 'scope' => $scope,
@@ -115,7 +115,7 @@ class ScopeRolesController
         $scope = $request->getAttribute('scope');
         $roleId = $request->getAttribute('role_id');
 
-        $this->scopeRoleAdmin->delete($clientId, $scope, $roleId);
+        $this->scopeRoleAdmin->delete($clientId, $scope, $roleId, $request);
 
         return $response->withStatus(204);
     }

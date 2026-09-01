@@ -11,21 +11,25 @@ use AuthServer\Interfaces\RealmRepository;
 use AuthServer\Interfaces\RoleRepository;
 use AuthServer\Models\Realm;
 use AuthServer\Models\Role;
+use AuthServer\Services\AuditLogWriter;
 use AuthServer\Services\RoleAdminService;
 use PHPUnit\Framework\TestCase;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Log\NullLogger;
+use Slim\Psr7\Factory\ServerRequestFactory;
 
 class RoleAdminServiceTest extends TestCase
 {
     public function testDeleteRoleAssignedToUsersThrowsConflict(): void
     {
         $this->expectException(ConflictException::class);
-        $this->serviceWith(1, 0)->deleteRole('role-1');
+        $this->serviceWith(1, 0)->deleteRole('role-1', $this->adminRequest());
     }
 
     public function testDeleteRoleWithScopeRoleMappingsThrowsConflict(): void
     {
         $this->expectException(ConflictException::class);
-        $this->serviceWith(0, 1)->deleteRole('role-1');
+        $this->serviceWith(0, 1)->deleteRole('role-1', $this->adminRequest());
     }
 
     public function testDeleteRoleSucceedsWhenNoAssignments(): void
@@ -35,7 +39,7 @@ class RoleAdminServiceTest extends TestCase
 
         $svc = $this->service($roles);
 
-        $result = $svc->deleteRole('role-1');
+        $result = $svc->deleteRole('role-1', $this->adminRequest());
 
         self::assertTrue($result);
     }
@@ -51,7 +55,7 @@ class RoleAdminServiceTest extends TestCase
         $svc = $this->service($roles, $realms);
 
         $this->expectException(ValidationFailed::class);
-        $svc->create('realm-unknown', null, ['name' => 'admin']);
+        $svc->create('realm-unknown', null, ['name' => 'admin'], $this->adminRequest());
     }
 
     public function testCreateRoleRejectsDuplicateInSameContext(): void
@@ -62,7 +66,7 @@ class RoleAdminServiceTest extends TestCase
         $svc = $this->service($roles, $this->realmsRepo());
 
         $this->expectException(ConflictException::class);
-        $svc->create('realm-1', null, ['name' => 'admin']);
+        $svc->create('realm-1', null, ['name' => 'admin'], $this->adminRequest());
     }
 
     public function testCreateRolePersistsNewRole(): void
@@ -78,7 +82,7 @@ class RoleAdminServiceTest extends TestCase
 
         $svc = $this->service($roles, $this->realmsRepo(), $clients);
 
-        $created = $svc->create('realm-1', null, ['name' => 'admin', 'description' => 'Admins']);
+        $created = $svc->create('realm-1', null, ['name' => 'admin', 'description' => 'Admins'], $this->adminRequest());
 
         self::assertSame('admin', $created->getName());
         self::assertSame('Admins', $created->getDescription());
@@ -92,7 +96,7 @@ class RoleAdminServiceTest extends TestCase
 
         $svc = $this->service($roles);
 
-        $updated = $svc->update($existing, ['name' => 'super-admin', 'description' => 'Top']);
+        $updated = $svc->update($existing, ['name' => 'super-admin', 'description' => 'Top'], $this->adminRequest());
 
         self::assertSame('super-admin', $updated->getName());
         self::assertSame('Top', $updated->getDescription());
@@ -120,7 +124,7 @@ class RoleAdminServiceTest extends TestCase
         );
 
         $svc = $this->service($roles, null, null, $pdo);
-        $svc->deleteRole('role-1');
+        $svc->deleteRole('role-1', $this->adminRequest());
 
         self::assertTrue($transactionsDuringGuard, 'guards must run inside the transaction');
         self::assertTrue($transactionsDuringDelete, 'delete must run inside the same transaction');
@@ -136,7 +140,7 @@ class RoleAdminServiceTest extends TestCase
         $svc = $this->service($roles, null, null, $pdo);
 
         try {
-            $svc->deleteRole('role-1');
+            $svc->deleteRole('role-1', $this->adminRequest());
             self::fail('expected ConflictException');
         } catch (ConflictException) {
             // expected
@@ -156,7 +160,7 @@ class RoleAdminServiceTest extends TestCase
         $roles->method('delete')->willReturn(true);
 
         $svc = $this->service($roles, null, null, $pdo);
-        $svc->deleteRole('role-1');
+        $svc->deleteRole('role-1', $this->adminRequest());
 
         self::assertTrue($pdo->inTransaction(), 'caller-owned transaction must not be committed or rolled back');
 
@@ -188,6 +192,10 @@ class RoleAdminServiceTest extends TestCase
             $roles,
             $realms ?? $this->createMock(RealmRepository::class),
             $clients ?? $this->createMock(ClientRepository::class),
+            new AuditLogWriter(
+                $this->createMock(\AuthServer\Interfaces\AuditLogRepository::class),
+                new NullLogger(),
+            ),
         );
     }
 
@@ -227,5 +235,12 @@ class RoleAdminServiceTest extends TestCase
             'openid profile email',
             '2026-01-01 00:00:00'
         );
+    }
+
+    private function adminRequest(): ServerRequestInterface
+    {
+        return (new ServerRequestFactory())->createServerRequest('GET', '/')
+            ->withAttribute('admin_claims', ['sub' => 'admin-user'])
+            ->withAttribute('admin_user', 'admin-user');
     }
 }

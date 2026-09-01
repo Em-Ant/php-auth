@@ -20,7 +20,6 @@ Single source of truth for what to work on next. **Local by design** (3 machines
 | F-11 | feature | P2 | S | | per-realm password policy | `ROADMAP → Admin API` |
 | F-13 | feature | P2 | S | | per-realm login page config | `ROADMAP → Login Form` |
 | F-19 | feature | P2 | S | | blacklist purge + expired-session cleanup | `token-lifecycle/issues/05-…` |
-| F-07 | feature | P2 | M | | audit log table + query | `ROADMAP → Admin API` |
 | F-09 | feature | P2 | M | | email magic link | `ROADMAP → Login Methods` |
 | F-10 | feature | P2 | M | | consent screen (`offline_access`) — delayed by design; client gating (scopes #02) is the control until then | `ROADMAP → Token Lifecycle` |
 | F-20 | refactor | P2 | M | | split E2E into two contracts — prod smoke (`bin/smoke-test.sh`, no DB, bounded footprint, ~30 checks) + local OIDC integrity suite; phase 2: PHPUnit-against-live-`BASE_URL` (no Playwright) — also replaces the ad-hoc `python3` JWT payload decoding in `bin/e2e-test.sh` with PHP tooling | `ci-e2e/PRD.md` |

@@ -14,10 +14,14 @@ use AuthServer\Repositories\LoginRepository;
 use AuthServer\Repositories\OfflineSessionRepository as RepoOfflineSessionRepository;
 use AuthServer\Repositories\SessionRepository as RepoSessionRepository;
 use AuthServer\Repositories\UserRepository;
+use AuthServer\Services\AuditLogWriter;
 use AuthServer\Services\SecretsService;
 use AuthServer\Services\SessionRevocationService;
 use AuthServer\Services\UserAdminService;
 use AuthServer\Tests\Integration\RepositoryTestCase;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Log\NullLogger;
+use Slim\Psr7\Factory\ServerRequestFactory;
 
 class UserAdminServiceTest extends RepositoryTestCase
 {
@@ -32,7 +36,7 @@ class UserAdminServiceTest extends RepositoryTestCase
     {
         $service = $this->service();
 
-        $created = $service->createUser($this->createParams('u-atomic-create', 'atomic-create@example.test'));
+        $created = $service->createUser($this->createParams('u-atomic-create', 'atomic-create@example.test'), $this->adminRequest());
 
         $stored = $this->users()->findById($created->getId());
         self::assertNotNull($stored);
@@ -44,7 +48,7 @@ class UserAdminServiceTest extends RepositoryTestCase
         $service = $this->service();
 
         $this->expectException(ConflictException::class);
-        $service->createUser($this->createParams('u-dup-1', self::EMANT_EMAIL));
+        $service->createUser($this->createParams('u-dup-1', self::EMANT_EMAIL), $this->adminRequest());
     }
 
     public function testCreateUserRejectsUnknownRealm(): void
@@ -56,24 +60,24 @@ class UserAdminServiceTest extends RepositoryTestCase
             'realm_id' => 'no-such-realm',
             'email' => 'ghost@example.test',
             'password' => self::TEST_PASSWORD,
-        ]);
+        ], $this->adminRequest());
     }
 
     public function testUpdateUserRejectsRealmChange(): void
     {
         $service = $this->service();
-        $user = $service->createUser($this->createParams('u-move-realm', 'move-realm@example.test'));
+        $user = $service->createUser($this->createParams('u-move-realm', 'move-realm@example.test'), $this->adminRequest());
 
         $this->expectException(ValidationFailed::class);
-        $service->updateUser($user, ['realm_id' => self::WEB_REALM]);
+        $service->updateUser($user, ['realm_id' => self::WEB_REALM], $this->adminRequest());
     }
 
     public function testUpdateUserAcceptsSameRealmId(): void
     {
         $service = $this->service();
-        $user = $service->createUser($this->createParams('u-same-realm', 'same-realm@example.test'));
+        $user = $service->createUser($this->createParams('u-same-realm', 'same-realm@example.test'), $this->adminRequest());
 
-        $updated = $service->updateUser($user, ['realm_id' => self::TEST_REALM, 'name' => 'same realm ok']);
+        $updated = $service->updateUser($user, ['realm_id' => self::TEST_REALM, 'name' => 'same realm ok'], $this->adminRequest());
 
         self::assertSame('same realm ok', $updated->getName());
         self::assertSame(self::TEST_REALM, $updated->getRealmId());
@@ -82,12 +86,12 @@ class UserAdminServiceTest extends RepositoryTestCase
     public function testUpdateUserPersistsChanges(): void
     {
         $service = $this->service();
-        $user = $service->createUser($this->createParams('u-atomic-update', 'atomic-update@example.test'));
+        $user = $service->createUser($this->createParams('u-atomic-update', 'atomic-update@example.test'), $this->adminRequest());
 
         $service->updateUser($user, [
             'name' => 'renamed',
             'valid' => false,
-        ]);
+        ], $this->adminRequest());
 
         $stored = $this->users()->findById($user->getId());
         self::assertNotNull($stored);
@@ -98,10 +102,10 @@ class UserAdminServiceTest extends RepositoryTestCase
     public function testUpdateUserWithPasswordRotatesAndRevokesSessions(): void
     {
         $service = $this->service();
-        $user = $service->createUser($this->createParams('u-rotate-ok', 'rotate-ok@example.test'));
+        $user = $service->createUser($this->createParams('u-rotate-ok', 'rotate-ok@example.test'), $this->adminRequest());
         $this->insertSession($user->getId());
 
-        $service->updateUser($user, ['password' => self::TEST_PASSWORD]);
+        $service->updateUser($user, ['password' => self::TEST_PASSWORD], $this->adminRequest());
 
         $stored = $this->users()->findById($user->getId());
         self::assertNotNull($stored);
@@ -116,17 +120,17 @@ class UserAdminServiceTest extends RepositoryTestCase
         self::assertNotNull($user);
 
         $this->expectException(ValidationFailed::class);
-        $service->updateUser($user, ['password' => '']);
+        $service->updateUser($user, ['password' => ''], $this->adminRequest());
     }
 
     public function testUpdateUserWithPasswordRollsBackEverythingWhenRevocationFails(): void
     {
         $service = $this->serviceWith($this->failingRevocations());
-        $user = $service->createUser($this->createParams('u-rotate-fail', 'rotate-fail@example.test'));
+        $user = $service->createUser($this->createParams('u-rotate-fail', 'rotate-fail@example.test'), $this->adminRequest());
         $this->insertSession($user->getId());
 
         try {
-            $service->updateUser($user, ['password' => self::TEST_PASSWORD . '-doomed']);
+            $service->updateUser($user, ['password' => self::TEST_PASSWORD . '-doomed'], $this->adminRequest());
             self::fail('expected StorageFailed');
         } catch (\AuthServer\Exceptions\StorageFailed) {
             // Rotation is all-or-nothing: neither the new hash nor the
@@ -140,9 +144,9 @@ class UserAdminServiceTest extends RepositoryTestCase
     public function testDeleteUserRemovesUserAndExpiredOfflineGrants(): void
     {
         $service = $this->service();
-        $user = $service->createUser($this->createParams('u-delete-ok', 'delete-ok@example.test'));
+        $user = $service->createUser($this->createParams('u-delete-ok', 'delete-ok@example.test'), $this->adminRequest());
 
-        $service->deleteUser($user->getId());
+        $service->deleteUser($user->getId(), $this->adminRequest());
 
         self::assertNull($this->users()->findById($user->getId()));
     }
@@ -150,21 +154,49 @@ class UserAdminServiceTest extends RepositoryTestCase
     public function testDeleteUserBlockedByActiveSessions(): void
     {
         $service = $this->service();
-        $user = $service->createUser($this->createParams('u-delete-sess', 'delete-sess@example.test'));
+        $user = $service->createUser($this->createParams('u-delete-sess', 'delete-sess@example.test'), $this->adminRequest());
         $this->insertSession($user->getId());
 
         $this->expectException(ConflictException::class);
-        $service->deleteUser($user->getId());
+        $service->deleteUser($user->getId(), $this->adminRequest());
     }
 
     public function testDeleteUserBlockedByActiveOfflineSession(): void
     {
         $service = $this->service();
-        $user = $service->createUser($this->createParams('u-delete-offline', 'delete-offline@example.test'));
+        $user = $service->createUser($this->createParams('u-delete-offline', 'delete-offline@example.test'), $this->adminRequest());
         $this->insertOfflineSession($user->getId());
 
         $this->expectException(ConflictException::class);
-        $service->deleteUser($user->getId());
+        $service->deleteUser($user->getId(), $this->adminRequest());
+    }
+
+    public function testAdminWritesAreAudited(): void
+    {
+        $service = $this->serviceWith($this->revocations(), $this->realAuditLogWriter());
+
+        $params = $this->createParams('u-audited', 'audited@example.test');
+        $user = $service->createUser($params, $this->adminRequest($params));
+        $service->deleteUser($user->getId(), $this->adminRequest());
+
+        $repo = $this->auditRepo();
+
+        $created = $repo->searchAll('user.create', null, null, null, null, null, 50, 0);
+        self::assertCount(1, $created['items']);
+        self::assertSame($user->getId(), $created['items'][0]->getTargetId());
+        self::assertSame(self::TEST_REALM, $created['items'][0]->getRealmId());
+        self::assertSame('admin_user', $created['items'][0]->getActorType());
+        self::assertSame('admin-user', $created['items'][0]->getActorId());
+        self::assertSame([
+            'realm_id' => self::TEST_REALM,
+            'email' => 'audited@example.test',
+            'password' => '***',
+            'name' => 'Atomic Test u-audited',
+        ], json_decode($created['items'][0]->getDetail() ?? '', true));
+
+        $deleted = $repo->searchAll('user.delete', null, null, null, null, null, 50, 0);
+        self::assertCount(1, $deleted['items']);
+        self::assertSame($user->getId(), $deleted['items'][0]->getTargetId());
     }
 
     /**
@@ -190,7 +222,7 @@ class UserAdminServiceTest extends RepositoryTestCase
         return $this->serviceWith($this->revocations());
     }
 
-    private function serviceWith(SessionRevocationService $revocations): UserAdminService
+    private function serviceWith(SessionRevocationService $revocations, ?AuditLogWriter $auditLog = null): UserAdminService
     {
         return new UserAdminService(
             self::$pdo,
@@ -200,7 +232,21 @@ class UserAdminServiceTest extends RepositoryTestCase
             $this->realms(),
             $this->sessions(),
             $this->offlineSessions(),
+            $auditLog ?? new AuditLogWriter(
+                $this->createMock(\AuthServer\Interfaces\AuditLogRepository::class),
+                new NullLogger(),
+            ),
         );
+    }
+
+    private function realAuditLogWriter(): AuditLogWriter
+    {
+        return new AuditLogWriter($this->auditRepo(), new NullLogger());
+    }
+
+    private function auditRepo(): \AuthServer\Repositories\AuditLogRepository
+    {
+        return new \AuthServer\Repositories\AuditLogRepository(self::$pdo);
     }
 
     private function users(): UserRepository
@@ -288,5 +334,18 @@ class UserAdminServiceTest extends RepositoryTestCase
         $stmt = self::$pdo->prepare('SELECT COUNT(*) FROM sessions WHERE user_id = :user');
         $stmt->execute([':user' => $userId]);
         return (int) $stmt->fetchColumn();
+    }
+
+    /**
+     * @param array<string, mixed> $body Optional parsed body, mirroring how the
+     *                                    controller hands the request to the service.
+     */
+    private function adminRequest(array $body = []): ServerRequestInterface
+    {
+        $request = (new ServerRequestFactory())->createServerRequest('GET', '/')
+            ->withAttribute('admin_claims', ['sub' => 'admin-user'])
+            ->withAttribute('admin_user', 'admin-user');
+
+        return $body === [] ? $request : $request->withParsedBody($body);
     }
 }

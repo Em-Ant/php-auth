@@ -57,7 +57,8 @@ class RolesController
                 [
                     'name' => $this->requiredString($body, 'name'),
                     'description' => $this->optionalString($body, 'description', null),
-                ]
+                ],
+                $request
             );
 
             return JsonResponse::create($response, self::toArray($role), 201);
@@ -83,7 +84,7 @@ class RolesController
             $role = $this->roleAdmin->update($existing, [
                 'name' => $this->optionalString($body, 'name', null) ?? $existing->getName(),
                 'description' => $this->optionalString($body, 'description', $existing->getDescription()),
-            ]);
+            ], $request);
 
             return JsonResponse::create($response, self::toArray($role));
         } catch (ValidationFailed $e) {
@@ -96,7 +97,7 @@ class RolesController
         $id = $request->getAttribute('id');
         $this->findRoleOrFail($request, $id);
 
-        $this->roleAdmin->deleteRole($id);
+        $this->roleAdmin->deleteRole($id, $request);
 
         return $response->withStatus(204);
     }

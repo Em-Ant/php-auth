@@ -10,7 +10,9 @@ use AuthServer\Interfaces\ClientRepository;
 use AuthServer\Interfaces\KeyStore;
 use AuthServer\Interfaces\RealmRepository;
 use AuthServer\Interfaces\UserRepository;
+use AuthServer\Models\AuditAction;
 use AuthServer\Models\Realm;
+use Psr\Http\Message\ServerRequestInterface;
 
 use function AuthServer\formatSqlDatetime;
 use function AuthServer\getGuid;
@@ -31,6 +33,7 @@ class RealmAdminService
         private readonly ClientRepository $clients,
         private readonly UserRepository $users,
         private readonly KeyStore $keyStore,
+        private readonly AuditLogWriter $auditLog,
     ) {
     }
 
@@ -48,7 +51,7 @@ class RealmAdminService
      *     offline_refresh_token_expires_in: int,
      * } $params
      */
-    public function create(array $params): Realm
+    public function create(array $params, ServerRequestInterface $request): Realm
     {
         $name = $params['name'];
         if ($this->realms->findByName($name) !== null) {
@@ -57,34 +60,9 @@ class RealmAdminService
 
         $this->assertKeysExist($params['keys_id']);
 
-        return $this->realms->create($this->buildRealm(getGuid(), $name, $params, sqlNow()));
-    }
+        $realm = $this->realms->create($this->buildRealm(getGuid(), $name, $params, sqlNow()));
 
-    /**
-     * @param array{
-     *     name: string,
-     *     keys_id: string,
-     *     refresh_token_expires_in: int,
-     *     access_token_expires_in: int,
-     *     pending_login_expires_in: int,
-     *     authenticated_login_expires_in: int,
-     *     session_expires_in: int,
-     *     idle_session_expires_in: int,
-     *     scope: string,
-     *     offline_refresh_token_expires_in: int,
-     * } $params
-     */
-    public function update(Realm $existing, array $params): Realm
-    {
-        $name = $params['name'];
-        if ($this->realms->findByName($name) !== null && $name !== $existing->getName()) {
-            throw new ConflictException("realm '$name' already exists");
-        }
-
-        $this->assertKeysExist($params['keys_id']);
-
-        $realm = $this->buildRealm($existing->getId(), $name, $params, formatSqlDatetime($existing->getCreatedAt()));
-        $this->realms->update($realm);
+        $this->auditLog->log($request, AuditAction::RealmCreate, 'realm', $realm->getId(), $realm->getId());
 
         return $realm;
     }
@@ -103,6 +81,40 @@ class RealmAdminService
      *     offline_refresh_token_expires_in: int,
      * } $params
      */
+    public function update(Realm $existing, array $params, ServerRequestInterface $request): Realm
+    {
+        $name = $params['name'];
+        if ($this->realms->findByName($name) !== null && $name !== $existing->getName()) {
+            throw new ConflictException("realm '$name' already exists");
+        }
+
+        $this->assertKeysExist($params['keys_id']);
+
+        $realm = $this->buildRealm($existing->getId(), $name, $params, formatSqlDatetime($existing->getCreatedAt()));
+        $this->realms->update($realm);
+
+        $this->auditLog->log($request, AuditAction::RealmUpdate, 'realm', $realm->getId(), $realm->getId());
+
+        return $realm;
+    }
+
+    public function delete(string $realmId, ServerRequestInterface $request): void
+    {
+        $existing = $this->realms->findById($realmId);
+
+        $this->transact(function () use ($realmId): void {
+            if ($this->clients->countByRealmId($realmId) > 0 || $this->users->countByRealmId($realmId) > 0) {
+                throw new ConflictException("realm '$realmId' still has clients or users");
+            }
+
+            $this->realms->delete($realmId);
+        });
+
+        if ($existing !== null) {
+            $this->auditLog->log($request, AuditAction::RealmDelete, 'realm', $realmId, $realmId);
+        }
+    }
+
     private function buildRealm(string $id, string $name, array $params, string $createdAt): Realm
     {
         return new Realm(
@@ -119,17 +131,6 @@ class RealmAdminService
             $createdAt,
             $params['offline_refresh_token_expires_in']
         );
-    }
-
-    public function delete(string $realmId): void
-    {
-        $this->transact(function () use ($realmId): void {
-            if ($this->clients->countByRealmId($realmId) > 0 || $this->users->countByRealmId($realmId) > 0) {
-                throw new ConflictException("realm '$realmId' still has clients or users");
-            }
-
-            $this->realms->delete($realmId);
-        });
     }
 
     private function assertKeysExist(string $keysId): void

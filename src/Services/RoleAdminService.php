@@ -9,7 +9,9 @@ use AuthServer\Exceptions\ValidationFailed;
 use AuthServer\Interfaces\ClientRepository;
 use AuthServer\Interfaces\RealmRepository;
 use AuthServer\Interfaces\RoleRepository;
+use AuthServer\Models\AuditAction;
 use AuthServer\Models\Role;
+use Psr\Http\Message\ServerRequestInterface;
 
 use function AuthServer\getGuid;
 
@@ -30,6 +32,7 @@ class RoleAdminService
         private readonly RoleRepository $roles,
         private readonly RealmRepository $realms,
         private readonly ClientRepository $clients,
+        private readonly AuditLogWriter $auditLog,
     ) {
     }
 
@@ -39,7 +42,7 @@ class RoleAdminService
      *     description?: string|null,
      * } $params
      */
-    public function create(string $realmId, ?string $clientId, array $params): Role
+    public function create(string $realmId, ?string $clientId, array $params, ServerRequestInterface $request): Role
     {
         if ($this->realms->findById($realmId) === null) {
             throw new ValidationFailed("unknown realm '$realmId'");
@@ -63,7 +66,11 @@ class RoleAdminService
             new \DateTime('now', new \DateTimeZone('UTC')),
         );
 
-        return $this->roles->create($role);
+        $created = $this->roles->create($role);
+
+        $this->auditLog->log($request, AuditAction::RoleCreate, 'role', $created->getId(), $realmId);
+
+        return $created;
     }
 
     /**
@@ -72,7 +79,7 @@ class RoleAdminService
      *     description?: string|null,
      * } $params
      */
-    public function update(Role $existing, array $params): Role
+    public function update(Role $existing, array $params, ServerRequestInterface $request): Role
     {
         $name = $params['name'];
         if (
@@ -97,12 +104,17 @@ class RoleAdminService
 
         $this->roles->update($role);
 
+        $this->auditLog->log($request, AuditAction::RoleUpdate, 'role', $role->getId(), $role->getRealmId());
+
         return $role;
     }
 
-    public function deleteRole(string $roleId): bool
+    public function deleteRole(string $roleId, ServerRequestInterface $request): bool
     {
-        return $this->transact(function () use ($roleId): bool {
+        $existing = $this->roles->findById($roleId);
+        $realmId = $existing?->getRealmId();
+
+        $result = $this->transact(function () use ($roleId): bool {
             if ($this->roles->countUsersByRoleId($roleId) > 0) {
                 throw new ConflictException("role '$roleId' is still assigned to users");
             }
@@ -113,6 +125,12 @@ class RoleAdminService
 
             return $this->roles->delete($roleId);
         });
+
+        if ($existing !== null) {
+            $this->auditLog->log($request, AuditAction::RoleDelete, 'role', $roleId, $realmId);
+        }
+
+        return $result;
     }
 
     private function findDuplicate(string $name, string $realmId, ?string $clientId, ?string $excludeId): ?Role

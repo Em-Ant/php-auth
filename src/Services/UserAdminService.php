@@ -10,7 +10,9 @@ use AuthServer\Interfaces\OfflineSessionRepository;
 use AuthServer\Interfaces\RealmRepository;
 use AuthServer\Interfaces\SessionRepository;
 use AuthServer\Interfaces\UserRepository;
+use AuthServer\Models\AuditAction;
 use AuthServer\Models\User;
+use Psr\Http\Message\ServerRequestInterface;
 
 use function AuthServer\formatSqlDatetime;
 use function AuthServer\getGuid;
@@ -37,6 +39,7 @@ class UserAdminService
         private readonly RealmRepository $realms,
         private readonly SessionRepository $sessions,
         private readonly OfflineSessionRepository $offlineSessions,
+        private readonly AuditLogWriter $auditLog,
     ) {
     }
 
@@ -50,7 +53,7 @@ class UserAdminService
      *     email_verified?: bool,
      * } $params
      */
-    public function createUser(array $params): User
+    public function createUser(array $params, ServerRequestInterface $request): User
     {
         $realmId = $params['realm_id'];
         if ($this->realms->findById($realmId) === null) {
@@ -73,9 +76,13 @@ class UserAdminService
             $params['email_verified'] ?? true
         );
 
-        return $this->transact(function () use ($user): User {
+        $created = $this->transact(function () use ($user): User {
             return $this->users->create($user);
         });
+
+        $this->auditLog->log($request, AuditAction::UserCreate, 'user', $created->getId(), $realmId);
+
+        return $created;
     }
 
     /**
@@ -92,7 +99,7 @@ class UserAdminService
      * moving a user across realms is rejected because role assignments are
      * realm-bound and would silently dangle against the old realm's roles.
      */
-    public function updateUser(User $existing, array $params): User
+    public function updateUser(User $existing, array $params, ServerRequestInterface $request): User
     {
         $realmId = $params['realm_id'] ?? $existing->getRealmId();
         if ($this->realms->findById($realmId) === null) {
@@ -136,11 +143,16 @@ class UserAdminService
             }
         });
 
+        $this->auditLog->log($request, AuditAction::UserUpdate, 'user', $user->getId(), $realmId);
+
         return $user;
     }
 
-    public function deleteUser(string $userId): void
+    public function deleteUser(string $userId, ServerRequestInterface $request): void
     {
+        $existing = $this->users->findById($userId);
+        $realmId = $existing?->getRealmId();
+
         $this->transact(function () use ($userId): void {
             if ($this->sessions->countActiveByUserId($userId) > 0) {
                 throw new ConflictException("user '$userId' still has active sessions");
@@ -155,6 +167,10 @@ class UserAdminService
             $this->offlineSessions->deleteByUserId($userId);
             $this->users->delete($userId);
         });
+
+        if ($existing !== null) {
+            $this->auditLog->log($request, AuditAction::UserDelete, 'user', $userId, $realmId);
+        }
     }
 
     /**

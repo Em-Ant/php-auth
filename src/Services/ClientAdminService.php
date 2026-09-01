@@ -10,7 +10,9 @@ use AuthServer\Interfaces\ClientRepository;
 use AuthServer\Interfaces\LoginRepository;
 use AuthServer\Interfaces\OfflineSessionRepository;
 use AuthServer\Interfaces\RealmRepository;
+use AuthServer\Models\AuditAction;
 use AuthServer\Models\Client;
+use Psr\Http\Message\ServerRequestInterface;
 
 use function AuthServer\formatSqlDatetime;
 use function AuthServer\getGuid;
@@ -33,6 +35,7 @@ class ClientAdminService
         private readonly LoginRepository $logins,
         private readonly OfflineSessionRepository $offlineSessions,
         private readonly SecretsService $secretsService,
+        private readonly AuditLogWriter $auditLog,
     ) {
     }
 
@@ -45,7 +48,7 @@ class ClientAdminService
      *     scope?: string|null,
      * } $params
      */
-    public function create(array $params, string $realmId): Client
+    public function create(array $params, string $realmId, ServerRequestInterface $request): Client
     {
         if ($this->realms->findById($realmId) === null) {
             throw new ValidationFailed("unknown realm '$realmId'");
@@ -76,7 +79,11 @@ class ClientAdminService
             $params['scope'] ?? null
         );
 
-        return $this->clients->create($client);
+        $created = $this->clients->create($client);
+
+        $this->auditLog->log($request, AuditAction::ClientCreate, 'client', $created->getId(), $realmId);
+
+        return $created;
     }
 
     /**
@@ -89,7 +96,7 @@ class ClientAdminService
      *     scope?: string|null,
      * } $params
      */
-    public function update(Client $existing, array $params): Client
+    public function update(Client $existing, array $params, ServerRequestInterface $request): Client
     {
         if ($this->findDuplicate($params['name'], $params['uri'], $existing->getId()) !== null) {
             throw new ConflictException("client '{$params['name']}' with this uri already exists");
@@ -138,11 +145,16 @@ class ClientAdminService
 
         $this->clients->update($client);
 
+        $this->auditLog->log($request, AuditAction::ClientUpdate, 'client', $client->getId(), $realmId);
+
         return $client;
     }
 
-    public function delete(string $clientId): void
+    public function delete(string $clientId, ServerRequestInterface $request): void
     {
+        $existing = $this->clients->findById($clientId);
+        $realmId = $existing?->getRealmId();
+
         $this->transact(function () use ($clientId): void {
             if ($this->logins->countActiveByClientId($clientId) > 0) {
                 throw new ConflictException("client '$clientId' still has active logins");
@@ -157,6 +169,10 @@ class ClientAdminService
             $this->offlineSessions->deleteByClientId($clientId);
             $this->clients->delete($clientId);
         });
+
+        if ($existing !== null) {
+            $this->auditLog->log($request, AuditAction::ClientDelete, 'client', $clientId, $realmId);
+        }
     }
 
     private function findDuplicate(string $name, string $uri, ?string $excludeId): ?Client

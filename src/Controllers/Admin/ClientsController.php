@@ -56,7 +56,7 @@ class ClientsController
                 'require_auth' => $this->strictBool($body, 'require_auth', false),
                 'client_secret' => $body['client_secret'] ?? null,
                 'scope' => $this->optionalString($body, 'scope', null),
-            ], $this->requiredString($body, 'realm_id'));
+            ], $this->requiredString($body, 'realm_id'), $request);
 
             return JsonResponse::create($response, self::toArray($client), 201);
         } catch (ValidationFailed $e) {
@@ -85,7 +85,7 @@ class ClientsController
                 'require_auth' => $this->strictBool($body, 'require_auth', $existing->requiresAuth()),
                 'client_secret' => $body['client_secret'] ?? null,
                 'scope' => $this->optionalString($body, 'scope', $existing->getScopeString()),
-            ]);
+            ], $request);
 
             return JsonResponse::create($response, self::toArray($client));
         } catch (ValidationFailed $e) {
@@ -98,7 +98,7 @@ class ClientsController
         $id = $request->getAttribute('id');
         $this->findClientOrFail($request, $id);
 
-        $this->clientAdmin->delete($id);
+        $this->clientAdmin->delete($id, $request);
 
         return $response->withStatus(204);
     }

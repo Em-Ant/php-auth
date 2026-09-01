@@ -46,7 +46,7 @@ class RealmsController
         try {
             $body = (array) ($request->getParsedBody() ?? []);
 
-            $realm = $this->realmAdmin->create($this->realmParams($body, null));
+            $realm = $this->realmAdmin->create($this->realmParams($body, null), $request);
 
             return JsonResponse::create($response, self::toArray($realm), 201);
         } catch (ValidationFailed $e) {
@@ -68,7 +68,7 @@ class RealmsController
 
             $body = (array) ($request->getParsedBody() ?? []);
 
-            $realm = $this->realmAdmin->update($existing, $this->realmParams($body, $existing));
+            $realm = $this->realmAdmin->update($existing, $this->realmParams($body, $existing), $request);
 
             return JsonResponse::create($response, self::toArray($realm));
         } catch (ValidationFailed $e) {
@@ -81,7 +81,7 @@ class RealmsController
         $id = $request->getAttribute('id');
         $this->findRealmOrFail($request, $id);
 
-        $this->realmAdmin->delete($id);
+        $this->realmAdmin->delete($id, $request);
 
         return $response->withStatus(204);
     }

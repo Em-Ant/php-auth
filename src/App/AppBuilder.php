@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AuthServer\App;
 
+use AuthServer\Controllers\Admin\AuditLogController;
 use AuthServer\Controllers\Admin\ClientsController;
 use AuthServer\Controllers\Admin\KeysController;
 use AuthServer\Controllers\Admin\LoginsController;
@@ -159,7 +160,7 @@ final class AppBuilder
                 $rawBody = (string) $request->getBody();
 
                 if (
-                    in_array($request->getMethod(), ['POST', 'PUT'], true)
+                    in_array($request->getMethod(), ['POST', 'PUT', 'DELETE'], true)
                     && $rawBody !== ''
                 ) {
                     if (str_contains($contentType, 'application/json')) {
@@ -318,6 +319,8 @@ final class AppBuilder
         $userRolesController = $container->get(UserRolesController::class);
         $scopeRolesController = $container->get(ScopeRolesController::class);
 
+        $auditLogController = $container->get(AuditLogController::class);
+
         $app->group('/admin', function (RouteCollectorProxy $group) use (
             $realmsController,
             $clientsController,
@@ -328,7 +331,8 @@ final class AppBuilder
             $offlineSessionsController,
             $rolesController,
             $userRolesController,
-            $scopeRolesController
+            $scopeRolesController,
+            $auditLogController
         ) {
             $group->post('/keys', [$keysController, 'generate']);
 
@@ -375,6 +379,10 @@ final class AppBuilder
             $group->post(self::CLIENT_SCOPE_ROLES_ROUTE, [$scopeRolesController, 'create']);
             $group->put(self::CLIENT_SCOPE_ROLE_BY_ID_ROUTE, [$scopeRolesController, 'update']);
             $group->delete(self::CLIENT_SCOPE_ROLE_BY_ID_ROUTE, [$scopeRolesController, 'delete']);
+
+            $group->get('/audit-logs', [$auditLogController, 'list']);
+            $group->get('/audit-logs/{id}', [$auditLogController, 'read']);
+            $group->delete('/audit-logs', [$auditLogController, 'purge']);
         })->add($adminMiddleware);
     }
 

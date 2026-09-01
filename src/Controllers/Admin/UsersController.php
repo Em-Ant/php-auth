@@ -58,7 +58,7 @@ class UsersController
                 'name' => $this->optionalString($body, 'name', null),
                 'valid' => $this->strictBool($body, 'valid', true),
                 'email_verified' => $this->strictBool($body, 'email_verified', true),
-            ]);
+            ], $request);
 
             return JsonResponse::create($response, self::toArray($user), 201);
         } catch (ValidationFailed $e) {
@@ -88,7 +88,7 @@ class UsersController
                 'name' => $this->optionalString($body, 'name', null),
                 'valid' => $this->optionalBool($body, 'valid'),
                 'email_verified' => $this->optionalBool($body, 'email_verified'),
-            ]);
+            ], $request);
 
             return JsonResponse::create($response, self::toArray($user));
         } catch (ValidationFailed $e) {
@@ -101,7 +101,7 @@ class UsersController
         $id = $request->getAttribute('id');
         $this->findUserOrFail($request, $id);
 
-        $this->userAdmin->deleteUser($id);
+        $this->userAdmin->deleteUser($id, $request);
 
         return $response->withStatus(204);
     }
