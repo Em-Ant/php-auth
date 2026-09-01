@@ -43,6 +43,7 @@ use AuthServer\Repositories\TokenBlacklistRepository;
 use AuthServer\Repositories\UserRepository;
 use AuthServer\Services\AuthenticationOrchestrator;
 use AuthServer\Services\ActiveSessionResolver;
+use AuthServer\Services\ClientAdminService;
 use AuthServer\Services\ClientAuthenticator;
 use AuthServer\Services\Database;
 use AuthServer\Services\FilesystemKeyStore;
@@ -53,7 +54,9 @@ use AuthServer\Services\LogoutService;
 use AuthServer\Services\MigrationRunner;
 use AuthServer\Services\OfflineSessionService;
 use AuthServer\Services\RateLimiter;
+use AuthServer\Services\RealmAdminService;
 use AuthServer\Services\RoleAdminService;
+use AuthServer\Services\ScopeRoleAdminService;
 use AuthServer\Services\ScopeResolver;
 use AuthServer\Services\SecretsService;
 use AuthServer\Services\SessionOrchestrator;
@@ -64,6 +67,7 @@ use AuthServer\Services\TokenRevocationService;
 use AuthServer\Services\TokenService;
 use AuthServer\Services\TokenValidator;
 use AuthServer\Services\UserAdminService;
+use AuthServer\Services\UserInfoService;
 use AuthServer\Services\ViewRenderer;
 use Monolog\Handler\StreamHandler;
 use Monolog\Logger;
@@ -170,6 +174,10 @@ final class Definitions
             TokenIntrospectionService::class => \DI\autowire(),
             OfflineSessionService::class => \DI\autowire(),
             UserAdminService::class => \DI\autowire(),
+            ClientAdminService::class => \DI\autowire(),
+            RealmAdminService::class => \DI\autowire(),
+            ScopeRoleAdminService::class => \DI\autowire(),
+            UserInfoService::class => \DI\autowire(),
             LoginStateMachine::class => \DI\autowire(),
             ActiveSessionResolver::class => \DI\autowire(),
             ScopeResolver::class => \DI\autowire(),

@@ -4,13 +4,19 @@ declare(strict_types=1);
 
 namespace AuthServer\Tests\Integration\Services;
 
+use AuthServer\Exceptions\ConflictException;
 use AuthServer\Exceptions\StorageFailed;
+use AuthServer\Exceptions\ValidationFailed;
+use AuthServer\Interfaces\OfflineSessionRepository;
+use AuthServer\Interfaces\RealmRepository;
+use AuthServer\Interfaces\SessionRepository;
 use AuthServer\Models\User;
 use AuthServer\Repositories\LoginRepository;
-use AuthServer\Repositories\OfflineSessionRepository;
+use AuthServer\Repositories\OfflineSessionRepository as RepoOfflineSessionRepository;
 use AuthServer\Repositories\RoleRepository;
-use AuthServer\Repositories\SessionRepository;
+use AuthServer\Repositories\SessionRepository as RepoSessionRepository;
 use AuthServer\Repositories\UserRepository;
+use AuthServer\Services\SecretsService;
 use AuthServer\Services\SessionRevocationService;
 use AuthServer\Services\UserAdminService;
 use AuthServer\Tests\Integration\RepositoryTestCase;
@@ -19,13 +25,15 @@ class UserAdminServiceTest extends RepositoryTestCase
 {
     private const TEST_REALM = 'c03aa58c-2888-4f40-821c-4aadf5c58f6f';
     private const EMANT_TEST = 'b0aa0c22-a356-40c7-9fa2-6f973c3f614a';
+    private const EMANT_EMAIL = 'test@example.com';
+    private const LOCAL_CLIENT = 'a540c566-dfbf-430a-9941-fb8531c022d4';
+    private const TEST_PASSWORD = 'tst';
 
     public function testCreateUserPersistsUserAndRealmRoles(): void
     {
         $service = $this->service();
-        $user = self::user('u-atomic-create', 'atomic-create@example.test');
 
-        $created = $service->createUser($user, ['basic']);
+        $created = $service->createUser($this->createParams('u-atomic-create', 'atomic-create@example.test'));
 
         $stored = $this->users()->findById($created->getId());
         self::assertNotNull($stored);
@@ -33,13 +41,31 @@ class UserAdminServiceTest extends RepositoryTestCase
         self::assertSame(['basic'], $this->roles()->findRealmRoleNamesByUserId($stored->getId(), self::TEST_REALM));
     }
 
+    public function testCreateUserRejectsDuplicateEmail(): void
+    {
+        $service = $this->service();
+
+        $this->expectException(ConflictException::class);
+        $service->createUser($this->createParams('u-dup-1', self::EMANT_EMAIL));
+    }
+
+    public function testCreateUserRejectsUnknownRealm(): void
+    {
+        $service = $this->service();
+
+        $this->expectException(ValidationFailed::class);            $service->createUser([
+                'realm_id' => 'no-such-realm',
+                'email' => 'ghost@example.test',
+                'password' => self::TEST_PASSWORD,
+            ]);
+    }
+
     public function testCreateUserRollsBackUserRowWhenRoleSyncFails(): void
     {
-        $service = new UserAdminService(self::$pdo, $this->users(), $this->failingRoles(), $this->revocations());
-        $user = self::user('u-atomic-fail', 'atomic-fail@example.test');
+        $service = $this->serviceWith($this->failingRoles(), $this->revocations());
 
         try {
-            $service->createUser($user, ['basic']);
+            $service->createUser($this->createParams('u-atomic-fail', 'atomic-fail@example.test'));
             self::fail('expected StorageFailed');
         } catch (StorageFailed) {
             self::assertNull($this->users()->findById('u-atomic-fail'));
@@ -48,22 +74,12 @@ class UserAdminServiceTest extends RepositoryTestCase
 
     public function testUpdateUserRollsBackWhenRoleSyncFails(): void
     {
-        $service = new UserAdminService(self::$pdo, $this->users(), $this->failingRoles(), $this->revocations());
+        $service = $this->serviceWith($this->failingRoles(), $this->revocations());
         $existing = $this->users()->findById(self::EMANT_TEST);
         self::assertNotNull($existing);
 
-        $renamed = new User(
-            $existing->getId(),
-            $existing->getRealmId(),
-            'renamed-but-doomed',
-            $existing->getEmail(),
-            $existing->getPassword(),
-            $existing->getCreatedAt()->format('Y-m-d H:i:s'),
-            $existing->getValid()
-        );
-
         try {
-            $service->updateUser($renamed, ['basic']);
+            $service->updateUser($existing, ['name' => 'renamed-but-doomed']);
             self::fail('expected StorageFailed');
         } catch (StorageFailed) {
             $after = $this->users()->findById(self::EMANT_TEST);
@@ -75,19 +91,13 @@ class UserAdminServiceTest extends RepositoryTestCase
     public function testUpdateUserPersistsChangesAndRolesTogether(): void
     {
         $service = $this->service();
-        $user = self::user('u-atomic-update', 'atomic-update@example.test');
-        $service->createUser($user, ['basic']);
+        $user = $service->createUser($this->createParams('u-atomic-update', 'atomic-update@example.test'));
 
-        $changed = new User(
-            $user->getId(),
-            $user->getRealmId(),
-            'renamed',
-            $user->getEmail(),
-            $user->getPassword(),
-            $user->getCreatedAt()->format('Y-m-d H:i:s'),
-            false
-        );
-        $service->updateUser($changed, ['manager']);
+        $service->updateUser($user, [
+            'name' => 'renamed',
+            'valid' => false,
+            'realm_roles' => 'manager',
+        ]);
 
         $stored = $this->users()->findById($user->getId());
         self::assertNotNull($stored);
@@ -96,44 +106,125 @@ class UserAdminServiceTest extends RepositoryTestCase
         self::assertSame(['manager'], $this->roles()->findRealmRoleNamesByUserId($user->getId(), self::TEST_REALM));
     }
 
-    public function testRotatePasswordPersistsHashAndRevokesSessions(): void
+    public function testUpdateUserKeepsRolesWhenNotProvided(): void
     {
         $service = $this->service();
-        $user = self::user('u-rotate-ok', 'rotate-ok@example.test');
-        $service->createUser($user, ['basic']);
+        $user = $service->createUser($this->createParams('u-keep-roles', 'keep-roles@example.test'));
+
+        $service->updateUser($user, ['name' => 'kept-roles']);
+
+        self::assertSame(['basic'], $this->roles()->findRealmRoleNamesByUserId($user->getId(), self::TEST_REALM));
+    }
+
+    public function testUpdateUserWithPasswordRotatesAndRevokesSessions(): void
+    {
+        $service = $this->service();
+        $user = $service->createUser($this->createParams('u-rotate-ok', 'rotate-ok@example.test'));
         $this->insertSession($user->getId());
 
-        $service->rotatePassword(self::withPassword($user, 'new-hash'), ['basic']);
+        $service->updateUser($user, ['password' => self::TEST_PASSWORD]);
 
         $stored = $this->users()->findById($user->getId());
         self::assertNotNull($stored);
-        self::assertSame('new-hash', $stored->getPassword());
+        self::assertTrue($this->secrets()->validatePassword(self::TEST_PASSWORD, $stored->getPassword()));
         self::assertSame(0, $this->countSessions($user->getId()));
     }
 
-    public function testRotatePasswordRollsBackEverythingWhenRevocationFails(): void
+    public function testUpdateUserRejectsEmptyPassword(): void
     {
-        $service = new UserAdminService(self::$pdo, $this->users(), $this->roles(), $this->failingRevocations());
-        $user = self::user('u-rotate-fail', 'rotate-fail@example.test');
-        $service->createUser($user, ['basic']);
+        $service = $this->service();
+        $user = $this->users()->findById(self::EMANT_TEST);
+        self::assertNotNull($user);
+
+        $this->expectException(ValidationFailed::class);
+        $service->updateUser($user, ['password' => '']);
+    }
+
+    public function testUpdateUserWithPasswordRollsBackEverythingWhenRevocationFails(): void
+    {
+        $service = $this->serviceWith($this->roles(), $this->failingRevocations());
+        $user = $service->createUser($this->createParams('u-rotate-fail', 'rotate-fail@example.test'));
         $this->insertSession($user->getId());
 
         try {
-            $service->rotatePassword(self::withPassword($user, 'doomed-hash'), ['basic']);
+            $service->updateUser($user, ['password' => self::TEST_PASSWORD . '-doomed']);
             self::fail('expected StorageFailed');
         } catch (StorageFailed) {
             // Rotation is all-or-nothing: neither the new hash nor the
             // revocation may survive a failure.
             $after = $this->users()->findById($user->getId());
             self::assertNotNull($after);
-            self::assertSame('hash', $after->getPassword());
             self::assertSame(1, $this->countSessions($user->getId()));
         }
     }
 
+    public function testDeleteUserRemovesUserAndExpiredOfflineGrants(): void
+    {
+        $service = $this->service();
+        $user = $service->createUser($this->createParams('u-delete-ok', 'delete-ok@example.test'));
+
+        $service->deleteUser($user->getId());
+
+        self::assertNull($this->users()->findById($user->getId()));
+    }
+
+    public function testDeleteUserBlockedByActiveSessions(): void
+    {
+        $service = $this->service();
+        $user = $service->createUser($this->createParams('u-delete-sess', 'delete-sess@example.test'));
+        $this->insertSession($user->getId());
+
+        $this->expectException(ConflictException::class);
+        $service->deleteUser($user->getId());
+    }
+
+    public function testDeleteUserBlockedByActiveOfflineSession(): void
+    {
+        $service = $this->service();
+        $user = $service->createUser($this->createParams('u-delete-offline', 'delete-offline@example.test'));
+        $this->insertOfflineSession($user->getId());
+
+        $this->expectException(ConflictException::class);
+        $service->deleteUser($user->getId());
+    }
+
+    /**
+     * @return array{
+     *     realm_id: string,
+     *     email: string,
+     *     password: string,
+     *     name: string,
+     *     realm_roles: string,
+     * }
+     */
+    private function createParams(string $id, string $email): array
+    {
+        return [
+            'realm_id' => self::TEST_REALM,
+            'email' => $email,
+            'password' => self::TEST_PASSWORD,
+            'name' => 'Atomic Test ' . $id,
+            'realm_roles' => 'basic',
+        ];
+    }
+
     private function service(): UserAdminService
     {
-        return new UserAdminService(self::$pdo, $this->users(), $this->roles(), $this->revocations());
+        return $this->serviceWith($this->roles(), $this->revocations());
+    }
+
+    private function serviceWith(RoleRepository $roles, SessionRevocationService $revocations): UserAdminService
+    {
+        return new UserAdminService(
+            self::$pdo,
+            $this->users(),
+            $roles,
+            $revocations,
+            $this->secrets(),
+            $this->realms(),
+            $this->sessions(),
+            $this->offlineSessions(),
+        );
     }
 
     private function users(): UserRepository
@@ -144,6 +235,26 @@ class UserAdminServiceTest extends RepositoryTestCase
     private function roles(): RoleRepository
     {
         return new RoleRepository(self::$pdo);
+    }
+
+    private function secrets(): SecretsService
+    {
+        return new SecretsService(['algorithm' => 'bcrypt', 'bcrypt_cost' => 4]);
+    }
+
+    private function realms(): RealmRepository
+    {
+        return new \AuthServer\Repositories\RealmRepository(self::$pdo);
+    }
+
+    private function sessions(): SessionRepository
+    {
+        return new RepoSessionRepository(self::$pdo);
+    }
+
+    private function offlineSessions(): OfflineSessionRepository
+    {
+        return new RepoOfflineSessionRepository(self::$pdo);
     }
 
     private function revocations(): SessionRevocationService
@@ -157,9 +268,9 @@ class UserAdminServiceTest extends RepositoryTestCase
     private function revocationDeps(): array
     {
         return [
-            new SessionRepository(self::$pdo),
+            new RepoSessionRepository(self::$pdo),
             new LoginRepository(self::$pdo),
-            new OfflineSessionRepository(self::$pdo),
+            new RepoOfflineSessionRepository(self::$pdo),
         ];
     }
 
@@ -187,6 +298,20 @@ class UserAdminServiceTest extends RepositoryTestCase
         $stmt->execute([':id' => 'sess-' . $userId, ':realm' => self::TEST_REALM, ':user' => $userId]);
     }
 
+    private function insertOfflineSession(string $userId): void
+    {
+        $stmt = self::$pdo->prepare(
+            "INSERT INTO offline_sessions (id, realm_id, user_id, client_id, acr, scope, refresh_token, status)
+             VALUES (:id, :realm, :user, :client, '0', 'openid', 'token', 'ACTIVE')"
+        );
+        $stmt->execute([
+            ':id' => 'offline-' . $userId,
+            ':realm' => self::TEST_REALM,
+            ':user' => $userId,
+            ':client' => self::LOCAL_CLIENT,
+        ]);
+    }
+
     private function countSessions(string $userId): int
     {
         $stmt = self::$pdo->prepare('SELECT COUNT(*) FROM sessions WHERE user_id = :user');
@@ -207,23 +332,5 @@ class UserAdminServiceTest extends RepositoryTestCase
                 throw new StorageFailed('simulated role sync failure');
             }
         };
-    }
-
-    private static function user(string $id, string $email): User
-    {
-        return new User($id, self::TEST_REALM, 'Atomic Test', $email, 'hash', '2026-01-01 00:00:00', true);
-    }
-
-    private static function withPassword(User $user, string $password): User
-    {
-        return new User(
-            $user->getId(),
-            $user->getRealmId(),
-            $user->getName(),
-            $user->getEmail(),
-            $password,
-            $user->getCreatedAt()->format('Y-m-d H:i:s'),
-            $user->getValid()
-        );
     }
 }

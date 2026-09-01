@@ -4,21 +4,16 @@ declare(strict_types=1);
 
 namespace AuthServer\Controllers\Admin;
 
-use AuthServer\Exceptions\ConflictException;
 use AuthServer\Exceptions\ValidationFailed;
-use AuthServer\Interfaces\ClientRepository;
-use AuthServer\Interfaces\KeyStore;
 use AuthServer\Interfaces\RealmRepository;
-use AuthServer\Interfaces\UserRepository;
 use AuthServer\Models\Realm;
 use AuthServer\Response\JsonResponse;
+use AuthServer\Services\RealmAdminService;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Slim\Exception\HttpNotFoundException;
 
 use function AuthServer\formatSqlDatetime;
-use function AuthServer\getGuid;
-use function AuthServer\sqlNow;
 
 class RealmsController
 {
@@ -32,9 +27,7 @@ class RealmsController
 
     public function __construct(
         private readonly RealmRepository $realms,
-        private readonly ClientRepository $clients,
-        private readonly UserRepository $users,
-        private readonly KeyStore $keyStore,
+        private readonly RealmAdminService $realmAdmin,
     ) {
     }
 
@@ -53,31 +46,7 @@ class RealmsController
         try {
             $body = (array) ($request->getParsedBody() ?? []);
 
-            $name = $this->requiredString($body, 'name');
-            $keysId = $this->requiredString($body, 'keys_id');
-
-            if ($this->realms->findByName($name) !== null) {
-                throw new ConflictException("realm '$name' already exists");
-            }
-
-            $this->assertKeysExist($keysId);
-
-            $realm = new Realm(
-                getGuid(),
-                $name,
-                $keysId,
-                $this->optionalInt($body, 'refresh_token_expires_in', self::DEFAULT_TTL),
-                $this->optionalInt($body, 'access_token_expires_in', self::DEFAULT_ACCESS_TTL),
-                $this->optionalInt($body, 'pending_login_expires_in', self::DEFAULT_TTL),
-                $this->optionalInt($body, 'authenticated_login_expires_in', self::DEFAULT_TTL),
-                $this->optionalInt($body, 'session_expires_in', self::DEFAULT_SESSION_TTL),
-                $this->optionalInt($body, 'idle_session_expires_in', self::DEFAULT_TTL),
-                $this->optionalString($body, 'scope', null) ?? self::DEFAULT_SCOPE,
-                sqlNow(),
-                $this->optionalInt($body, 'offline_refresh_token_expires_in', self::DEFAULT_OFFLINE_TTL)
-            );
-
-            $this->realms->create($realm);
+            $realm = $this->realmAdmin->create($this->realmParams($body, null));
 
             return JsonResponse::create($response, self::toArray($realm), 201);
         } catch (ValidationFailed $e) {
@@ -99,38 +68,7 @@ class RealmsController
 
             $body = (array) ($request->getParsedBody() ?? []);
 
-            $name = $this->optionalString($body, 'name', null) ?? $existing->getName();
-            if ($this->realms->findByName($name) !== null && $name !== $existing->getName()) {
-                throw new ConflictException("realm '$name' already exists");
-            }
-
-            $keysId = $this->optionalString($body, 'keys_id', null) ?? $existing->getKeysId();
-            $this->assertKeysExist($keysId);
-
-            $realm = new Realm(
-                $existing->getId(),
-                $name,
-                $keysId,
-                $this->optionalInt($body, 'refresh_token_expires_in', $existing->getRefreshTokenExpiresIn()),
-                $this->optionalInt($body, 'access_token_expires_in', $existing->getAccessTokenExpiresIn()),
-                $this->optionalInt($body, 'pending_login_expires_in', $existing->getPendingLoginExpiresIn()),
-                $this->optionalInt(
-                    $body,
-                    'authenticated_login_expires_in',
-                    $existing->getAuthenticatedLoginExpiresIn()
-                ),
-                $this->optionalInt($body, 'session_expires_in', $existing->getSessionExpiresIn()),
-                $this->optionalInt($body, 'idle_session_expires_in', $existing->getIdleSessionExpiresIn()),
-                $this->optionalString($body, 'scope', null) ?? implode(' ', $existing->getScope()),
-                formatSqlDatetime($existing->getCreatedAt()),
-                $this->optionalInt(
-                    $body,
-                    'offline_refresh_token_expires_in',
-                    $existing->getOfflineRefreshTokenExpiresIn()
-                )
-            );
-
-            $this->realms->update($realm);
+            $realm = $this->realmAdmin->update($existing, $this->realmParams($body, $existing));
 
             return JsonResponse::create($response, self::toArray($realm));
         } catch (ValidationFailed $e) {
@@ -143,13 +81,98 @@ class RealmsController
         $id = $request->getAttribute('id');
         $this->findRealmOrFail($request, $id);
 
-        if ($this->clients->countByRealmId($id) > 0 || $this->users->countByRealmId($id) > 0) {
-            throw new ConflictException("realm '$id' still has clients or users");
-        }
-
-        $this->realms->delete($id);
+        $this->realmAdmin->delete($id);
 
         return $response->withStatus(204);
+    }
+
+    /**
+     * Resolves the realm fields from the request body. `$existing` provides
+     * the defaults for absent fields on update; null means create, so the
+     * realm config defaults apply instead.
+     *
+     * @return array{
+     *     name: string,
+     *     keys_id: string,
+     *     refresh_token_expires_in: int,
+     *     access_token_expires_in: int,
+     *     pending_login_expires_in: int,
+     *     authenticated_login_expires_in: int,
+     *     session_expires_in: int,
+     *     idle_session_expires_in: int,
+     *     scope: string,
+     *     offline_refresh_token_expires_in: int,
+     * }
+     */
+    private function realmParams(array $body, ?Realm $existing): array
+    {
+        $defaults = $existing === null
+            ? [
+                'refresh_token_expires_in' => self::DEFAULT_TTL,
+                'access_token_expires_in' => self::DEFAULT_ACCESS_TTL,
+                'pending_login_expires_in' => self::DEFAULT_TTL,
+                'authenticated_login_expires_in' => self::DEFAULT_TTL,
+                'session_expires_in' => self::DEFAULT_SESSION_TTL,
+                'idle_session_expires_in' => self::DEFAULT_TTL,
+                'scope' => self::DEFAULT_SCOPE,
+                'offline_refresh_token_expires_in' => self::DEFAULT_OFFLINE_TTL,
+            ]
+            : [
+                'refresh_token_expires_in' => $existing->getRefreshTokenExpiresIn(),
+                'access_token_expires_in' => $existing->getAccessTokenExpiresIn(),
+                'pending_login_expires_in' => $existing->getPendingLoginExpiresIn(),
+                'authenticated_login_expires_in' => $existing->getAuthenticatedLoginExpiresIn(),
+                'session_expires_in' => $existing->getSessionExpiresIn(),
+                'idle_session_expires_in' => $existing->getIdleSessionExpiresIn(),
+                'scope' => implode(' ', $existing->getScope()),
+                'offline_refresh_token_expires_in' => $existing->getOfflineRefreshTokenExpiresIn(),
+            ];
+
+        return [
+            // Required on create, optional-with-existing-default on update.
+            'name' => $existing === null
+                ? $this->requiredString($body, 'name')
+                : $this->optionalString($body, 'name', null) ?? $existing->getName(),
+            'keys_id' => $existing === null
+                ? $this->requiredString($body, 'keys_id')
+                : $this->optionalString($body, 'keys_id', null) ?? $existing->getKeysId(),
+            'refresh_token_expires_in' => $this->optionalInt(
+                $body,
+                'refresh_token_expires_in',
+                $defaults['refresh_token_expires_in']
+            ),
+            'access_token_expires_in' => $this->optionalInt(
+                $body,
+                'access_token_expires_in',
+                $defaults['access_token_expires_in']
+            ),
+            'pending_login_expires_in' => $this->optionalInt(
+                $body,
+                'pending_login_expires_in',
+                $defaults['pending_login_expires_in']
+            ),
+            'authenticated_login_expires_in' => $this->optionalInt(
+                $body,
+                'authenticated_login_expires_in',
+                $defaults['authenticated_login_expires_in']
+            ),
+            'session_expires_in' => $this->optionalInt(
+                $body,
+                'session_expires_in',
+                $defaults['session_expires_in']
+            ),
+            'idle_session_expires_in' => $this->optionalInt(
+                $body,
+                'idle_session_expires_in',
+                $defaults['idle_session_expires_in']
+            ),
+            'scope' => $this->optionalString($body, 'scope', null) ?? $defaults['scope'],
+            'offline_refresh_token_expires_in' => $this->optionalInt(
+                $body,
+                'offline_refresh_token_expires_in',
+                $defaults['offline_refresh_token_expires_in']
+            ),
+        ];
     }
 
     private function findRealmOrFail(ServerRequestInterface $request, string $id): Realm
@@ -159,15 +182,6 @@ class RealmsController
             throw new HttpNotFoundException($request, "realm '$id' not found");
         }
         return $realm;
-    }
-
-    private function assertKeysExist(string $keysId): void
-    {
-        try {
-            $this->keyStore->findKeys($keysId);
-        } catch (\RuntimeException $e) {
-            throw new ValidationFailed("unknown keys_id '$keysId'");
-        }
     }
 
     private static function toArray(Realm $realm): array

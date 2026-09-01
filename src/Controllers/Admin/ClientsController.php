@@ -4,22 +4,16 @@ declare(strict_types=1);
 
 namespace AuthServer\Controllers\Admin;
 
-use AuthServer\Exceptions\ConflictException;
 use AuthServer\Exceptions\ValidationFailed;
 use AuthServer\Interfaces\ClientRepository;
-use AuthServer\Interfaces\LoginRepository;
-use AuthServer\Interfaces\OfflineSessionRepository;
-use AuthServer\Interfaces\RealmRepository;
 use AuthServer\Models\Client;
 use AuthServer\Response\JsonResponse;
-use AuthServer\Services\SecretsService;
+use AuthServer\Services\ClientAdminService;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Slim\Exception\HttpNotFoundException;
 
 use function AuthServer\formatSqlDatetime;
-use function AuthServer\getGuid;
-use function AuthServer\sqlNow;
 
 class ClientsController
 {
@@ -27,10 +21,7 @@ class ClientsController
 
     public function __construct(
         private readonly ClientRepository $clients,
-        private readonly RealmRepository $realms,
-        private readonly LoginRepository $logins,
-        private readonly OfflineSessionRepository $offlineSessions,
-        private readonly SecretsService $secretsService,
+        private readonly ClientAdminService $clientAdmin,
     ) {
     }
 
@@ -59,40 +50,13 @@ class ClientsController
         try {
             $body = (array) ($request->getParsedBody() ?? []);
 
-            $name = $this->requiredString($body, 'name');
-            $realmId = $this->requiredString($body, 'realm_id');
-            $uri = $this->requiredString($body, 'uri');
-
-            if ($this->realms->findById($realmId) === null) {
-                throw new ValidationFailed("unknown realm '$realmId'");
-            }
-
-            $requireAuth = $this->strictBool($body, 'require_auth', false);
-            $secretProvided = array_key_exists('client_secret', $body) && $body['client_secret'] !== null;
-            self::assertPublicHasNoSecret($requireAuth, $secretProvided);
-            // Invariant check on the raw value before any hashing, matching
-            // the update path: '' counts as "no secret" and surfaces as 409,
-            // and a rejected request costs no argon2 work.
-            self::assertConfidentialHasSecret($requireAuth, $body['client_secret'] ?? null);
-
-            $clientSecret = $this->optionalSecret($body);
-
-            if ($this->findDuplicate($name, $uri, null) !== null) {
-                throw new ConflictException("client '$name' with this uri already exists");
-            }
-
-            $client = new Client(
-                getGuid(),
-                $name,
-                $realmId,
-                $clientSecret,
-                $uri,
-                $requireAuth,
-                sqlNow(),
-                $this->optionalString($body, 'scope', null)
-            );
-
-            $this->clients->create($client);
+            $client = $this->clientAdmin->create([
+                'name' => $this->requiredString($body, 'name'),
+                'uri' => $this->requiredString($body, 'uri'),
+                'require_auth' => $this->strictBool($body, 'require_auth', false),
+                'client_secret' => $body['client_secret'] ?? null,
+                'scope' => $this->optionalString($body, 'scope', null),
+            ], $this->requiredString($body, 'realm_id'));
 
             return JsonResponse::create($response, self::toArray($client), 201);
         } catch (ValidationFailed $e) {
@@ -114,55 +78,14 @@ class ClientsController
 
             $body = (array) ($request->getParsedBody() ?? []);
 
-            $name = $this->optionalString($body, 'name', null) ?? $existing->getName();
-            $uri = $this->optionalString($body, 'uri', null) ?? $existing->getUri();
-
-            if ($this->findDuplicate($name, $uri, $existing->getId()) !== null) {
-                throw new ConflictException("client '$name' with this uri already exists");
-            }
-
-            $realmId = $this->optionalString($body, 'realm_id', null) ?? $existing->getRealmId();
-            if ($this->realms->findById($realmId) === null) {
-                throw new ValidationFailed("unknown realm '$realmId'");
-            }
-
-            $newRequireAuth = $this->strictBool($body, 'require_auth', $existing->requiresAuth());
-            $secretProvided = array_key_exists('client_secret', $body) && $body['client_secret'] !== null;
-
-            // Invariant checks run before any hashing: a rejected request
-            // costs no argon2 work and surfaces as 409, not as a value error.
-            if (!$newRequireAuth) {
-                // A secret in a demotion request is contradictory input; an
-                // existing secret (or a legacy empty-string hash) is cleared
-                // so 'public ⇒ no secret' stays honest. It can be re-issued
-                // on a later promotion.
-                self::assertPublicHasNoSecret(false, $secretProvided);
-                $newSecret = null;
-            } else {
-                // Promotion to confidential requires the secret in the same
-                // call: a confidential client without one cannot authenticate
-                // at the token endpoint.
-                self::assertConfidentialHasSecret(
-                    $newRequireAuth,
-                    $secretProvided ? $body['client_secret'] : $existing->getClientSecret()
-                );
-                $newSecret = $secretProvided
-                    ? $this->hashSecret($body['client_secret'])
-                    : $existing->getClientSecret();
-            }
-
-            $client = new Client(
-                $existing->getId(),
-                $name,
-                $realmId,
-                $newSecret,
-                $uri,
-                $newRequireAuth,
-                formatSqlDatetime($existing->getCreatedAt()),
-                $this->optionalString($body, 'scope', $existing->getScopeString())
-            );
-
-            $this->clients->update($client);
+            $client = $this->clientAdmin->update($existing, [
+                'name' => $this->optionalString($body, 'name', null) ?? $existing->getName(),
+                'uri' => $this->optionalString($body, 'uri', null) ?? $existing->getUri(),
+                'realm_id' => $this->optionalString($body, 'realm_id', null) ?? $existing->getRealmId(),
+                'require_auth' => $this->strictBool($body, 'require_auth', $existing->requiresAuth()),
+                'client_secret' => $body['client_secret'] ?? null,
+                'scope' => $this->optionalString($body, 'scope', $existing->getScopeString()),
+            ]);
 
             return JsonResponse::create($response, self::toArray($client));
         } catch (ValidationFailed $e) {
@@ -175,18 +98,7 @@ class ClientsController
         $id = $request->getAttribute('id');
         $this->findClientOrFail($request, $id);
 
-        if ($this->logins->countActiveByClientId($id) > 0) {
-            throw new ConflictException("client '$id' still has active logins");
-        }
-
-        if ($this->offlineSessions->countActiveByClientId($id) > 0) {
-            throw new ConflictException("client '$id' still has active offline sessions");
-        }
-
-        // Remove the (already expired) offline grants so the FK does not block
-        // the delete and no orphan rows survive the client.
-        $this->offlineSessions->deleteByClientId($id);
-        $this->clients->delete($id);
+        $this->clientAdmin->delete($id);
 
         return $response->withStatus(204);
     }
@@ -198,50 +110,6 @@ class ClientsController
             throw new HttpNotFoundException($request, "client '$id' not found");
         }
         return $client;
-    }
-
-    private function findDuplicate(string $name, string $uri, ?string $excludeId): ?Client
-    {
-        $existing = $this->clients->findByName($name);
-        if ($existing === null || $existing->getId() === $excludeId) {
-            return null;
-        }
-        return $existing->getUri() === $uri ? $existing : null;
-    }
-
-    private function optionalSecret(array $body): ?string
-    {
-        if (!array_key_exists('client_secret', $body) || $body['client_secret'] === null) {
-            return null;
-        }
-        return $this->hashSecret($body['client_secret']);
-    }
-
-    private function hashSecret(mixed $secret): string
-    {
-        if (!is_string($secret) || trim($secret) === '') {
-            throw new ValidationFailed("'client_secret' must be a non-empty string");
-        }
-        return $this->secretsService->hashPassword($secret);
-    }
-
-    private static function assertConfidentialHasSecret(bool $requireAuth, mixed $secret): void
-    {
-        // 'null' and the legacy empty-string hash are both "no secret": a
-        // confidential client with either can never authenticate. Non-string
-        // input is malformed rather than absent — it passes the invariant and
-        // is rejected by hashSecret as a value error (400).
-        $hasSecret = is_string($secret) ? Client::isSecretPresent($secret) : $secret !== null;
-        if ($requireAuth && !$hasSecret) {
-            throw new ConflictException("a confidential client requires a 'client_secret'");
-        }
-    }
-
-    private static function assertPublicHasNoSecret(bool $requireAuth, bool $secretProvided): void
-    {
-        if (!$requireAuth && $secretProvided) {
-            throw new ConflictException("a public client cannot have a 'client_secret'");
-        }
     }
 
     private static function toArray(Client $client): array

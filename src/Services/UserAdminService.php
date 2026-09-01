@@ -4,33 +4,80 @@ declare(strict_types=1);
 
 namespace AuthServer\Services;
 
+use AuthServer\Exceptions\ConflictException;
+use AuthServer\Exceptions\ValidationFailed;
+use AuthServer\Interfaces\OfflineSessionRepository;
+use AuthServer\Interfaces\RealmRepository;
 use AuthServer\Interfaces\RoleRepository;
+use AuthServer\Interfaces\SessionRepository;
 use AuthServer\Interfaces\UserRepository;
 use AuthServer\Models\User;
+
+use function AuthServer\formatSqlDatetime;
+use function AuthServer\getGuid;
+use function AuthServer\sqlNow;
 
 /**
  * Owns the atomic admin write path for users: the user row, its realm-role
  * assignments and — for password rotations — the session revocation are
  * persisted in a single transaction, so a failure in any half leaves no
- * partial state behind.
+ * partial state behind. Also owns the pre-write guards (realm existence,
+ * duplicate email) and the guarded delete cascade.
  */
 class UserAdminService
 {
     use RunsTransactions;
+
+    private const DEFAULT_ROLES = 'basic';
 
     public function __construct(
         private readonly \PDO $db,
         private readonly UserRepository $users,
         private readonly RoleRepository $roles,
         private readonly SessionRevocationService $revocations,
+        private readonly SecretsService $secretsService,
+        private readonly RealmRepository $realms,
+        private readonly SessionRepository $sessions,
+        private readonly OfflineSessionRepository $offlineSessions,
     ) {
     }
 
     /**
-     * @param list<string> $realmRoles
+     * @param array{
+     *     realm_id: string,
+     *     email: string,
+     *     password: mixed,
+     *     name?: string|null,
+     *     valid?: bool,
+     *     email_verified?: bool,
+     *     realm_roles?: string|null,
+     * } $params
      */
-    public function createUser(User $user, array $realmRoles): User
+    public function createUser(array $params): User
     {
+        $realmId = $params['realm_id'];
+        if ($this->realms->findById($realmId) === null) {
+            throw new ValidationFailed("unknown realm '$realmId'");
+        }
+
+        $email = $params['email'];
+        if ($this->users->findByEmailAndRealmId($email, $realmId) !== null) {
+            throw new ConflictException("user '$email' already exists in this realm");
+        }
+
+        $realmRoles = self::splitRoles($params['realm_roles'] ?? self::DEFAULT_ROLES);
+
+        $user = new User(
+            getGuid(),
+            $realmId,
+            $params['name'] ?? '',
+            $email,
+            $this->hashPassword($params['password']),
+            sqlNow(),
+            $params['valid'] ?? true,
+            $params['email_verified'] ?? true
+        );
+
         return $this->transact(function () use ($user, $realmRoles): User {
             $created = $this->users->create($user);
             $this->roles->syncRealmRoles($created->getId(), $created->getRealmId(), $realmRoles);
@@ -39,31 +86,104 @@ class UserAdminService
     }
 
     /**
-     * @param list<string> $realmRoles
+     * @param array{
+     *     realm_id?: string|null,
+     *     email?: string|null,
+     *     password?: mixed,
+     *     name?: string|null,
+     *     valid?: bool,
+     *     email_verified?: bool,
+     *     realm_roles?: string|null,
+     * } $params
      */
-    public function updateUser(User $user, array $realmRoles): void
+    public function updateUser(User $existing, array $params): User
     {
-        $this->transact(function () use ($user, $realmRoles): void {
+        $realmId = $params['realm_id'] ?? $existing->getRealmId();
+        if ($this->realms->findById($realmId) === null) {
+            throw new ValidationFailed("unknown realm '$realmId'");
+        }
+
+        $email = $params['email'] ?? $existing->getEmail();
+        $duplicate = $this->users->findByEmailAndRealmId($email, $realmId);
+        if ($duplicate !== null && $duplicate->getId() !== $existing->getId()) {
+            throw new ConflictException("user '$email' already exists in this realm");
+        }
+
+        $realmRoles = ($params['realm_roles'] ?? null) !== null
+            ? self::splitRoles($params['realm_roles'])
+            : $this->roles->findRealmRoleNamesByUserId($existing->getId(), $existing->getRealmId());
+
+        // A submitted password counts as a rotation: the rotation transaction
+        // also drops the user's live SSO sessions and expires their offline
+        // refresh grants so credentials stolen under the old password die with
+        // it. Everything applies or nothing does — a failed rotation is safe
+        // to retry.
+        $rotating = ($params['password'] ?? null) !== null;
+
+        $user = new User(
+            $existing->getId(),
+            $realmId,
+            $params['name'] ?? $existing->getName(),
+            $email,
+            $rotating ? $this->hashPassword($params['password'] ?? null) : $existing->getPassword(),
+            formatSqlDatetime($existing->getCreatedAt()),
+            $params['valid'] ?? $existing->getValid(),
+            $params['email_verified'] ?? $existing->getEmailVerified()
+        );
+
+        $this->transact(function () use ($user, $realmRoles, $rotating): void {
             $this->updateAndSync($user, $realmRoles);
+            if ($rotating) {
+                $this->revocations->revokeFor($user->getId(), null);
+            }
+        });
+
+        return $user;
+    }
+
+    public function deleteUser(string $userId): void
+    {
+        $this->transact(function () use ($userId): void {
+            if ($this->sessions->countActiveByUserId($userId) > 0) {
+                throw new ConflictException("user '$userId' still has active sessions");
+            }
+
+            if ($this->offlineSessions->countActiveByUserId($userId) > 0) {
+                throw new ConflictException("user '$userId' still has active offline sessions");
+            }
+
+            // Remove the (already expired) offline grants so the FK does not
+            // block the delete and no orphan rows survive the user.
+            $this->offlineSessions->deleteByUserId($userId);
+            $this->users->delete($userId);
         });
     }
 
     /**
-     * Password rotation: persists the update and revokes the user's sessions
-     * (and their offline refresh grants) in the same transaction, so the
-     * rotation either fully applies — new hash, no live sessions — or not at
-     * all, making a failed attempt safe to retry.
-     *
-     * @param list<string> $realmRoles
+     * A password was submitted when the value is non-null. One rule drives
+     * both the hash decision and the rotation trigger, so a null value can
+     * never count as a rotation by accident.
      */
-    public function rotatePassword(User $user, array $realmRoles): void
+    private function hashPassword(mixed $password): string
     {
-        $this->transact(function () use ($user, $realmRoles): void {
-            $this->updateAndSync($user, $realmRoles);
-            $this->revocations->revokeFor($user->getId(), null);
-        });
+        if (!is_string($password) || trim($password) === '') {
+            throw new ValidationFailed("'password' must be a non-empty string");
+        }
+        return $this->secretsService->hashPassword($password);
     }
 
+    /**
+     * @return list<string>
+     */
+    private static function splitRoles(string $roles): array
+    {
+        $parts = explode(' ', trim($roles));
+        return array_values(array_filter($parts, fn(string $p) => $p !== ''));
+    }
+
+    /**
+     * @param list<string> $realmRoles
+     */
     private function updateAndSync(User $user, array $realmRoles): void
     {
         $this->users->update($user);

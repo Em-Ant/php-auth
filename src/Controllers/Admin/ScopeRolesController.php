@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace AuthServer\Controllers\Admin;
 
-use AuthServer\Exceptions\ConflictException;
 use AuthServer\Exceptions\ValidationFailed;
 use AuthServer\Interfaces\ClientRepository;
-use AuthServer\Interfaces\RealmRepository;
 use AuthServer\Interfaces\RoleRepository;
+use AuthServer\Models\ScopeRoleMapping;
 use AuthServer\Response\JsonResponse;
+use AuthServer\Services\ScopeRoleAdminService;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Slim\Exception\HttpNotFoundException;
@@ -21,7 +21,7 @@ class ScopeRolesController
     public function __construct(
         private readonly ClientRepository $clients,
         private readonly RoleRepository $roles,
-        private readonly RealmRepository $realms,
+        private readonly ScopeRoleAdminService $scopeRoleAdmin,
     ) {
     }
 
@@ -68,21 +68,9 @@ class ScopeRolesController
             $roleId = $this->requiredString($body, 'role_id');
             $required = $this->strictBool($body, 'required', false);
 
-            $this->assertScopeIsValidForClient($clientId, $scope);
+            $mapping = $this->scopeRoleAdmin->create($clientId, $scope, $roleId, $required);
 
-            $role = $this->roles->findById($roleId);
-            if ($role === null) {
-                throw new ValidationFailed("unknown role '$roleId'");
-            }
-
-            $existing = $this->roles->findScopeRoleMapping($clientId, $scope, $roleId);
-            if ($existing !== null) {
-                throw new ConflictException("mapping for scope '$scope' and role '$roleId' already exists");
-            }
-
-            $this->roles->createScopeRoleMapping($clientId, $scope, $roleId, $required);
-
-            $data = self::mappingToArray($roleId, $scope, $role->getName(), $required);
+            $data = self::mappingToArray($mapping->roleId, $mapping->scope, $mapping->roleName, $mapping->required);
 
             return JsonResponse::create($response, $data, 201);
         } catch (ValidationFailed $e) {
@@ -99,8 +87,6 @@ class ScopeRolesController
             $scope = $request->getAttribute('scope');
             $roleId = $request->getAttribute('role_id');
 
-            $this->assertScopeIsValidForClient($clientId, $scope);
-
             $existing = $this->roles->findScopeRoleMapping($clientId, $scope, $roleId);
             if ($existing === null) {
                 throw new HttpNotFoundException($request, "mapping for scope '$scope' and role '$roleId' not found");
@@ -109,7 +95,7 @@ class ScopeRolesController
             $body = (array) ($request->getParsedBody() ?? []);
             $required = $this->strictBool($body, 'required', $existing->required);
 
-            $this->roles->updateScopeRoleMapping($clientId, $scope, $roleId, $required);
+            $this->scopeRoleAdmin->update($clientId, $scope, $roleId, $required);
 
             return JsonResponse::create($response, [
                 'scope' => $scope,
@@ -129,7 +115,7 @@ class ScopeRolesController
         $scope = $request->getAttribute('scope');
         $roleId = $request->getAttribute('role_id');
 
-        $this->roles->deleteScopeRoleMapping($clientId, $scope, $roleId);
+        $this->scopeRoleAdmin->delete($clientId, $scope, $roleId);
 
         return $response->withStatus(204);
     }
@@ -150,15 +136,5 @@ class ScopeRolesController
             'role_name' => $roleName,
             'required' => $required,
         ];
-    }
-
-    private function assertScopeIsValidForClient(string $clientId, string $scope): void
-    {
-        $client = $this->clients->findById($clientId);
-        $realm = $this->realms->findById($client->getRealmId());
-
-        if (!in_array($scope, $realm->getScope(), true)) {
-            throw new ValidationFailed("scope '$scope' is not allowed in this realm");
-        }
     }
 }

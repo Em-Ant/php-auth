@@ -4,39 +4,24 @@ declare(strict_types=1);
 
 namespace AuthServer\Controllers\Admin;
 
-use AuthServer\Exceptions\ConflictException;
 use AuthServer\Exceptions\ValidationFailed;
-use AuthServer\Interfaces\OfflineSessionRepository;
-use AuthServer\Interfaces\RealmRepository;
-use AuthServer\Interfaces\RoleRepository;
-use AuthServer\Interfaces\SessionRepository;
 use AuthServer\Interfaces\UserRepository;
 use AuthServer\Models\User;
 use AuthServer\Response\JsonResponse;
-use AuthServer\Services\SecretsService;
 use AuthServer\Services\UserAdminService;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Slim\Exception\HttpNotFoundException;
 
 use function AuthServer\formatSqlDatetime;
-use function AuthServer\sqlNow;
-use function AuthServer\getGuid;
 
 class UsersController
 {
     use ValidatesAdminInput;
 
-    private const DEFAULT_ROLES = 'basic';
-
     public function __construct(
         private readonly UserRepository $users,
-        private readonly RealmRepository $realms,
-        private readonly SessionRepository $sessions,
-        private readonly OfflineSessionRepository $offlineSessions,
-        private readonly SecretsService $secretsService,
         private readonly UserAdminService $userAdmin,
-        private readonly RoleRepository $roles,
     ) {
     }
 
@@ -65,34 +50,17 @@ class UsersController
         try {
             $body = (array) ($request->getParsedBody() ?? []);
 
-            $realmId = $this->requiredString($body, 'realm_id');
-            $email = $this->requiredString($body, 'email');
-            $password = $this->requiredString($body, 'password');
+            $user = $this->userAdmin->createUser([
+                'realm_id' => $this->requiredString($body, 'realm_id'),
+                'email' => $this->requiredString($body, 'email'),
+                'password' => $this->requiredString($body, 'password'),
+                'name' => $this->optionalString($body, 'name', null),
+                'valid' => $this->strictBool($body, 'valid', true),
+                'email_verified' => $this->strictBool($body, 'email_verified', true),
+                'realm_roles' => $this->optionalString($body, 'realm_roles', null),
+            ]);
 
-            if ($this->realms->findById($realmId) === null) {
-                throw new ValidationFailed("unknown realm '$realmId'");
-            }
-
-            if ($this->users->findByEmailAndRealmId($email, $realmId) !== null) {
-                throw new ConflictException("user '$email' already exists in this realm");
-            }
-
-            $realmRoles = self::splitRoles($this->optionalString($body, 'realm_roles', null) ?? self::DEFAULT_ROLES);
-
-            $user = new User(
-                getGuid(),
-                $realmId,
-                $this->optionalString($body, 'name', null) ?? '',
-                $email,
-                $this->secretsService->hashPassword($password),
-                sqlNow(),
-                $this->strictBool($body, 'valid', true),
-                $this->strictBool($body, 'email_verified', true)
-            );
-
-            $created = $this->userAdmin->createUser($user, $realmRoles);
-
-            return JsonResponse::create($response, self::toArray($created), 201);
+            return JsonResponse::create($response, self::toArray($user), 201);
         } catch (ValidationFailed $e) {
             return JsonResponse::error($response, 'invalid_request', $e->getMessage(), 400);
         }
@@ -112,40 +80,15 @@ class UsersController
 
             $body = (array) ($request->getParsedBody() ?? []);
 
-            $realmId = $this->optionalString($body, 'realm_id', null) ?? $existing->getRealmId();
-            if ($this->realms->findById($realmId) === null) {
-                throw new ValidationFailed("unknown realm '$realmId'");
-            }
-
-            $email = $this->optionalString($body, 'email', null) ?? $existing->getEmail();
-            $duplicate = $this->users->findByEmailAndRealmId($email, $realmId);
-            if ($duplicate !== null && $duplicate->getId() !== $existing->getId()) {
-                throw new ConflictException("user '$email' already exists in this realm");
-            }
-
-            $realmRoles = $this->updatedRealmRoles($body, $existing);
-
-            $user = new User(
-                $existing->getId(),
-                $realmId,
-                $this->optionalString($body, 'name', null) ?? $existing->getName(),
-                $email,
-                $this->updatedPassword($body, $existing),
-                formatSqlDatetime($existing->getCreatedAt()),
-                $this->strictBool($body, 'valid', $existing->getValid()),
-                $this->strictBool($body, 'email_verified', $existing->getEmailVerified())
-            );
-
-            // Sending a password counts as a rotation: the rotation
-            // transaction also drops the user's live SSO sessions and expires
-            // their offline refresh grants so credentials stolen under the
-            // old password die with it. Everything applies or nothing does —
-            // a failed rotation is safe to retry.
-            if (self::passwordProvided($body)) {
-                $this->userAdmin->rotatePassword($user, $realmRoles);
-            } else {
-                $this->userAdmin->updateUser($user, $realmRoles);
-            }
+            $user = $this->userAdmin->updateUser($existing, [
+                'realm_id' => $this->optionalString($body, 'realm_id', null),
+                'email' => $this->optionalString($body, 'email', null),
+                'password' => $body['password'] ?? null,
+                'name' => $this->optionalString($body, 'name', null),
+                'valid' => $this->optionalBool($body, 'valid'),
+                'email_verified' => $this->optionalBool($body, 'email_verified'),
+                'realm_roles' => $this->optionalString($body, 'realm_roles', null),
+            ]);
 
             return JsonResponse::create($response, self::toArray($user));
         } catch (ValidationFailed $e) {
@@ -158,18 +101,7 @@ class UsersController
         $id = $request->getAttribute('id');
         $this->findUserOrFail($request, $id);
 
-        if ($this->sessions->countActiveByUserId($id) > 0) {
-            throw new ConflictException("user '$id' still has active sessions");
-        }
-
-        if ($this->offlineSessions->countActiveByUserId($id) > 0) {
-            throw new ConflictException("user '$id' still has active offline sessions");
-        }
-
-        // Remove the (already expired) offline grants so the FK does not block
-        // the delete and no orphan rows survive the user.
-        $this->offlineSessions->deleteByUserId($id);
-        $this->users->delete($id);
+        $this->userAdmin->deleteUser($id);
 
         return $response->withStatus(204);
     }
@@ -183,43 +115,12 @@ class UsersController
         return $user;
     }
 
-    private function updatedRealmRoles(array $body, User $existing): array
+    private function optionalBool(array $body, string $field): ?bool
     {
-        $raw = $this->optionalString($body, 'realm_roles', null);
-        if ($raw === null) {
-            return $this->roles->findRealmRoleNamesByUserId(
-                $existing->getId(),
-                $existing->getRealmId()
-            );
+        if (!array_key_exists($field, $body) || $body[$field] === null) {
+            return null;
         }
-        return self::splitRoles($raw);
-    }
-
-    /**
-     * A password was submitted when the key is present and non-null. One
-     * rule drives both the hash decision (updatedPassword) and the rotation
-     * trigger, so a null value can never count as a rotation by accident.
-     */
-    private static function passwordProvided(array $body): bool
-    {
-        return array_key_exists('password', $body) && $body['password'] !== null;
-    }
-
-    private static function splitRoles(string $roles): array
-    {
-        $parts = explode(' ', trim($roles));
-        return array_values(array_filter($parts, fn(string $p) => $p !== ''));
-    }
-
-    private function updatedPassword(array $body, User $existing): string
-    {
-        if (!self::passwordProvided($body)) {
-            return $existing->getPassword();
-        }
-        if (!is_string($body['password']) || trim($body['password']) === '') {
-            throw new ValidationFailed("'password' must be a non-empty string");
-        }
-        return $this->secretsService->hashPassword($body['password']);
+        return $this->strictBool($body, $field, false);
     }
 
     private static function toArray(User $user): array
