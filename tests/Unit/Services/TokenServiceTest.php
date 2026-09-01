@@ -15,6 +15,7 @@ use AuthServer\Models\Realm;
 use AuthServer\Models\Session;
 use AuthServer\Models\User;
 use AuthServer\Services\Base64Utils;
+use AuthServer\Services\KeyProvisioning;
 use AuthServer\Services\TokenService;
 use PHPUnit\Framework\TestCase;
 use AuthServer\Services\ScopeResolver;
@@ -458,7 +459,7 @@ class TokenServiceTest extends TestCase
         self::assertTrue($this->tokenService->verifySignature($bundle['refresh_token'], $this->realm));
     }
 
-    // ── createKeys ────────────────────────────────────────────
+    // ── KeyProvisioning (createKeys) ──────────────────────────
 
     public function testCreateKeysWritesAllArtifactsAndReturnsKid(): void
     {
@@ -466,7 +467,8 @@ class TokenServiceTest extends TestCase
         mkdir($keysRoot);
 
         try {
-            $kid = TokenService::createKeys(keysRoot: $keysRoot);
+            $keyProvisioning = new KeyProvisioning($keysRoot);
+            $kid = $keyProvisioning->createKeys();
 
             foreach (['public_key.pem', 'private_key.pem', 'cert.pem', 'keys.json'] as $file) {
                 self::assertFileExists("$keysRoot/$kid/$file");
@@ -491,7 +493,8 @@ class TokenServiceTest extends TestCase
         try {
             $this->expectException(StorageFailed::class);
             $this->expectExceptionMessage('failed to create keys directory');
-            TokenService::createKeys(keysRoot: $keysRoot);
+            $keyProvisioning = new KeyProvisioning($keysRoot);
+            $keyProvisioning->createKeys();
         } finally {
             rmdir($keysRoot);
         }

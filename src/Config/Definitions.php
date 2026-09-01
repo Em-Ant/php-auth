@@ -47,6 +47,7 @@ use AuthServer\Services\ClientAuthenticator;
 use AuthServer\Services\Database;
 use AuthServer\Services\FilesystemKeyStore;
 use AuthServer\Services\HttpSessionCookieHandler;
+use AuthServer\Services\KeyProvisioning;
 use AuthServer\Services\LoginStateMachine;
 use AuthServer\Services\LogoutService;
 use AuthServer\Services\MigrationRunner;
@@ -220,13 +221,14 @@ final class Definitions
             UsersController::class => \DI\autowire(),
             SessionsController::class => \DI\autowire(),
             LoginsController::class => \DI\autowire(),
-            KeysController::class => \DI\autowire()
-                ->constructorParameter('keysRoot', \DI\get('keys_root')),
+            KeysController::class => \DI\autowire(),
             \AuthServer\Controllers\Admin\OfflineSessionsController::class => \DI\autowire(),
             RolesController::class => \DI\autowire(),
             RoleAdminService::class => \DI\autowire(),
             UserRolesController::class => \DI\autowire(),
             ScopeRolesController::class => \DI\autowire(),
+            KeyProvisioning::class => \DI\autowire()
+                ->constructorParameter('keysRoot', \DI\get('keys_root')),
         ];
     }
 
