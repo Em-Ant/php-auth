@@ -16,6 +16,8 @@ use AuthServer\Interfaces\RoleRepository;
  */
 class RoleAdminService
 {
+    use RunsTransactions;
+
     public function __construct(
         private readonly \PDO $db,
         private readonly RoleRepository $roles,
@@ -24,13 +26,7 @@ class RoleAdminService
 
     public function deleteRole(string $roleId): bool
     {
-        $ownsTransaction = !$this->db->inTransaction();
-
-        if ($ownsTransaction) {
-            $this->db->beginTransaction();
-        }
-
-        try {
+        return $this->transact(function () use ($roleId): bool {
             if ($this->roles->countUsersByRoleId($roleId) > 0) {
                 throw new ConflictException("role '$roleId' is still assigned to users");
             }
@@ -39,32 +35,7 @@ class RoleAdminService
                 throw new ConflictException("role '$roleId' is still referenced in scope-role mappings");
             }
 
-            $deleted = $this->roles->delete($roleId);
-
-            if ($ownsTransaction) {
-                $this->db->commit();
-            }
-
-            return $deleted;
-        } catch (\Throwable $e) {
-            if ($ownsTransaction) {
-                $this->rollbackQuietly();
-            }
-            throw $e;
-        }
-    }
-
-    /**
-     * Rollback for transactions this service opened. A swallowed
-     * PDOException here means the failing statement already closed the
-     * transaction (e.g. a deadlock-triggered implicit rollback).
-     */
-    private function rollbackQuietly(): void
-    {
-        try {
-            $this->db->rollBack();
-        } catch (\PDOException) {
-            // transaction already closed
-        }
+            return $this->roles->delete($roleId);
+        });
     }
 }
