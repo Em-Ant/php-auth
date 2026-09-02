@@ -14,6 +14,7 @@ use function AuthServer\sqlNow;
 class LoginRepository implements IRepo
 {
     use PagedListing;
+    use DeleteRows;
 
     private \PDO $db;
 
@@ -342,6 +343,37 @@ class LoginRepository implements IRepo
             "SELECT COUNT(*) FROM logins WHERE client_id = :client_id AND status NOT IN ('EXPIRED')",
             [':client_id' => $clientId],
             'failed to count active logins for client'
+        );
+    }
+
+    /**
+     * Purges logins past their lifetime, mirroring LoginStateMachine::isExpired
+     * per status: EXPIRED is terminal; PENDING/AUTHENTICATED/ACTIVE die with
+     * their realm's per-status TTL (ACTIVE uses the sliding refresh TTL). The
+     * `datetime(...)` comparisons are UTC against `$now` (unixepoch), same as
+     * the runtime checks.
+     */
+    public function deleteExpired(int $now): int
+    {
+        return $this->deleteWhere(
+            "DELETE FROM logins
+             WHERE id IN (
+                 SELECT l.id FROM logins l
+                 JOIN clients c ON l.client_id = c.id
+                 JOIN realms r ON c.realm_id = r.id
+                 WHERE l.status = 'EXPIRED'
+                    OR (l.status = 'PENDING'
+                        AND datetime(l.created_at, '+' || r.pending_login_expires_in || ' seconds')
+                            < datetime(:now, 'unixepoch'))
+                    OR (l.status = 'AUTHENTICATED'
+                        AND datetime(l.authenticated_at, '+' || r.authenticated_login_expires_in || ' seconds')
+                            < datetime(:now, 'unixepoch'))
+                    OR (l.status = 'ACTIVE'
+                        AND datetime(l.updated_at, '+' || r.refresh_token_expires_in || ' seconds')
+                            < datetime(:now, 'unixepoch'))
+             )",
+            [':now' => $now],
+            'failed to purge expired logins'
         );
     }
 

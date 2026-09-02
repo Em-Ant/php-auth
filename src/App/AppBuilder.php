@@ -8,6 +8,7 @@ use AuthServer\Controllers\Admin\AuditLogController;
 use AuthServer\Controllers\Admin\ClientsController;
 use AuthServer\Controllers\Admin\KeysController;
 use AuthServer\Controllers\Admin\LoginsController;
+use AuthServer\Controllers\Admin\MaintenanceController;
 use AuthServer\Controllers\Admin\MigrationsController;
 use AuthServer\Controllers\Admin\OfflineSessionsController;
 use AuthServer\Controllers\Admin\RealmsController;
@@ -305,6 +306,13 @@ final class AppBuilder
             $group->post('/go', [$migrationController, 'go']);
             $group->get('/status', [$migrationController, 'status']);
             $group->get('/dry-run', [$migrationController, 'dryRun']);
+        })->add($adminMiddleware);
+
+        // Maintenance API (blacklist + expired-session cleanup)
+        $maintenanceController = $container->get(MaintenanceController::class);
+
+        $app->group('/admin/maintenance', function (RouteCollectorProxy $group) use ($maintenanceController) {
+            $group->post('/cleanup', [$maintenanceController, 'cleanup']);
         })->add($adminMiddleware);
 
         // Admin API — realms, clients, users, key assignment

@@ -577,6 +577,15 @@ are otherwise only revocable with the token itself (RFC 7009).
 | `/admin/migrations/status` | `GET` | List applied/pending migrations |
 | `/admin/migrations/dry-run` | `GET` | List pending migrations without applying |
 
+### Maintenance
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/admin/maintenance/cleanup` | `POST` | Purge expired blacklist entries, logins, sessions, and offline grants (per-realm TTLs) |
+
+Response body reports the purged counts per table, e.g.
+`{"blacklist_purged":12,"logins_purged":4,"sessions_purged":2,"offline_sessions_purged":0}`.
+
 ### Database browser
 
 The bundled [Adminer](https://www.adminer.org/) UI is served at `/admin/db`

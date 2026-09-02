@@ -38,4 +38,6 @@ interface SessionRepository
     public function countByUserId(string $userId): int;
 
     public function countActiveByUserId(string $userId): int;
+
+    public function deleteExpired(): int;
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AuthServer\Tests\Integration;
 
+use AuthServer\Tests\Support\AuthRecordFixture;
 use AuthServer\Tests\Support\IntegrationFlowTrait;
 use AuthServer\Tests\Support\TestAppFactory;
 use PHPUnit\Framework\TestCase;
@@ -73,22 +74,13 @@ class AdminOfflineSessionsTest extends TestCase
 
     private function seedOfflineSession(string $clientId, string $refreshToken): string
     {
-        $pdo = self::$app->getContainer()->get(\PDO::class);
-        $id = getGuid();
-
-        $stmt = $pdo->prepare(
-            "INSERT INTO offline_sessions (id, realm_id, user_id, client_id, acr, scope, nonce, refresh_token, status)
-             VALUES (:id, :realm, :user, :client, '0', 'openid offline_access', 'nc', :refresh, 'ACTIVE')"
+        return AuthRecordFixture::createOfflineSession(
+            self::$app->getContainer()->get(\PDO::class),
+            self::TEST_REALM,
+            self::TEST_USER,
+            $clientId,
+            refreshToken: $refreshToken,
         );
-        $stmt->execute([
-            ':id' => $id,
-            ':realm' => self::TEST_REALM,
-            ':user' => self::TEST_USER,
-            ':client' => $clientId,
-            ':refresh' => $refreshToken,
-        ]);
-
-        return $id;
     }
 
     public function testListReturnsPaginatedEnvelope(): void

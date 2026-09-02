@@ -13,6 +13,7 @@ use function AuthServer\getGuid;
 class SessionRepository implements IRepo
 {
     use PagedListing;
+    use DeleteRows;
 
     private \PDO $db;
 
@@ -190,6 +191,22 @@ class SessionRepository implements IRepo
             "SELECT COUNT(*) FROM sessions WHERE user_id = :user_id AND status = 'ACTIVE'",
             [':user_id' => $userId],
             'failed to count active sessions for user'
+        );
+    }
+
+    public function deleteExpired(): int
+    {
+        // Logins hold the only FK into sessions, so a session is purged only
+        // once nothing references it; referenced sessions become deletable as
+        // their logins expire (LoginRepository::deleteExpired).
+        return $this->deleteWhere(
+            "DELETE FROM sessions
+             WHERE status = 'EXPIRED'
+               AND NOT EXISTS (
+                   SELECT 1 FROM logins l WHERE l.session_id = sessions.id
+               )",
+            [],
+            'failed to purge expired sessions'
         );
     }
 

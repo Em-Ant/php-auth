@@ -47,4 +47,6 @@ interface OfflineSessionRepository
     public function deleteByUserId(string $userId): int;
 
     public function deleteByClientId(string $clientId): int;
+
+    public function deleteExpired(int $now): int;
 }

@@ -1,6 +1,15 @@
 # 05 — Cleanup task (blacklist + expired sessions)
 
-status: **TODO** — part of the Admin API workstream
+status: **DONE** — delivered as `POST /admin/maintenance/cleanup` (2026-09-02, F-19)
+
+Delivered scope (`src/Services/MaintenanceService.php` + `MaintenanceController`, wired into
+`AppBuilder` under the admin auth middleware): blacklist purge (`exp < now`), login purge
+mirroring `LoginStateMachine` per-status realm TTLs (EXPIRED terminal; PENDING/AUTHENTICATED/ACTIVE
+past their realm TTL; ACTIVE via the sliding refresh TTL), session purge limited to EXPIRED rows
+with no referencing logins (FK-safe), and offline-grant purge for terminal rows plus ACTIVE rows
+past the realm sliding window (`COALESCE(updated_at, created_at)`, matching
+`OfflineSessionService::isExpired`). One transaction, idempotent, returns per-table counts.
+Coverage: `tests/Integration/AdminMaintenanceTest.php` + `bin/e2e-test.sh` Step 27.
 
 ## Situation
 

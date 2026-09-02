@@ -8,6 +8,8 @@ use AuthServer\Exceptions\StorageFailed;
 
 class TokenBlacklistRepository
 {
+    use DeleteRows;
+
     private \PDO $db;
 
     public function __construct(\PDO $db)
@@ -41,5 +43,14 @@ class TokenBlacklistRepository
         } catch (\PDOException $e) {
             throw new StorageFailed('failed to check token in blacklist', 0, $e);
         }
+    }
+
+    public function deleteExpired(int $now): int
+    {
+        return $this->deleteWhere(
+            "DELETE FROM token_blacklist WHERE exp < :now",
+            [':now' => $now],
+            'failed to purge expired blacklist entries'
+        );
     }
 }

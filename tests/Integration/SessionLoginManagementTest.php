@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AuthServer\Tests\Integration;
 
 use AuthServer\Tests\Support\AdminApiTrait;
+use AuthServer\Tests\Support\AuthRecordFixture;
 use AuthServer\Tests\Support\TempDirTrait;
 use AuthServer\Tests\Support\TestAppFactory;
 use PHPUnit\Framework\TestCase;
@@ -60,19 +61,8 @@ class SessionLoginManagementTest extends TestCase
     {
         $pdo = self::$app->getContainer()->get(\PDO::class);
 
-        $sessionId = getGuid();
-        $loginId = getGuid();
-        $stmt = $pdo->prepare(
-            "INSERT INTO sessions (id, realm_id, user_id, acr, status)
-             VALUES (:id, :realm, :user, '0', 'ACTIVE')"
-        );
-        $stmt->execute([':id' => $sessionId, ':realm' => self::TEST_REALM, ':user' => self::TEST_USER]);
-
-        $stmt = $pdo->prepare(
-            "INSERT INTO logins (id, client_id, session_id, state, nonce, scope, redirect_uri, response_mode, status)
-             VALUES (:id, :client, :session, 'st', 'nc', 'openid', 'https://example.com', 'query', 'ACTIVE')"
-        );
-        $stmt->execute([':id' => $loginId, ':client' => self::TEST_CLIENT, ':session' => $sessionId]);
+        $sessionId = AuthRecordFixture::createSession($pdo, self::TEST_REALM, self::TEST_USER);
+        $loginId = AuthRecordFixture::createLogin($pdo, self::TEST_CLIENT, $sessionId);
 
         $response = $this->handle($this->adminRequest('DELETE', '/admin/sessions/' . $sessionId));
         self::assertSame(204, $response->getStatusCode());
@@ -92,22 +82,13 @@ class SessionLoginManagementTest extends TestCase
     public function testInvalidateByUserIdRemovesAllSessionsAndLogins(): void
     {
         $pdo = self::$app->getContainer()->get(\PDO::class);
-        $userId = getGuid();
+        $userId = AuthRecordFixture::createUser($pdo, self::TEST_REALM, 'temp-' . getGuid() . '@example.com');
 
-        // Create a user first to satisfy FK
-        $hash = password_hash('pass', PASSWORD_BCRYPT, ['cost' => 4]);
-        $pdo->exec("INSERT INTO users (id, realm_id, name, email, password, valid)
-                     VALUES ('$userId', '" . self::TEST_REALM . "', 'Temp', 'temp-".getGuid()."@example.com', '$hash', 1)");
+        $s1 = AuthRecordFixture::createSession($pdo, self::TEST_REALM, $userId);
+        $s2 = AuthRecordFixture::createSession($pdo, self::TEST_REALM, $userId);
 
-        $s1 = getGuid();
-        $s2 = getGuid();
-        $pdo->exec("INSERT INTO sessions (id, realm_id, user_id, acr, status) VALUES ('$s1', '" . self::TEST_REALM . "', '$userId', '0', 'ACTIVE')");
-        $pdo->exec("INSERT INTO sessions (id, realm_id, user_id, acr, status) VALUES ('$s2', '" . self::TEST_REALM . "', '$userId', '0', 'ACTIVE')");
-
-        $l1 = getGuid();
-        $l2 = getGuid();
-        $pdo->exec("INSERT INTO logins (id, client_id, session_id, state, nonce, scope, redirect_uri, response_mode, status) VALUES ('$l1', '" . self::TEST_CLIENT . "', '$s1', 'st', 'nc', 'openid', 'https://example.com', 'query', 'ACTIVE')");
-        $pdo->exec("INSERT INTO logins (id, client_id, session_id, state, nonce, scope, redirect_uri, response_mode, status) VALUES ('$l2', '" . self::TEST_CLIENT . "', '$s2', 'st', 'nc', 'openid', 'https://example.com', 'query', 'ACTIVE')");
+        AuthRecordFixture::createLogin($pdo, self::TEST_CLIENT, $s1);
+        AuthRecordFixture::createLogin($pdo, self::TEST_CLIENT, $s2);
 
         $data = $this->assertStatus(200, $this->adminRequest('POST', '/admin/sessions/invalidate', [
             'user_id' => $userId,
@@ -122,15 +103,9 @@ class SessionLoginManagementTest extends TestCase
     public function testInvalidateByClientIdRemovesSessionsAndLogins(): void
     {
         $pdo = self::$app->getContainer()->get(\PDO::class);
-        $userId = getGuid();
-        $sessionId = getGuid();
-        $loginId = getGuid();
-
-        $hash = password_hash('pass', PASSWORD_BCRYPT, ['cost' => 4]);
-        $pdo->exec("INSERT INTO users (id, realm_id, name, email, password, valid)
-                     VALUES ('$userId', '" . self::TEST_REALM . "', 'Temp', 'cid-".getGuid()."@example.com', '$hash', 1)");
-        $pdo->exec("INSERT INTO sessions (id, realm_id, user_id, acr, status) VALUES ('$sessionId', '" . self::TEST_REALM . "', '$userId', '0', 'ACTIVE')");
-        $pdo->exec("INSERT INTO logins (id, client_id, session_id, state, nonce, scope, redirect_uri, response_mode, status) VALUES ('$loginId', '" . self::TEST_CLIENT . "', '$sessionId', 'st', 'nc', 'openid', 'https://example.com', 'query', 'ACTIVE')");
+        $userId = AuthRecordFixture::createUser($pdo, self::TEST_REALM, 'cid-' . getGuid() . '@example.com');
+        $sessionId = AuthRecordFixture::createSession($pdo, self::TEST_REALM, $userId);
+        $loginId = AuthRecordFixture::createLogin($pdo, self::TEST_CLIENT, $sessionId);
 
         $data = $this->assertStatus(200, $this->adminRequest('POST', '/admin/sessions/invalidate', [
             'client_id' => self::TEST_CLIENT,
@@ -148,16 +123,10 @@ class SessionLoginManagementTest extends TestCase
     public function testInvalidateWithBothUserIdAndClientIdDoesNotDoubleCount(): void
     {
         $pdo = self::$app->getContainer()->get(\PDO::class);
-        $userId = getGuid();
+        $userId = AuthRecordFixture::createUser($pdo, self::TEST_REALM, 'dc-' . getGuid() . '@example.com');
 
-        $hash = password_hash('pass', PASSWORD_BCRYPT, ['cost' => 4]);
-        $pdo->exec("INSERT INTO users (id, realm_id, name, email, password, valid)
-                     VALUES ('$userId', '" . self::TEST_REALM . "', 'DoubleCount', 'dc-".getGuid()."@example.com', '$hash', 1)");
-
-        $s1 = getGuid();
-        $l1 = getGuid();
-        $pdo->exec("INSERT INTO sessions (id, realm_id, user_id, acr, status) VALUES ('$s1', '" . self::TEST_REALM . "', '$userId', '0', 'ACTIVE')");
-        $pdo->exec("INSERT INTO logins (id, client_id, session_id, state, nonce, scope, redirect_uri, response_mode, status) VALUES ('$l1', '" . self::TEST_CLIENT . "', '$s1', 'st', 'nc', 'openid', 'https://example.com', 'query', 'ACTIVE')");
+        $s1 = AuthRecordFixture::createSession($pdo, self::TEST_REALM, $userId);
+        $l1 = AuthRecordFixture::createLogin($pdo, self::TEST_CLIENT, $s1);
 
         $data = $this->assertStatus(200, $this->adminRequest('POST', '/admin/sessions/invalidate', [
             'user_id' => $userId,
@@ -170,28 +139,12 @@ class SessionLoginManagementTest extends TestCase
     public function testInvalidateCountsOfflineGrantsAndSessions(): void
     {
         $pdo = self::$app->getContainer()->get(\PDO::class);
-        $userId = getGuid();
+        $userId = AuthRecordFixture::createUser($pdo, self::TEST_REALM, 'cb-' . getGuid() . '@example.com');
 
-        $hash = password_hash('pass', PASSWORD_BCRYPT, ['cost' => 4]);
-        $pdo->exec("INSERT INTO users (id, realm_id, name, email, password, valid)
-                     VALUES ('$userId', '" . self::TEST_REALM . "', 'CountBoth', 'cb-" . getGuid() . "@example.com', '$hash', 1)");
+        $s1 = AuthRecordFixture::createSession($pdo, self::TEST_REALM, $userId);
+        $s2 = AuthRecordFixture::createSession($pdo, self::TEST_REALM, $userId);
 
-        $s1 = getGuid();
-        $s2 = getGuid();
-        $pdo->exec("INSERT INTO sessions (id, realm_id, user_id, acr, status) VALUES ('$s1', '" . self::TEST_REALM . "', '$userId', '0', 'ACTIVE')");
-        $pdo->exec("INSERT INTO sessions (id, realm_id, user_id, acr, status) VALUES ('$s2', '" . self::TEST_REALM . "', '$userId', '0', 'ACTIVE')");
-
-        $stmt = $pdo->prepare(
-            "INSERT INTO offline_sessions (id, realm_id, user_id, client_id, acr, scope, nonce, refresh_token, status)
-             VALUES (:id, :realm, :user, :client, '0', 'openid offline_access', 'nc', :refresh, 'ACTIVE')"
-        );
-        $stmt->execute([
-            ':id' => getGuid(),
-            ':realm' => self::TEST_REALM,
-            ':user' => $userId,
-            ':client' => self::TEST_CLIENT,
-            ':refresh' => getGuid(),
-        ]);
+        AuthRecordFixture::createOfflineSession($pdo, self::TEST_REALM, $userId, self::TEST_CLIENT);
 
         $data = $this->assertStatus(200, $this->adminRequest('POST', '/admin/sessions/invalidate', [
             'user_id' => $userId,
@@ -223,10 +176,7 @@ class SessionLoginManagementTest extends TestCase
     public function testDeleteLoginReturns204(): void
     {
         $pdo = self::$app->getContainer()->get(\PDO::class);
-        $loginId = getGuid();
-
-        $pdo->exec("INSERT INTO logins (id, client_id, state, nonce, scope, redirect_uri, response_mode, status)
-                     VALUES ('$loginId', '" . self::TEST_CLIENT . "', 'st', 'nc', 'openid', 'https://example.com', 'query', 'PENDING')");
+        $loginId = AuthRecordFixture::createLogin($pdo, self::TEST_CLIENT, status: 'PENDING');
 
         $response = $this->handle($this->adminRequest('DELETE', '/admin/logins/' . $loginId));
         self::assertSame(204, $response->getStatusCode());
@@ -247,9 +197,7 @@ class SessionLoginManagementTest extends TestCase
 
         $userId = getGuid();
         $email = 'disabled-' . $userId . '@example.com';
-        $hash = password_hash('testpass', PASSWORD_BCRYPT, ['cost' => 4]);
-        $pdo->exec("INSERT INTO users (id, realm_id, name, email, password, valid)
-                     VALUES ('$userId', '" . self::TEST_REALM . "', 'Disabled User', '$email', '$hash', 0)");
+        AuthRecordFixture::createUser($pdo, self::TEST_REALM, $email, valid: false, name: 'Disabled User');
 
         // First GET /auth to get a valid login_id and csrf_token
         $authRequest = $this->createRequest('GET',
@@ -293,11 +241,8 @@ class SessionLoginManagementTest extends TestCase
     {
         $pdo = self::$app->getContainer()->get(\PDO::class);
 
-        $userId = getGuid();
         $email = 'enabled-' . getGuid() . '@example.com';
-        $hash = password_hash('testpass', PASSWORD_BCRYPT, ['cost' => 4]);
-        $pdo->exec("INSERT INTO users (id, realm_id, name, email, password, valid)
-                     VALUES ('$userId', '" . self::TEST_REALM . "', 'Enabled User', '$email', '$hash', 1)");
+        AuthRecordFixture::createUser($pdo, self::TEST_REALM, $email, name: 'Enabled User');
 
         // First get the auth page to extract login_id and csrf_token
         $authRequest = $this->createRequest('GET',
@@ -360,10 +305,8 @@ class SessionLoginManagementTest extends TestCase
 
         // Create active session + login
         $pdo = self::$app->getContainer()->get(\PDO::class);
-        $sid = getGuid();
-        $lid = getGuid();
-        $pdo->exec("INSERT INTO sessions (id, realm_id, user_id, acr, status) VALUES ('$sid', '{$realm['id']}', '{$user['id']}', '0', 'ACTIVE')");
-        $pdo->exec("INSERT INTO logins (id, client_id, session_id, state, nonce, scope, redirect_uri, response_mode, status) VALUES ('$lid', '{$client['id']}', '$sid', 'st', 'nc', 'openid', 'https://del.example.com', 'query', 'ACTIVE')");
+        $sid = AuthRecordFixture::createSession($pdo, $realm['id'], $user['id']);
+        $lid = AuthRecordFixture::createLogin($pdo, $client['id'], $sid, redirectUri: 'https://del.example.com');
 
         // Realm delete should be blocked (has clients/users)
         $this->assertStatus(409, $this->adminRequest('DELETE', '/admin/realms/' . $realm['id']));
@@ -389,8 +332,7 @@ class SessionLoginManagementTest extends TestCase
         ]));
 
         $pdo = self::$app->getContainer()->get(\PDO::class);
-        $sid = getGuid();
-        $pdo->exec("INSERT INTO sessions (id, realm_id, user_id, acr, status) VALUES ('$sid', '" . self::TEST_REALM . "', '{$user['id']}', '0', 'ACTIVE')");
+        $sid = AuthRecordFixture::createSession($pdo, self::TEST_REALM, $user['id']);
 
         // Delete should be blocked
         $this->assertStatus(409, $this->adminRequest('DELETE', '/admin/users/' . $user['id']));
@@ -414,9 +356,7 @@ class SessionLoginManagementTest extends TestCase
         ]));
 
         $pdo = self::$app->getContainer()->get(\PDO::class);
-        $lid = getGuid();
-        $pdo->exec("INSERT INTO logins (id, client_id, state, nonce, scope, redirect_uri, response_mode, status)
-                     VALUES ('$lid', '{$client['id']}', 'st', 'nc', 'openid', 'https://block.example.com', 'query', 'ACTIVE')");
+        $lid = AuthRecordFixture::createLogin($pdo, $client['id'], redirectUri: 'https://block.example.com');
 
         // Delete should be blocked
         $this->assertStatus(409, $this->adminRequest('DELETE', '/admin/clients/' . $client['id']));

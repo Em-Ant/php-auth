@@ -2023,5 +2023,121 @@ command -v sqlite3 >/dev/null 2>&1 && [[ -f db/data.db ]] && sqlite3 db/data.db 
 sqlite3 db/data.db "DELETE FROM rate_limits WHERE 1=1;" 2>/dev/null || true
 ok "Admin JWT e2e sessions cleaned (invalidate + sqlite fallback)"
 
+# ── Step 27: Admin maintenance cleanup ───────────────────────
+echo ""
+echo "=== Step 27: Admin maintenance (cleanup) ==="
+
+# Auth surface
+MNT_NOAUTH=$(curl -sS -o /dev/null -w "%{http_code}" -X POST "$BASE/admin/maintenance/cleanup")
+[[ "$MNT_NOAUTH" = "401" ]] && ok "Maintenance: 401 without token" || fail "Maintenance: expected 401, got $MNT_NOAUTH"
+
+MNT_BAD=$(curl -sS -o /dev/null -w "%{http_code}" -X POST -H "Authorization: Bearer wrong-key" "$BASE/admin/maintenance/cleanup")
+[[ "$MNT_BAD" = "401" ]] && ok "Maintenance: 401 with wrong token" || fail "Maintenance: expected 401, got $MNT_BAD"
+
+# Fixture realm (long TTLs so recent rows never age out mid-run), client, user.
+# Step 25 deleted the earlier generated key, so mint a dedicated one.
+MNT_CREATED_KID=$(curl -sS -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" "$BASE/admin/keys" | sed -n 's/.*"kid":"\([^"]*\)".*/\1/p')
+MNT_REALM_RESP=$(curl -sS -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"name":"e2e-maintenance-realm","keys_id":"'"$MNT_CREATED_KID"'","pending_login_expires_in":86400,"authenticated_login_expires_in":86400,"refresh_token_expires_in":86400,"session_expires_in":86400,"idle_session_expires_in":86400,"offline_refresh_token_expires_in":86400}' \
+    "$BASE/admin/realms")
+MNT_REALM_ID=$(echo "$MNT_REALM_RESP" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
+[[ -n "$MNT_REALM_ID" ]] && ok "Maintenance: fixture realm created (${MNT_REALM_ID:0:8}...)" || { fail "Maintenance: fixture realm creation failed"; exit 1; }
+
+MNT_CLIENT_RESP=$(curl -sS -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"name":"e2e-maintenance-client","realm_id":"'"$MNT_REALM_ID"'","uri":"https://mnt.example.com"}' \
+    "$BASE/admin/clients")
+MNT_CLIENT_ID=$(echo "$MNT_CLIENT_RESP" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
+
+MNT_EMAIL="mnt-$(date +%s)@example.com"
+MNT_USER_RESP=$(curl -sS -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
+    -d '{"realm_id":"'"$MNT_REALM_ID"'","email":"'"$MNT_EMAIL"'","password":"secret123"}' \
+    "$BASE/admin/users")
+MNT_USER_ID=$(echo "$MNT_USER_RESP" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
+[[ -n "$MNT_CLIENT_ID" && -n "$MNT_USER_ID" ]] && ok "Maintenance: fixture client + user created" || fail "Maintenance: fixture client/user creation failed"
+
+# Seed expired + live rows via sqlite, scoped to the fixture realm (the dev
+# DB snapshot is restored on exit, so nothing leaks).
+MNT_SEEDED="0"
+if command -v sqlite3 >/dev/null 2>&1 && [[ -f db/data.db ]]; then
+    sqlite3 db/data.db "INSERT INTO token_blacklist (jti, exp) VALUES ('e2e-mnt-expired', $(date +%s)-3600);" 2>/dev/null || true
+    sqlite3 db/data.db "INSERT INTO token_blacklist (jti, exp) VALUES ('e2e-mnt-live', $(date +%s)+86400);" 2>/dev/null || true
+
+    sqlite3 db/data.db "INSERT INTO logins (id, client_id, state, nonce, scope, redirect_uri, response_mode, status, created_at, updated_at) VALUES ('e2e-mnt-login-expired', '$MNT_CLIENT_ID', 'st', 'nc', 'openid', 'https://mnt.example.com', 'query', 'EXPIRED', datetime('now','-30 days'), datetime('now','-30 days'));" 2>/dev/null || true
+    sqlite3 db/data.db "INSERT INTO logins (id, client_id, state, nonce, scope, redirect_uri, response_mode, status, created_at, updated_at) VALUES ('e2e-mnt-login-stale', '$MNT_CLIENT_ID', 'st', 'nc', 'openid', 'https://mnt.example.com', 'query', 'PENDING', datetime('now','-30 days'), datetime('now','-30 days'));" 2>/dev/null || true
+    sqlite3 db/data.db "INSERT INTO logins (id, client_id, state, nonce, scope, redirect_uri, response_mode, status, created_at, updated_at) VALUES ('e2e-mnt-login-live', '$MNT_CLIENT_ID', 'st', 'nc', 'openid', 'https://mnt.example.com', 'query', 'PENDING', datetime('now'), datetime('now'));" 2>/dev/null || true
+
+    sqlite3 db/data.db "INSERT INTO sessions (id, realm_id, user_id, acr, status, created_at, updated_at) VALUES ('e2e-mnt-session-expired', '$MNT_REALM_ID', '$MNT_USER_ID', '0', 'EXPIRED', datetime('now','-30 days'), datetime('now','-30 days'));" 2>/dev/null || true
+    sqlite3 db/data.db "INSERT INTO sessions (id, realm_id, user_id, acr, status, created_at, updated_at) VALUES ('e2e-mnt-session-live', '$MNT_REALM_ID', '$MNT_USER_ID', '0', 'ACTIVE', datetime('now'), datetime('now'));" 2>/dev/null || true
+    # FK guard: an EXPIRED session referenced by a recent ACTIVE login must survive
+    sqlite3 db/data.db "INSERT INTO sessions (id, realm_id, user_id, acr, status, created_at, updated_at) VALUES ('e2e-mnt-session-refd', '$MNT_REALM_ID', '$MNT_USER_ID', '0', 'EXPIRED', datetime('now','-30 days'), datetime('now','-30 days'));" 2>/dev/null || true
+    sqlite3 db/data.db "INSERT INTO logins (id, client_id, session_id, state, nonce, scope, redirect_uri, response_mode, status, created_at, updated_at) VALUES ('e2e-mnt-login-refd', '$MNT_CLIENT_ID', 'e2e-mnt-session-refd', 'st', 'nc', 'openid', 'https://mnt.example.com', 'query', 'ACTIVE', datetime('now'), datetime('now'));" 2>/dev/null || true
+
+    sqlite3 db/data.db "INSERT INTO offline_sessions (id, realm_id, user_id, client_id, acr, scope, nonce, refresh_token, status, created_at, updated_at) VALUES ('e2e-mnt-offline-terminal', '$MNT_REALM_ID', '$MNT_USER_ID', '$MNT_CLIENT_ID', '0', 'openid offline_access', NULL, 'e2e-mnt-rt-terminal', 'EXPIRED', datetime('now','-30 days'), datetime('now','-30 days'));" 2>/dev/null || true
+    sqlite3 db/data.db "INSERT INTO offline_sessions (id, realm_id, user_id, client_id, acr, scope, nonce, refresh_token, status, created_at) VALUES ('e2e-mnt-offline-nullupd', '$MNT_REALM_ID', '$MNT_USER_ID', '$MNT_CLIENT_ID', '0', 'openid offline_access', NULL, 'e2e-mnt-rt-nullupd', 'ACTIVE', datetime('now','-60 days'));" 2>/dev/null || true
+    sqlite3 db/data.db "INSERT INTO offline_sessions (id, realm_id, user_id, client_id, acr, scope, nonce, refresh_token, status, created_at, updated_at) VALUES ('e2e-mnt-offline-live', '$MNT_REALM_ID', '$MNT_USER_ID', '$MNT_CLIENT_ID', '0', 'openid offline_access', NULL, 'e2e-mnt-rt-live', 'ACTIVE', datetime('now'), datetime('now'));" 2>/dev/null || true
+
+    MNT_SEEDED="1"
+    ok "Maintenance: seeded expired + live fixtures via sqlite"
+else
+    ok "Maintenance: row-level checks skipped (no sqlite3 / db)"
+fi
+
+# First cleanup run: 200 with all four purge counters
+MNT1=$(curl -sS -X POST -H "$ADMIN_HDR" "$BASE/admin/maintenance/cleanup")
+MNT1_BL=$(echo "$MNT1" | sed -n 's/.*"blacklist_purged":\([0-9]*\).*/\1/p')
+MNT1_LG=$(echo "$MNT1" | sed -n 's/.*"logins_purged":\([0-9]*\).*/\1/p')
+MNT1_SE=$(echo "$MNT1" | sed -n 's/.*"sessions_purged":\([0-9]*\).*/\1/p')
+MNT1_OF=$(echo "$MNT1" | sed -n 's/.*"offline_sessions_purged":\([0-9]*\).*/\1/p')
+
+[[ -n "$MNT1_BL" && -n "$MNT1_LG" && -n "$MNT1_SE" && -n "$MNT1_OF" ]] \
+    && ok "Maintenance: cleanup ran (blacklist $MNT1_BL, logins $MNT1_LG, sessions $MNT1_SE, offline $MNT1_OF)" \
+    || fail "Maintenance: unexpected cleanup response: $MNT1"
+
+# Ambient rows (revocations, logout, admin-session invalidation) may add to the
+# same counters, so use floors rather than exact equality for the first run.
+[[ "${MNT1_BL:-0}" -ge "$MNT_SEEDED" ]] && ok "Maintenance: expired blacklist entries purged" || fail "Maintenance: blacklist_purged ${MNT1_BL:-0} < $MNT_SEEDED"
+[[ "${MNT1_LG:-0}" -ge "$((MNT_SEEDED * 2))" ]] && ok "Maintenance: expired/stale logins purged (per-realm TTL)" || fail "Maintenance: logins_purged ${MNT1_LG:-0} < $((MNT_SEEDED * 2))"
+[[ "${MNT1_SE:-0}" -ge "$MNT_SEEDED" ]] && ok "Maintenance: orphan expired session purged" || fail "Maintenance: sessions_purged ${MNT1_SE:-0} < $MNT_SEEDED"
+[[ "${MNT1_OF:-0}" -ge "$((MNT_SEEDED * 2))" ]] && ok "Maintenance: terminal + NULL-updated_at offline grants purged" || fail "Maintenance: offline_sessions_purged ${MNT1_OF:-0} < $((MNT_SEEDED * 2))"
+
+# Row-level survivors / removals (exact, fixture ids only)
+if [[ "$MNT_SEEDED" = "1" ]]; then
+    MNT_EXP_LOGINS=$(sqlite3 db/data.db "SELECT COUNT(*) FROM logins WHERE id IN ('e2e-mnt-login-expired','e2e-mnt-login-stale');" 2>/dev/null || echo "ERR")
+    [[ "$MNT_EXP_LOGINS" = "0" ]] && ok "Maintenance: expired/stale login rows removed" || fail "Maintenance: expected 0 expired logins, got $MNT_EXP_LOGINS"
+
+    MNT_LIVE_LOGIN=$(sqlite3 db/data.db "SELECT COUNT(*) FROM logins WHERE id='e2e-mnt-login-live';" 2>/dev/null || echo "ERR")
+    [[ "$MNT_LIVE_LOGIN" = "1" ]] && ok "Maintenance: within-TTL login kept" || fail "Maintenance: expected 1 live login, got $MNT_LIVE_LOGIN"
+
+    MNT_ORPHAN_SESS=$(sqlite3 db/data.db "SELECT COUNT(*) FROM sessions WHERE id='e2e-mnt-session-expired';" 2>/dev/null || echo "ERR")
+    [[ "$MNT_ORPHAN_SESS" = "0" ]] && ok "Maintenance: orphan expired session removed" || fail "Maintenance: expected 0 orphan sessions, got $MNT_ORPHAN_SESS"
+
+    MNT_REFD_SESS=$(sqlite3 db/data.db "SELECT COUNT(*) FROM sessions WHERE id='e2e-mnt-session-refd';" 2>/dev/null || echo "ERR")
+    MNT_REFD_LOGIN=$(sqlite3 db/data.db "SELECT COUNT(*) FROM logins WHERE id='e2e-mnt-login-refd';" 2>/dev/null || echo "ERR")
+    [[ "$MNT_REFD_SESS" = "1" && "$MNT_REFD_LOGIN" = "1" ]] && ok "Maintenance: referenced expired session kept (FK-safe, no 500)" || fail "Maintenance: expected referenced session + login kept, got session $MNT_REFD_SESS / login $MNT_REFD_LOGIN"
+
+    MNT_OFF_TERM=$(sqlite3 db/data.db "SELECT COUNT(*) FROM offline_sessions WHERE id='e2e-mnt-offline-terminal';" 2>/dev/null || echo "ERR")
+    MNT_OFF_NULLUPD=$(sqlite3 db/data.db "SELECT COUNT(*) FROM offline_sessions WHERE id='e2e-mnt-offline-nullupd';" 2>/dev/null || echo "ERR")
+    [[ "$MNT_OFF_TERM" = "0" && "$MNT_OFF_NULLUPD" = "0" ]] && ok "Maintenance: terminal + NULL-updated_at offline rows removed" || fail "Maintenance: expected 0 offline rows, got terminal $MNT_OFF_TERM / null-updated $MNT_OFF_NULLUPD"
+
+    MNT_OFF_LIVE=$(sqlite3 db/data.db "SELECT COUNT(*) FROM offline_sessions WHERE id='e2e-mnt-offline-live';" 2>/dev/null || echo "ERR")
+    [[ "$MNT_OFF_LIVE" = "1" ]] && ok "Maintenance: within-window offline grant kept" || fail "Maintenance: expected 1 live offline grant, got $MNT_OFF_LIVE"
+
+    MNT_BL=$(sqlite3 db/data.db "SELECT COUNT(*) FROM token_blacklist WHERE jti IN ('e2e-mnt-expired','e2e-mnt-live');" 2>/dev/null || echo "ERR")
+    [[ "$MNT_BL" = "1" ]] && ok "Maintenance: only the expired blacklist entry removed" || fail "Maintenance: expected 1 blacklist entry left, got $MNT_BL"
+fi
+
+# Second cleanup: idempotent, nothing left to purge
+MNT2=$(curl -sS -X POST -H "$ADMIN_HDR" "$BASE/admin/maintenance/cleanup")
+MNT2_BL=$(echo "$MNT2" | sed -n 's/.*"blacklist_purged":\([0-9]*\).*/\1/p')
+MNT2_LG=$(echo "$MNT2" | sed -n 's/.*"logins_purged":\([0-9]*\).*/\1/p')
+MNT2_SE=$(echo "$MNT2" | sed -n 's/.*"sessions_purged":\([0-9]*\).*/\1/p')
+MNT2_OF=$(echo "$MNT2" | sed -n 's/.*"offline_sessions_purged":\([0-9]*\).*/\1/p')
+[[ "${MNT2_BL:-x}" = "0" && "${MNT2_LG:-x}" = "0" && "${MNT2_SE:-x}" = "0" && "${MNT2_OF:-x}" = "0" ]] \
+    && ok "Maintenance: second cleanup is idempotent (all counters zero)" \
+    || fail "Maintenance: expected all-zero counters on second run, got $MNT2"
+
+# Remove the dedicated fixture key (realm rows are wiped by the DB snapshot restore)
+[[ -n "${MNT_CREATED_KID:-}" ]] && rm -rf "keys/$MNT_CREATED_KID" 2>/dev/null || true
+
 # ── All done ──────────────────────────────────────────────────
 exit $FAIL

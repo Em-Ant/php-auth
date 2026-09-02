@@ -8,6 +8,7 @@ use AuthServer\Controllers\Admin\AuditLogController;
 use AuthServer\Controllers\Admin\ClientsController;
 use AuthServer\Controllers\Admin\KeysController;
 use AuthServer\Controllers\Admin\LoginsController;
+use AuthServer\Controllers\Admin\MaintenanceController;
 use AuthServer\Controllers\Admin\MigrationsController;
 use AuthServer\Controllers\Admin\OfflineSessionsController;
 use AuthServer\Controllers\Admin\RealmsController;
@@ -55,6 +56,7 @@ use AuthServer\Services\HttpSessionCookieHandler;
 use AuthServer\Services\KeyProvisioning;
 use AuthServer\Services\LoginStateMachine;
 use AuthServer\Services\LogoutService;
+use AuthServer\Services\MaintenanceService;
 use AuthServer\Services\MigrationRunner;
 use AuthServer\Services\OfflineSessionService;
 use AuthServer\Services\RateLimiter;
@@ -188,6 +190,7 @@ final class Definitions
             ScopeResolver::class => \DI\autowire(),
             ClientAuthenticator::class => \DI\autowire(),
             RateLimiter::class => \DI\autowire(),
+            MaintenanceService::class => \DI\autowire(),
             MigrationRunner::class => \DI\autowire()
                 ->constructorParameter('migrationsDir', \DI\get('migrations_dir')),
             MigrationRepository::class => \DI\autowire(),
@@ -241,6 +244,7 @@ final class Definitions
             UserRolesController::class => \DI\autowire(),
             ScopeRolesController::class => \DI\autowire(),
             AuditLogController::class => \DI\autowire(),
+            MaintenanceController::class => \DI\autowire(),
             AuditLogWriter::class => \DI\autowire(),
             KeyProvisioning::class => \DI\autowire()
                 ->constructorParameter('keysRoot', \DI\get('keys_root')),

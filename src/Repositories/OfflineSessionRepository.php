@@ -11,6 +11,7 @@ use AuthServer\Models\OfflineSession;
 class OfflineSessionRepository implements IRepo
 {
     use PagedListing;
+    use DeleteRows;
 
     private \PDO $db;
 
@@ -224,6 +225,31 @@ class OfflineSessionRepository implements IRepo
         } catch (\PDOException $e) {
             throw new StorageFailed("failed to delete offline sessions for client $clientId", 0, $e);
         }
+    }
+
+    /**
+     * Purges terminal grants (anything but ACTIVE) plus ACTIVE grants past
+     * their realm's sliding offline TTL. `COALESCE(updated_at, created_at)`
+     * mirrors OfflineSessionService::isExpired: grants are created without
+     * updated_at and only get one on their first refresh, so a never-refreshed
+     * grant must still age out from its creation time.
+     */
+    public function deleteExpired(int $now): int
+    {
+        return $this->deleteWhere(
+            "DELETE FROM offline_sessions
+             WHERE status != 'ACTIVE'
+                OR id IN (
+                    SELECT os.id FROM offline_sessions os
+                    JOIN realms r ON os.realm_id = r.id
+                    WHERE os.status = 'ACTIVE'
+                      AND datetime(COALESCE(os.updated_at, os.created_at),
+                                   '+' || r.offline_refresh_token_expires_in || ' seconds')
+                          < datetime(:now, 'unixepoch')
+                )",
+            [':now' => $now],
+            'failed to purge expired offline sessions'
+        );
     }
 
     /**

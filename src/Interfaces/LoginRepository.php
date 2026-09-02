@@ -71,4 +71,6 @@ interface LoginRepository
     public function countByClientId(string $clientId): int;
 
     public function countActiveByClientId(string $clientId): int;
+
+    public function deleteExpired(int $now): int;
 }

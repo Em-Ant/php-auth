@@ -6,6 +6,7 @@ namespace AuthServer\Tests\Integration;
 
 use AuthServer\Services\SecretsService;
 use AuthServer\Tests\Support\AdminApiTrait;
+use AuthServer\Tests\Support\AuthRecordFixture;
 use AuthServer\Tests\Support\TempDirTrait;
 use AuthServer\Tests\Support\TestAppFactory;
 use PHPUnit\Framework\TestCase;
@@ -475,16 +476,12 @@ class AdminCrudTest extends TestCase
             'uri' => 'https://guarded.example.com',
         ]));
 
-        $loginId = getGuid();
-        $stmt = self::$pdo->prepare(
-            "INSERT INTO logins (id, client_id, state, nonce, scope, redirect_uri, response_mode, status)
-             VALUES (:id, :client, 'st', 'nc', 'openid', :uri, 'query', 'PENDING')"
+        $loginId = AuthRecordFixture::createLogin(
+            self::$pdo,
+            $client['id'],
+            status: 'PENDING',
+            redirectUri: 'https://guarded.example.com'
         );
-        $stmt->execute([
-            ':id' => $loginId,
-            ':client' => $client['id'],
-            ':uri' => 'https://guarded.example.com',
-        ]);
 
         $this->assertStatus(409, $this->adminRequest('DELETE', '/admin/clients/' . $client['id']));
     }
@@ -660,11 +657,13 @@ class AdminCrudTest extends TestCase
 
         $sessionId = $this->insertActiveSession(self::TEST_REALM, $user['id']);
 
-        $stmt = self::$pdo->prepare(
-            "INSERT INTO logins (id, client_id, session_id, state, nonce, scope, redirect_uri, response_mode, status)
-             VALUES (:id, :client, :session, 'st', 'nc', 'openid', 'https://rp.example.com/cb', 'query', 'AUTHENTICATED')"
+        AuthRecordFixture::createLogin(
+            self::$pdo,
+            self::TEST_CLIENT,
+            $sessionId,
+            status: 'AUTHENTICATED',
+            redirectUri: 'https://rp.example.com/cb'
         );
-        $stmt->execute([':id' => getGuid(), ':client' => self::TEST_CLIENT, ':session' => $sessionId]);
 
         $this->insertOfflineSession(self::TEST_REALM, $user['id'], self::TEST_CLIENT);
 
@@ -768,13 +767,7 @@ class AdminCrudTest extends TestCase
      */
     private function insertActiveSession(string $realmId, string $userId): string
     {
-        $sessionId = getGuid();
-        $stmt = self::$pdo->prepare(
-            "INSERT INTO sessions (id, realm_id, user_id, acr, status)
-             VALUES (:id, :realm, :user, '0', 'ACTIVE')"
-        );
-        $stmt->execute([':id' => $sessionId, ':realm' => $realmId, ':user' => $userId]);
-        return $sessionId;
+        return AuthRecordFixture::createSession(self::$pdo, $realmId, $userId);
     }
 
     /**
@@ -822,18 +815,7 @@ class AdminCrudTest extends TestCase
         string $clientId,
         string $status = 'ACTIVE'
     ): void {
-        $stmt = self::$pdo->prepare(
-            "INSERT INTO offline_sessions (id, realm_id, user_id, client_id, acr, scope, nonce, refresh_token, status)
-             VALUES (:id, :realm, :user, :client, '0', 'openid offline_access', 'nc', :refresh, :status)"
-        );
-        $stmt->execute([
-            ':id' => getGuid(),
-            ':realm' => $realmId,
-            ':user' => $userId,
-            ':client' => $clientId,
-            ':refresh' => getGuid(),
-            ':status' => $status,
-        ]);
+        AuthRecordFixture::createOfflineSession(self::$pdo, $realmId, $userId, $clientId, $status);
     }
 
     public function testDeleteUserWithActiveOfflineSessionReturns409(): void
