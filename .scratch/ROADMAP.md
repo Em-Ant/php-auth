@@ -25,15 +25,15 @@
 - [x] Retire the `realm_roles` string field on user create/update (ADR-0001 D4 shim) — breaking admin-API change, roles become explicit entities assigned via `POST /admin/users/{id}/roles` (done 2026-09-01, F-45)
 - [x] Offline revocation: revoke a user's `offline_sessions` (SSO session/login revoke already shipped) — [token-lifecycle #04](token-lifecycle/issues/04-offline-revocation.md) (done 2026-08-23, F-06)
 - [x] Maintenance task: blacklist purge + expired-session cleanup (admin-triggered; manual / deploy-time / CI-scheduled) — `POST /admin/maintenance/cleanup` (done 2026-09-02, F-19) — see [token-lifecycle #05](token-lifecycle/issues/05-cleanup-job.md)
-- [ ] Admin credential rotation: change-password + change-client-secret (admin API only, not self-service) — [password-change/PRD.md](password-change/PRD.md) (F-50)
+- [x] Admin credential rotation: change-password + change-client-secret (admin API only, not self-service) — implemented via `PUT /admin/users/{id}` (password) and `PUT /admin/clients/{id}` (client_secret) — [password-change/PRD.md](password-change/PRD.md) (F-50, done 2026-09-01, superseded approach: [01-rotate-via-put-invariants.md](password-change/issues/01-rotate-via-put-invariants.md))
 
 ## Admin Auth & Tools
 
 Admin API auth evolution for a separate Admin UI (React+Vite+shadcn, different repo) and headless ops. See [admin-auth/PRD.md](admin-auth/PRD.md).
 
 - [x] Admin realm + role + clients seed (`admin` realm, realm role `admin`, clients `admin-ui`/`ci-deployer`) — [admin-auth #01](admin-auth/issues/01-seed-admin-realm.md) (done 2026-08-28, F-47; prod bootstrap runbook: [admin-auth/release-plan.md](admin-auth/release-plan.md))
-- [ ] JWT admin auth (dual-mode): `Authorization: Bearer <JWT>` with `admin` role check via `TokenValidator`; static `X-Admin-Key`/`Bearer api_key` retained **only** for `/admin/migrations/*` + `/admin/maintenance/cleanup` (offline `offline_access` token also accepted) — [admin-auth #02](admin-auth/issues/02-jwt-admin-middleware.md)
-- [ ] Migrate ops auth from api_key to offline token — [admin-auth #03](admin-auth/issues/03-narrow-static-and-docs.md) (depends on F-19 for cleanup shape)
+- [x] JWT admin auth (dual-mode): `Authorization: Bearer <JWT>` with `admin` role check via `TokenValidator`; static `X-Admin-Key`/`Bearer api_key` retained **only** for `/admin/migrations/*` + `/admin/maintenance/cleanup` (offline `offline_access` token also accepted) — [admin-auth #02](admin-auth/issues/02-jwt-admin-middleware.md) (done 2026-08-30, F-48)
+- [ ] Migrate ops auth from api_key to offline token — [admin-auth #03](admin-auth/issues/03-narrow-static-and-docs.md)
 
 ## Scopes & Roles
 
