@@ -23,7 +23,7 @@ verification process, otherwise the claim is misleading and the value is dead.
    true.
 2. As an admin, I want to see a user's verification state in the admin API, so I
    can tell which addresses are proven.
-3. *(future)* As an admin, I want to gate logins (ROPC / magic link) or
+3. *(future)* As an admin, I want to gate logins (magic link) or
    privileged flows on verification when the realm requires it.
 
 ## Scope

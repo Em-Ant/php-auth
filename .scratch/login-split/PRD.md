@@ -59,4 +59,4 @@ mutation half, not the method count.
 ## Size / Priority
 
 P3, size S–M. Pure internal reshape behind a stable interface; best done when
-login-lifecycle work is next touched (e.g. F-08/F-09 or F-39), not standalone.
+login-lifecycle work is next touched (e.g. F-09), not standalone.

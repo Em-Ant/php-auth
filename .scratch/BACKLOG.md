@@ -16,7 +16,6 @@ Single source of truth for what to work on next. **Local by design** (3 machines
 
 | ID | Type | Priority | Size | Blocked by | Why-now | Doc |
 |----|------|----------|------|------------|---------|-----|
-| F-08 | feature | P2 | S | | ROPC grant | `ROADMAP → Login Methods` |
 | F-11 | feature | P2 | S | | per-realm password policy | `ROADMAP → Admin API` |
 | F-13 | feature | P2 | S | | per-realm login page config | `ROADMAP → Login Form` |
 | F-09 | feature | P2 | M | | email magic link | `ROADMAP → Login Methods` |
@@ -32,7 +31,7 @@ Single source of truth for what to work on next. **Local by design** (3 machines
 | F-17 | feature | P3 | L | | Google-style modal widget (SAM iframe) | `ROADMAP → Login Form` |
 | R-08 | refactor | P3 | S | | remaining domain enums (`ResponseMode`) | `ROADMAP → PHP 8` |
 | R-13 | refactor | P3 | S | | PSR12 for `tests/` (ROADMAP "PSR12 compliance throughout" was never queued) — 198 auto-fixable violations in 25 files; run phpcbf then widen `composer cs_check` scope | `ROADMAP → PHP 8` |
-| R-14 | refactor | P3 | S–M | best alongside F-08/F-09/F-39 (login-lifecycle work) | `Login` model: raw setters → intention-revealing transition methods (`markAuthenticated/markActive/markRefreshed/markExpired`), single serialization home; invariants over metric (S1448 stays, dismiss) | `login-split/PRD.md` |
+| R-14 | refactor | P3 | S–M | best alongside F-09 (login-lifecycle work) | `Login` model: raw setters → intention-revealing transition methods (`markAuthenticated/markActive/markRefreshed/markExpired`), single serialization home; invariants over metric (S1448 stays, dismiss) | `login-split/PRD.md` |
 | R-09 | refactor | P3 | M | | readonly props + constructor promotion | `ROADMAP → PHP 8` |
 | R-10 | refactor | P3 | M | | named args + match expressions | `ROADMAP → PHP 8` |
 | R-11 | refactor | P3 | L | | PHPStan 5→6→7→8→9 | `ROADMAP → PHPStan` |

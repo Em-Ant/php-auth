@@ -12,7 +12,7 @@ integrations also need machine-to-machine and legacy credentials flows.
    get tokens without an interactive login.
 2. As a developer, I want grant types modelled as an enum, so that adding a
    new grant is a single switch instead of scattered string comparisons.
-3. *(future)* As a user, I want `grant_type=password` and email magic links.
+3. *(future)* As a user, I want email magic links.
 
 ## Implementation Decisions
 
@@ -30,7 +30,10 @@ integrations also need machine-to-machine and legacy credentials flows.
 
 ## Out of Scope
 
-- `grant_type=password` (next issue in this directory).
+- `grant_type=password` (ROPC) — **will not implement** (dropped with F-08):
+  legacy in Keycloak, and dangerous as designed (no per-realm / per-client
+  gating). Would only be reconsidered as opt-in per realm at minimum, per
+  client preferred.
 - Service-account users / user impersonation.
 
 ## Issues

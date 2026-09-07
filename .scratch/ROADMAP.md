@@ -48,7 +48,7 @@ Scope/role model and mapping, Keycloak-style. See `.scratch/scopes/PRD.md`.
 ## Login Methods
 
 - [x] Client Credentials grant (`grant_type=client_credentials`)
-- [ ] Resource Owner Password grant (`grant_type=password`)
+- ~~Resource Owner Password grant (`grant_type=password`)~~ — dropped, will not implement (legacy in Keycloak; dangerous without per-realm/per-client gating)
 - [ ] Email magic link (`Mailer` interface + `NativeMailer` adapter)
 - [ ] Email verification flow (one-time link flips `email_verified`) — **blocked until the Mailer lands** — [email-verification/PRD.md](email-verification/PRD.md)
 - [ ] SMTP adapter (future VPS deployment)
