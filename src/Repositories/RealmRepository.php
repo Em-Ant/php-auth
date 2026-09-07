@@ -6,6 +6,7 @@ namespace AuthServer\Repositories;
 
 use AuthServer\Exceptions\StorageFailed;
 use AuthServer\Interfaces\RealmRepository as IRepo;
+use AuthServer\Models\PasswordPolicy;
 use AuthServer\Models\Realm;
 
 class RealmRepository implements IRepo
@@ -41,12 +42,16 @@ class RealmRepository implements IRepo
                     id, name, keys_id, refresh_token_expires_in, access_token_expires_in,
                     pending_login_expires_in, authenticated_login_expires_in,
                     session_expires_in, idle_session_expires_in,
-                    offline_refresh_token_expires_in, scope
+                    offline_refresh_token_expires_in, scope,
+                    password_min_length, password_min_lower, password_min_upper,
+                    password_min_digits, password_min_special
                 ) VALUES (
                     :id, :name, :keys_id, :refresh_token_expires_in, :access_token_expires_in,
                     :pending_login_expires_in, :authenticated_login_expires_in,
                     :session_expires_in, :idle_session_expires_in,
-                    :offline_refresh_token_expires_in, :scope
+                    :offline_refresh_token_expires_in, :scope,
+                    :password_min_length, :password_min_lower, :password_min_upper,
+                    :password_min_digits, :password_min_special
                 )"
             );
             $statement->execute(self::realmParams($realm, $id));
@@ -71,7 +76,12 @@ class RealmRepository implements IRepo
                     session_expires_in = :session_expires_in,
                     idle_session_expires_in = :idle_session_expires_in,
                     offline_refresh_token_expires_in = :offline_refresh_token_expires_in,
-                    scope = :scope
+                    scope = :scope,
+                    password_min_length = :password_min_length,
+                    password_min_lower = :password_min_lower,
+                    password_min_upper = :password_min_upper,
+                    password_min_digits = :password_min_digits,
+                    password_min_special = :password_min_special
                 WHERE id = :id"
             );
             return $statement->execute(self::realmParams($realm, $realm->getId()));
@@ -131,6 +141,8 @@ class RealmRepository implements IRepo
 
     private static function realmParams(Realm $realm, string $id): array
     {
+        $policy = $realm->getPasswordPolicy();
+
         return [
             ':id' => $id,
             ':name' => $realm->getName(),
@@ -143,6 +155,11 @@ class RealmRepository implements IRepo
             ':idle_session_expires_in' => $realm->getIdleSessionExpiresIn(),
             ':offline_refresh_token_expires_in' => $realm->getOfflineRefreshTokenExpiresIn(),
             ':scope' => implode(' ', $realm->getScope()),
+            ':password_min_length' => $policy->minLength,
+            ':password_min_lower' => $policy->minLower,
+            ':password_min_upper' => $policy->minUpper,
+            ':password_min_digits' => $policy->minDigits,
+            ':password_min_special' => $policy->minSpecial,
         ];
     }
 
@@ -160,7 +177,8 @@ class RealmRepository implements IRepo
             (int) $r['idle_session_expires_in'],
             $r['scope'],
             $r['created_at'],
-            (int) ($r['offline_refresh_token_expires_in'] ?? 2592000)
+            (int) ($r['offline_refresh_token_expires_in'] ?? 2592000),
+            PasswordPolicy::fromRow($r)
         );
     }
 }

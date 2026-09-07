@@ -5,48 +5,20 @@ declare(strict_types=1);
 namespace AuthServer\Tests\Integration;
 
 use AuthServer\Services\SecretsService;
-use AuthServer\Tests\Support\AdminApiTrait;
+use AuthServer\Tests\Support\AdminAppTestCase;
 use AuthServer\Tests\Support\AuthRecordFixture;
-use AuthServer\Tests\Support\TempDirTrait;
-use AuthServer\Tests\Support\TestAppFactory;
-use PHPUnit\Framework\TestCase;
 
 use function AuthServer\getGuid;
 
-class AdminCrudTest extends TestCase
+class AdminCrudTest extends AdminAppTestCase
 {
-    use AdminApiTrait;
-    use TempDirTrait;
-
     private const TEST_REALM = 'c03aa58c-2888-4f40-821c-4aadf5c58f6f';
     private const WEB_REALM = '84be68b8-7936-4422-bb4d-b741d2292a9f';
     private const TEST_CLIENT = 'a540c566-dfbf-430a-9941-fb8531c022d4';
     private const CLIENT_SECRET = 'plain-secret';
-    private const USER_PASSWORD = 'user-password';
-    private const OLD_PASSWORD = 'old-pass';
-    private const NEW_PASSWORD = 'new-pass';
-
-    private static \Slim\App $app;
-    private static \PDO $pdo;
-    private static string $adminKey = 'test-admin-key';
-    private static string $keysRoot;
-
-    public static function setUpBeforeClass(): void
-    {
-        self::$keysRoot = sys_get_temp_dir() . '/auth-keys-' . getGuid();
-        mkdir(self::$keysRoot);
-
-        self::$app = TestAppFactory::createApp([
-            'admin_api_key' => self::$adminKey,
-            'keys_root' => self::$keysRoot,
-        ]);
-        self::$pdo = self::$app->getContainer()->get(\PDO::class);
-    }
-
-    public static function tearDownAfterClass(): void
-    {
-        self::removeDir(self::$keysRoot);
-    }
+    private const USER_PASSWORD = 'user-password-1';
+    private const OLD_PASSWORD = 'old-pass-1';
+    private const NEW_PASSWORD = 'new-pass-1';
 
     // ── Auth ──────────────────────────────────────────────────
 
@@ -89,15 +61,10 @@ class AdminCrudTest extends TestCase
 
     public function testCreateRealmWithGeneratedKey(): void
     {
-        $kid = $this->assertStatus(201, $this->adminRequest('POST', '/admin/keys'))['kid'];
-
-        $data = $this->assertStatus(201, $this->adminRequest('POST', '/admin/realms', [
-            'name' => 'crud-realm',
-            'keys_id' => $kid,
-        ]));
+        $data = $this->createRealmWithKeys('crud-realm');
 
         self::assertSame('crud-realm', $data['name']);
-        self::assertSame($kid, $data['keys_id']);
+        self::assertArrayHasKey('keys_id', $data);
         self::assertSame(1800, $data['refresh_token_expires_in']);
         self::assertSame('openid profile email', $data['scope']);
         self::assertArrayHasKey('id', $data);
@@ -135,11 +102,7 @@ class AdminCrudTest extends TestCase
 
     public function testUpdateRealmPartial(): void
     {
-        $kid = $this->assertStatus(201, $this->adminRequest('POST', '/admin/keys'))['kid'];
-        $realm = $this->assertStatus(201, $this->adminRequest('POST', '/admin/realms', [
-            'name' => 'update-realm',
-            'keys_id' => $kid,
-        ]));
+        $realm = $this->createRealmWithKeys('update-realm');
 
         $data = $this->assertStatus(200, $this->adminRequest('PUT', '/admin/realms/' . $realm['id'], [
             'access_token_expires_in' => 600,
@@ -158,11 +121,7 @@ class AdminCrudTest extends TestCase
 
     public function testDeleteEmptyRealmReturns204(): void
     {
-        $kid = $this->assertStatus(201, $this->adminRequest('POST', '/admin/keys'))['kid'];
-        $realm = $this->assertStatus(201, $this->adminRequest('POST', '/admin/realms', [
-            'name' => 'delete-realm',
-            'keys_id' => $kid,
-        ]));
+        $realm = $this->createRealmWithKeys('delete-realm');
 
         $response = $this->handle($this->adminRequest('DELETE', '/admin/realms/' . $realm['id']));
         self::assertSame(204, $response->getStatusCode());

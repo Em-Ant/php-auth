@@ -14,7 +14,7 @@ use Slim\Psr7\Factory\ServerRequestFactory;
  */
 trait AdminApiTrait
 {
-    private function createRequest(
+    protected function createRequest(
         string $method,
         string $path,
         array $body = [],
@@ -37,12 +37,12 @@ trait AdminApiTrait
         return $request;
     }
 
-    private function handle(ServerRequestInterface $request): ResponseInterface
+    protected function handle(ServerRequestInterface $request): ResponseInterface
     {
         return self::$app->handle($request);
     }
 
-    private function assertStatus(int $expected, ServerRequestInterface $request): array
+    protected function assertStatus(int $expected, ServerRequestInterface $request): array
     {
         $response = $this->handle($request);
         self::assertSame($expected, $response->getStatusCode());
@@ -50,7 +50,7 @@ trait AdminApiTrait
         return $body === '' ? [] : json_decode($body, true) ?? [];
     }
 
-    private function adminRequest(string $method, string $path, array $body = [], array $query = []): ServerRequestInterface
+    protected function adminRequest(string $method, string $path, array $body = [], array $query = []): ServerRequestInterface
     {
         return $this->createRequest($method, $path, $body, $query, self::$adminKey);
     }
@@ -60,7 +60,7 @@ trait AdminApiTrait
      *
      * @return array<int, mixed>
      */
-    private function assertEnvelope(array $data, int $limit = 50, int $offset = 0): array
+    protected function assertEnvelope(array $data, int $limit = 50, int $offset = 0): array
     {
         self::assertArrayHasKey('items', $data);
         self::assertSame(count($data['items']), $data['total']);

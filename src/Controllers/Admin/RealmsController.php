@@ -6,6 +6,7 @@ namespace AuthServer\Controllers\Admin;
 
 use AuthServer\Exceptions\ValidationFailed;
 use AuthServer\Interfaces\RealmRepository;
+use AuthServer\Models\PasswordPolicy;
 use AuthServer\Models\Realm;
 use AuthServer\Response\JsonResponse;
 use AuthServer\Services\RealmAdminService;
@@ -89,7 +90,9 @@ class RealmsController
     /**
      * Resolves the realm fields from the request body. `$existing` provides
      * the defaults for absent fields on update; null means create, so the
-     * realm config defaults apply instead.
+     * realm config defaults apply instead. Password-policy fields stay null
+     * unless set, so a realm inherits the global `[password_policy]` default
+     * per rule; an explicit 0 disables a rule.
      *
      * @return array{
      *     name: string,
@@ -102,6 +105,7 @@ class RealmsController
      *     idle_session_expires_in: int,
      *     scope: string,
      *     offline_refresh_token_expires_in: int,
+     *     password_policy: PasswordPolicy,
      * }
      */
     private function realmParams(array $body, ?Realm $existing): array
@@ -127,6 +131,8 @@ class RealmsController
                 'scope' => implode(' ', $existing->getScope()),
                 'offline_refresh_token_expires_in' => $existing->getOfflineRefreshTokenExpiresIn(),
             ];
+
+        $policy = $existing?->getPasswordPolicy() ?? new PasswordPolicy();
 
         return [
             // Required on create, optional-with-existing-default on update.
@@ -172,6 +178,13 @@ class RealmsController
                 'offline_refresh_token_expires_in',
                 $defaults['offline_refresh_token_expires_in']
             ),
+            'password_policy' => new PasswordPolicy(
+                minLength: $this->optionalPolicyInt($body, 'password_min_length', $policy->minLength),
+                minLower: $this->optionalPolicyInt($body, 'password_min_lower', $policy->minLower),
+                minUpper: $this->optionalPolicyInt($body, 'password_min_upper', $policy->minUpper),
+                minDigits: $this->optionalPolicyInt($body, 'password_min_digits', $policy->minDigits),
+                minSpecial: $this->optionalPolicyInt($body, 'password_min_special', $policy->minSpecial),
+            ),
         ];
     }
 
@@ -197,6 +210,7 @@ class RealmsController
             'session_expires_in' => $realm->getSessionExpiresIn(),
             'idle_session_expires_in' => $realm->getIdleSessionExpiresIn(),
             'offline_refresh_token_expires_in' => $realm->getOfflineRefreshTokenExpiresIn(),
+            'password_policy' => $realm->getPasswordPolicy()->toArray(),
             'scope' => implode(' ', $realm->getScope()),
             'created_at' => formatSqlDatetime($realm->getCreatedAt()),
         ];

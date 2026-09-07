@@ -801,7 +801,7 @@ echo "=== Step 18: Admin — users CRUD ==="
 
 # Create user
 USER_RESP=$(curl -sS -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
-    -d '{"realm_id":"'"$ADMIN_CREATED_REALM_ID"'","email":"e2e-admin@example.com","password":"secret123","name":"E2E Admin User"}' \
+    -d '{"realm_id":"'"$ADMIN_CREATED_REALM_ID"'","email":"e2e-admin@example.com","password":"secret123!","name":"E2E Admin User"}' \
     "$BASE/admin/users")
 ADMIN_CREATED_USER_ID=$(echo "$USER_RESP" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
 USER_EMAIL=$(echo "$USER_RESP" | sed -n 's/.*"email":"\([^"]*\)".*/\1/p')
@@ -1060,7 +1060,7 @@ ADMIN_REALM_NAME="e2e-admin-realm"
 ADMIN_CLIENT_NAME="e2e-admin-client"
 ADMIN_REDIRECT_URI="https://e2e.example.com"
 ADMIN_EMAIL="e2e-admin@example.com"
-ADMIN_PASSWORD="secret123"
+ADMIN_PASSWORD="secret123!"
 ADMIN_AUTH_BASE="$BASE/realms/$ADMIN_REALM_NAME/protocol/openid-connect"
 
 # ── Step 19: Auth redirect ───────────────────────────────────
@@ -1415,7 +1415,7 @@ echo "--- 24a-4: Required scope dropped (user lacks required role) ---"
 
 # Create a limited user with only "basic" role (not "admin")
 LIMITED_USER_JSON=$(curl -sS -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
-    -d '{"realm_id":"'"$ADMIN_CREATED_REALM_ID"'","email":"e2e-limited@example.com","password":"secret456","name":"E2E Limited User"}' \
+    -d '{"realm_id":"'"$ADMIN_CREATED_REALM_ID"'","email":"e2e-limited@example.com","password":"secret456!","name":"E2E Limited User"}' \
     "$BASE/admin/users")
 LIMITED_USER_ID=$(echo "$LIMITED_USER_JSON" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
 [[ -n "$LIMITED_USER_ID" ]] && ok "Created limited user: ${LIMITED_USER_ID:0:8}..." || { fail "No limited user id"; exit 1; }
@@ -1442,7 +1442,7 @@ LIM_CSRF=$(echo "$LIM_AUTH" | sed -n 's/.*name="csrf_token"\s*value="\([^"]*\)".
 LIM_LOGIN_CODE=$(curl -sS -c "$LIM_COOKIE" -b "$LIM_COOKIE" \
     -D "$LIM_HEADERS" -o /dev/null -w "%{http_code}" \
     -X POST \
-    -d "email=e2e-limited@example.com&password=secret456&csrf_token=${LIM_CSRF}" \
+    -d "email=e2e-limited@example.com&password=secret456!&csrf_token=${LIM_CSRF}" \
     "$ADMIN_AUTH_BASE/login-actions/authenticate?q=${LIM_LOGIN_ID}")
 
 [[ "$LIM_LOGIN_CODE" = "302" ]] && ok "Limited auth: login 302" || { fail "Limited auth: expected 302, got $LIM_LOGIN_CODE"; rm -f "$LIM_COOKIE" "$LIM_HEADERS"; }
@@ -2050,7 +2050,7 @@ MNT_CLIENT_ID=$(echo "$MNT_CLIENT_RESP" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
 
 MNT_EMAIL="mnt-$(date +%s)@example.com"
 MNT_USER_RESP=$(curl -sS -X POST -H "$ADMIN_HDR" -H "Content-Type: application/json" \
-    -d '{"realm_id":"'"$MNT_REALM_ID"'","email":"'"$MNT_EMAIL"'","password":"secret123"}' \
+    -d '{"realm_id":"'"$MNT_REALM_ID"'","email":"'"$MNT_EMAIL"'","password":"secret123!"}' \
     "$BASE/admin/users")
 MNT_USER_ID=$(echo "$MNT_USER_RESP" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
 [[ -n "$MNT_CLIENT_ID" && -n "$MNT_USER_ID" ]] && ok "Maintenance: fixture client + user created" || fail "Maintenance: fixture client/user creation failed"

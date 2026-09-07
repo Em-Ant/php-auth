@@ -11,6 +11,8 @@ use AuthServer\Interfaces\RealmRepository;
 use AuthServer\Interfaces\SessionRepository;
 use AuthServer\Interfaces\UserRepository;
 use AuthServer\Models\AuditAction;
+use AuthServer\Models\PasswordPolicy;
+use AuthServer\Models\Realm;
 use AuthServer\Models\User;
 use Psr\Http\Message\ServerRequestInterface;
 
@@ -40,6 +42,8 @@ class UserAdminService
         private readonly SessionRepository $sessions,
         private readonly OfflineSessionRepository $offlineSessions,
         private readonly AuditLogWriter $auditLog,
+        private readonly PasswordPolicyValidator $policyValidator,
+        private readonly PasswordPolicy $globalPasswordPolicy,
     ) {
     }
 
@@ -56,9 +60,7 @@ class UserAdminService
     public function createUser(array $params, ServerRequestInterface $request): User
     {
         $realmId = $params['realm_id'];
-        if ($this->realms->findById($realmId) === null) {
-            throw new ValidationFailed("unknown realm '$realmId'");
-        }
+        $realm = $this->requireRealm($realmId);
 
         $email = $params['email'];
         if ($this->users->findByEmailAndRealmId($email, $realmId) !== null) {
@@ -70,7 +72,7 @@ class UserAdminService
             $realmId,
             $params['name'] ?? '',
             $email,
-            $this->hashPassword($params['password']),
+            $this->hashCheckedPassword($params['password'], $realm),
             sqlNow(),
             $params['valid'] ?? true,
             $params['email_verified'] ?? true
@@ -102,9 +104,7 @@ class UserAdminService
     public function updateUser(User $existing, array $params, ServerRequestInterface $request): User
     {
         $realmId = $params['realm_id'] ?? $existing->getRealmId();
-        if ($this->realms->findById($realmId) === null) {
-            throw new ValidationFailed("unknown realm '$realmId'");
-        }
+        $realm = $this->requireRealm($realmId);
         if ($realmId !== $existing->getRealmId()) {
             throw new ValidationFailed(
                 "cannot move user to another realm: roles are realm-bound and "
@@ -130,7 +130,7 @@ class UserAdminService
             $realmId,
             $params['name'] ?? $existing->getName(),
             $email,
-            $rotating ? $this->hashPassword($params['password'] ?? null) : $existing->getPassword(),
+            $rotating ? $this->hashCheckedPassword($params['password'] ?? null, $realm) : $existing->getPassword(),
             formatSqlDatetime($existing->getCreatedAt()),
             $params['valid'] ?? $existing->getValid(),
             $params['email_verified'] ?? $existing->getEmailVerified()
@@ -173,16 +173,32 @@ class UserAdminService
         }
     }
 
+    private function requireRealm(string $realmId): Realm
+    {
+        $realm = $this->realms->findById($realmId);
+        if ($realm === null) {
+            throw new ValidationFailed("unknown realm '$realmId'");
+        }
+
+        return $realm;
+    }
+
     /**
      * A password was submitted when the value is non-null. One rule drives
      * both the hash decision and the rotation trigger, so a null value can
-     * never count as a rotation by accident.
+     * never count as a rotation by accident. Submitted passwords must also
+     * satisfy the realm's effective policy (realm overrides resolved against
+     * the global defaults) — checked after the duplicate guards so a
+     * conflicting email still reports 409 rather than a policy 400.
      */
-    private function hashPassword(mixed $password): string
+    private function hashCheckedPassword(mixed $password, Realm $realm): string
     {
         if (!is_string($password) || trim($password) === '') {
             throw new ValidationFailed("'password' must be a non-empty string");
         }
+        $effective = $realm->getPasswordPolicy()->withFallback($this->globalPasswordPolicy);
+        $this->policyValidator->validate($password, $effective);
+
         return $this->secretsService->hashPassword($password);
     }
 }

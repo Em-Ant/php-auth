@@ -18,6 +18,7 @@ class Realm implements \JsonSerializable
     private int $offline_refresh_token_expires_in;
     private array $scope;
     private \DateTime $created_at;
+    private PasswordPolicy $passwordPolicy;
 
 
     public function __construct(
@@ -32,7 +33,8 @@ class Realm implements \JsonSerializable
         int $idle_session_expires_in,
         string $scope,
         string $created_at,
-        int $offline_refresh_token_expires_in = 2592000
+        int $offline_refresh_token_expires_in = 2592000,
+        PasswordPolicy|null $passwordPolicy = null
     ) {
         $this->id = $id;
         $this->name = $name;
@@ -44,6 +46,7 @@ class Realm implements \JsonSerializable
         $this->session_expires_in = $session_expires_in;
         $this->idle_session_expires_in = $idle_session_expires_in;
         $this->offline_refresh_token_expires_in = $offline_refresh_token_expires_in;
+        $this->passwordPolicy = $passwordPolicy ?? new PasswordPolicy();
         $this->scope = explode(' ', $scope);
         $utc = new \DateTimeZone('UTC');
         $this->created_at =
@@ -90,6 +93,10 @@ class Realm implements \JsonSerializable
     {
         return $this->offline_refresh_token_expires_in;
     }
+    public function getPasswordPolicy(): PasswordPolicy
+    {
+        return $this->passwordPolicy;
+    }
     public function getScope(): array
     {
         return $this->scope;
@@ -112,6 +119,7 @@ class Realm implements \JsonSerializable
             'session_expires_in' => $this->session_expires_in,
             'idle_session_expires_in' => $this->idle_session_expires_in,
             'offline_refresh_token_expires_in' => $this->offline_refresh_token_expires_in,
+            'password_policy' => $this->passwordPolicy->toArray(),
             'scope' => $this->scope,
             'created_at' => $this->created_at->format('Y-m-d H:i:s'),
         ];
