@@ -35,6 +35,7 @@ use AuthServer\Interfaces\SessionCookieHandler;
 use AuthServer\Interfaces\SessionRepository as ISessionRepo;
 use AuthServer\Interfaces\UserRepository as IUserRepo;
 use AuthServer\Middleware\RealmProvider;
+use AuthServer\Models\PasswordPolicy;
 use AuthServer\Repositories\ClientRepository;
 use AuthServer\Repositories\AuditLogRepository;
 use AuthServer\Repositories\LoginRepository;
@@ -110,6 +111,7 @@ final class Definitions
                 ['/admin/migrations', '/db/migrations', '/admin/maintenance']
             ),
             'password_hashing' => $config['password_hashing'] ?? [],
+            'password_policy' => $config['password_policy'] ?? [],
             'log_settings' => $config['log'] ?? [],
             'rate_limiting' => $config['rate_limiting'] ?? [],
             'migrations_dir' => $root . '/migrations/',
@@ -158,6 +160,14 @@ final class Definitions
 
             SecretsService::class => \DI\autowire()
                 ->constructorParameter('config', \DI\get('password_hashing')),
+
+            // ── Global password policy (F-11) ──
+            // Realm NULL fields inherit these values; injected into
+            // UserAdminService as the fallback for realm overrides.
+
+            PasswordPolicy::class => function (ContainerInterface $c): PasswordPolicy {
+                return PasswordPolicy::fromConfigArray($c->get('password_policy'));
+            },
 
             // ── Repository interface bindings ──
 

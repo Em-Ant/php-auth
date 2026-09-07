@@ -4,42 +4,16 @@ declare(strict_types=1);
 
 namespace AuthServer\Tests\Integration;
 
-use AuthServer\Tests\Support\AdminApiTrait;
+use AuthServer\Tests\Support\AdminAppTestCase;
 use AuthServer\Tests\Support\AuthRecordFixture;
-use AuthServer\Tests\Support\TempDirTrait;
-use AuthServer\Tests\Support\TestAppFactory;
-use PHPUnit\Framework\TestCase;
 
 use function AuthServer\getGuid;
 
-class SessionLoginManagementTest extends TestCase
+class SessionLoginManagementTest extends AdminAppTestCase
 {
-    use AdminApiTrait;
-    use TempDirTrait;
-
     private const TEST_REALM = 'c03aa58c-2888-4f40-821c-4aadf5c58f6f';
     private const TEST_CLIENT = 'a540c566-dfbf-430a-9941-fb8531c022d4';
     private const TEST_USER = 'b0aa0c22-a356-40c7-9fa2-6f973c3f614a';
-
-    private static \Slim\App $app;
-    private static string $adminKey = 'test-admin-key';
-    private static string $keysRoot;
-
-    public static function setUpBeforeClass(): void
-    {
-        self::$keysRoot = sys_get_temp_dir() . '/auth-keys-' . getGuid();
-        mkdir(self::$keysRoot);
-
-        self::$app = TestAppFactory::createApp([
-            'admin_api_key' => self::$adminKey,
-            'keys_root' => self::$keysRoot,
-        ]);
-    }
-
-    public static function tearDownAfterClass(): void
-    {
-        self::removeDir(self::$keysRoot);
-    }
 
     // ── Sessions ──────────────────────────────────────────────
 
@@ -285,11 +259,7 @@ class SessionLoginManagementTest extends TestCase
 
     public function testDeleteRealmBlockedByActiveSessions(): void
     {
-        $kid = $this->assertStatus(201, $this->adminRequest('POST', '/admin/keys'))['kid'];
-        $realm = $this->assertStatus(201, $this->adminRequest('POST', '/admin/realms', [
-            'name' => 'delete-test-' . getGuid(),
-            'keys_id' => $kid,
-        ]));
+        $realm = $this->createRealmWithKeys('delete-test-' . getGuid());
 
         $client = $this->assertStatus(201, $this->adminRequest('POST', '/admin/clients', [
             'name' => 'del-client-' . getGuid(),
@@ -300,7 +270,7 @@ class SessionLoginManagementTest extends TestCase
         $user = $this->assertStatus(201, $this->adminRequest('POST', '/admin/users', [
             'realm_id' => $realm['id'],
             'email' => 'del-' . getGuid() . '@example.com',
-            'password' => 'pass',
+            'password' => 'del-pass-1',
         ]));
 
         // Create active session + login
@@ -328,7 +298,7 @@ class SessionLoginManagementTest extends TestCase
         $user = $this->assertStatus(201, $this->adminRequest('POST', '/admin/users', [
             'realm_id' => self::TEST_REALM,
             'email' => 'sess-block-' . getGuid() . '@example.com',
-            'password' => 'pass',
+            'password' => 'sess-pass-1',
         ]));
 
         $pdo = self::$app->getContainer()->get(\PDO::class);

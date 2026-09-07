@@ -49,14 +49,47 @@ trait ValidatesAdminInput
 
     private function optionalInt(array $body, string $field, int $default): int
     {
-        if (!array_key_exists($field, $body) || $body[$field] === null) {
+        [$present, $value] = $this->submittedValue($body, $field);
+        if (!$present) {
             return $default;
         }
-        $value = $body[$field];
         if (!is_int($value) || $value < 1) {
             throw new ValidationFailed("'$field' must be a positive integer");
         }
         return $value;
+    }
+
+    /**
+     * Nullable non-negative body field for per-realm password-policy rules:
+     * absent or null yields the default (null = inherit the global default),
+     * an explicit 0 disables the rule. Anything else is a 400.
+     */
+    private function optionalPolicyInt(array $body, string $field, int|null $default): int|null
+    {
+        [$present, $value] = $this->submittedValue($body, $field);
+        if (!$present) {
+            return $default;
+        }
+        if (!is_int($value) || $value < 0) {
+            throw new ValidationFailed("'$field' must be a non-negative integer or null");
+        }
+        return $value;
+    }
+
+    /**
+     * Splits "not submitted" (absent or null → caller default) from
+     * "submitted" (raw value for the caller to validate). Both integer
+     * flavors share it so they cannot disagree on what counts as absent.
+     *
+     * @return array{0: bool, 1: mixed}
+     */
+    private function submittedValue(array $body, string $field): array
+    {
+        if (!array_key_exists($field, $body) || $body[$field] === null) {
+            return [false, null];
+        }
+
+        return [true, $body[$field]];
     }
 
     /**

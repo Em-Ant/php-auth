@@ -11,6 +11,7 @@ use AuthServer\Interfaces\KeyStore;
 use AuthServer\Interfaces\RealmRepository;
 use AuthServer\Interfaces\UserRepository;
 use AuthServer\Models\AuditAction;
+use AuthServer\Models\PasswordPolicy;
 use AuthServer\Models\Realm;
 use Psr\Http\Message\ServerRequestInterface;
 
@@ -49,6 +50,7 @@ class RealmAdminService
      *     idle_session_expires_in: int,
      *     scope: string,
      *     offline_refresh_token_expires_in: int,
+     *     password_policy: PasswordPolicy,
      * } $params
      */
     public function create(array $params, ServerRequestInterface $request): Realm
@@ -79,6 +81,7 @@ class RealmAdminService
      *     idle_session_expires_in: int,
      *     scope: string,
      *     offline_refresh_token_expires_in: int,
+     *     password_policy: PasswordPolicy,
      * } $params
      */
     public function update(Realm $existing, array $params, ServerRequestInterface $request): Realm
@@ -129,7 +132,8 @@ class RealmAdminService
             $params['idle_session_expires_in'],
             $params['scope'],
             $createdAt,
-            $params['offline_refresh_token_expires_in']
+            $params['offline_refresh_token_expires_in'],
+            $params['password_policy']
         );
     }
 

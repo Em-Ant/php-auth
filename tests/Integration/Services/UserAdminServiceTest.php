@@ -9,12 +9,14 @@ use AuthServer\Exceptions\ValidationFailed;
 use AuthServer\Interfaces\OfflineSessionRepository;
 use AuthServer\Interfaces\RealmRepository;
 use AuthServer\Interfaces\SessionRepository;
+use AuthServer\Models\PasswordPolicy;
 use AuthServer\Models\User;
 use AuthServer\Repositories\LoginRepository;
 use AuthServer\Repositories\OfflineSessionRepository as RepoOfflineSessionRepository;
 use AuthServer\Repositories\SessionRepository as RepoSessionRepository;
 use AuthServer\Repositories\UserRepository;
 use AuthServer\Services\AuditLogWriter;
+use AuthServer\Services\PasswordPolicyValidator;
 use AuthServer\Services\SecretsService;
 use AuthServer\Services\SessionRevocationService;
 use AuthServer\Services\UserAdminService;
@@ -30,7 +32,7 @@ class UserAdminServiceTest extends RepositoryTestCase
     private const EMANT_TEST = 'b0aa0c22-a356-40c7-9fa2-6f973c3f614a';
     private const EMANT_EMAIL = 'test@example.com';
     private const LOCAL_CLIENT = 'a540c566-dfbf-430a-9941-fb8531c022d4';
-    private const TEST_PASSWORD = 'tst';
+    private const TEST_PASSWORD = 'tst-pass-1';
 
     public function testCreateUserPersistsUserWithoutRoles(): void
     {
@@ -236,6 +238,8 @@ class UserAdminServiceTest extends RepositoryTestCase
                 $this->createMock(\AuthServer\Interfaces\AuditLogRepository::class),
                 new NullLogger(),
             ),
+            new PasswordPolicyValidator(),
+            PasswordPolicy::fromConfigArray([]),
         );
     }
 
