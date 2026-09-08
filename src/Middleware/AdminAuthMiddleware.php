@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AuthServer\Middleware;
 
 use AuthServer\Interfaces\RealmRepository as IRealmRepo;
+use AuthServer\Response\BearerChallenge;
 use AuthServer\Response\JsonResponse;
 use AuthServer\Services\TokenValidator;
 use Psr\Http\Message\ResponseInterface;
@@ -57,7 +58,12 @@ final class AdminAuthMiddleware implements MiddlewareInterface
         }
 
         $response = new Response();
-        return JsonResponse::error($response, 'unauthorized', 'invalid or missing admin token', 401);
+        $response = JsonResponse::error($response, 'unauthorized', 'invalid or missing admin token', 401);
+
+        return $response->withHeader(
+            'WWW-Authenticate',
+            BearerChallenge::create($this->adminRealmName, 'invalid or missing admin token')
+        );
     }
 
     private function extractBearerToken(ServerRequestInterface $request): ?string

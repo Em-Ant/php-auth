@@ -31,48 +31,32 @@ class ValidateAccessTokenTest extends TestCase
         );
     }
 
-    public function testMissingAuthHeaderReturns400(): void
+    public function testMissingAuthHeaderReturns401WithChallenge(): void
     {
-        $request = $this->createMock(ServerRequestInterface::class);
-        $request->method('getAttribute')->with(Realm::class)->willReturn($this->realm);
-        $request->method('getHeaderLine')->with('Authorization')->willReturn('');
-
-        $handler = $this->createMock(RequestHandlerInterface::class);
-        $handler->expects(self::never())->method('handle');
-
-        $response = $this->middleware->process($request, $handler);
-        self::assertSame(400, $response->getStatusCode());
+        $response = $this->processHeader('');
+        self::assertSame(401, $response->getStatusCode());
         $body = json_decode((string) $response->getBody(), true);
         self::assertSame('missing authorization header', $body['error_description']);
+        $challenge = $response->getHeaderLine('WWW-Authenticate');
+        self::assertStringStartsWith('Bearer realm="test"', $challenge);
+        self::assertStringContainsString('error="invalid_token"', $challenge);
     }
 
-    public function testNonBearerAuthHeaderReturns400(): void
+    public function testNonBearerAuthHeaderReturns401WithChallenge(): void
     {
-        $request = $this->createMock(ServerRequestInterface::class);
-        $request->method('getAttribute')->with(Realm::class)->willReturn($this->realm);
-        $request->method('getHeaderLine')->with('Authorization')->willReturn('Basic dGVzdDpwYXNz');
-
-        $handler = $this->createMock(RequestHandlerInterface::class);
-        $handler->expects(self::never())->method('handle');
-
-        $response = $this->middleware->process($request, $handler);
-        self::assertSame(400, $response->getStatusCode());
+        $response = $this->processHeader('Basic dGVzdDpwYXNz');
+        self::assertSame(401, $response->getStatusCode());
+        self::assertStringStartsWith('Bearer realm="test"', $response->getHeaderLine('WWW-Authenticate'));
     }
 
-    public function testInvalidTokenReturns401(): void
+    public function testInvalidTokenReturns401WithChallenge(): void
     {
-        $request = $this->createMock(ServerRequestInterface::class);
-        $request->method('getAttribute')->with(Realm::class)->willReturn($this->realm);
-        $request->method('getHeaderLine')->with('Authorization')->willReturn('Bearer invalid-token');
-
         $this->tokenValidator->method('parseValidToken')
             ->willThrowException(new ValidationFailed('Token verification failed'));
 
-        $handler = $this->createMock(RequestHandlerInterface::class);
-        $handler->expects(self::never())->method('handle');
-
-        $response = $this->middleware->process($request, $handler);
+        $response = $this->processHeader('Bearer invalid-token');
         self::assertSame(401, $response->getStatusCode());
+        self::assertStringContainsString('error="invalid_token"', $response->getHeaderLine('WWW-Authenticate'));
     }
 
     public function testValidTokenSetsAttributeAndPassesThrough(): void
@@ -113,5 +97,17 @@ class ValidateAccessTokenTest extends TestCase
         $handler->expects(self::once())->method('handle')->with($enrichedRequest);
 
         $this->middleware->process($request, $handler);
+    }
+
+    private function processHeader(string $authHeader): ResponseInterface
+    {
+        $request = $this->createMock(ServerRequestInterface::class);
+        $request->method('getAttribute')->with(Realm::class)->willReturn($this->realm);
+        $request->method('getHeaderLine')->with('Authorization')->willReturn($authHeader);
+
+        $handler = $this->createMock(RequestHandlerInterface::class);
+        $handler->expects(self::never())->method('handle');
+
+        return $this->middleware->process($request, $handler);
     }
 }

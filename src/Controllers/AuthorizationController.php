@@ -57,6 +57,9 @@ class AuthorizationController
             InputValidator::validateQueryParams($query);
             $scope = $query['scope'];
             $prompt = $query['prompt'] ?? '';
+            $maxAge = InputValidator::parseMaxAge($query['max_age'] ?? null);
+            $loginHint = InputValidator::parseLoginHint($query['login_hint'] ?? null);
+            $uiLocale = InputValidator::parseUiLocale($query['ui_locales'] ?? null);
 
             $this->authService->validateRequiredLoginScope(
                 $realm,
@@ -71,6 +74,13 @@ class AuthorizationController
                     $realm->getSessionExpiresIn(),
                     $realm->getIdleSessionExpiresIn()
                 );
+            }
+            if (
+                $session !== null
+                && $maxAge !== null
+                && !$this->sessionOrchestrator->isFreshForMaxAge($session, $maxAge)
+            ) {
+                $session = null;
             }
 
             if ($session !== null) {
@@ -108,9 +118,10 @@ class AuthorizationController
                 'login_id' => $pending['login_id'],
                 'csrf_token' => $pending['csrf_token'],
                 'realm' => $realmName,
-                'email' => '',
+                'email' => $loginHint,
                 'password' => '',
                 'error' => false,
+                'lang' => $uiLocale,
             ]);
         } catch (OAuth2Error $e) {
             return JsonResponse::errorFromOAuth2Error($response, $e);
@@ -134,6 +145,9 @@ class AuthorizationController
 
         $loginId = $query['q'] ?? '';
         $csrfToken = $body['csrf_token'] ?? '';
+        // Carried by the login form action so the page keeps its language
+        // (ui_locales) when credentials fail and the form is re-rendered.
+        $lang = InputValidator::parseUiLocale($query['ui_locales'] ?? null);
 
         try {
             $this->authService->validateCsrfToken($loginId, $csrfToken);
@@ -161,6 +175,7 @@ class AuthorizationController
                 'email' => $email,
                 'password' => $password,
                 'error' => $result['error'],
+                'lang' => $lang,
             ]);
         }
 

@@ -9,6 +9,15 @@ use AuthServer\Exceptions\ValidationFailed;
 use AuthServer\Models\Client;
 use AuthServer\Models\GrantType;
 
+/**
+ * Static input validation and parsing for request parameters.
+ *
+ * The `validate*` methods throw ValidationFailed on bad input. The `parse*`
+ * methods normalize optional OIDC parameters and are intentionally
+ * inconsistent about failure: parseMaxAge throws on malformed values (the
+ * spec requires a hard error), while parseUiLocale and parseLoginHint fall
+ * back to safe defaults (Keycloak's lenient handling).
+ */
 class InputValidator
 {
     /**
@@ -181,6 +190,84 @@ class InputValidator
                 throw new ValidationFailed("missing required field 'refresh_token'");
             }
         }
+    }
+
+    /**
+     * OIDC Core §3.1.2.1 `max_age`: max seconds since authentication.
+     * Returns null when absent; throws on malformed values.
+     *
+     * Digits beyond a native int saturate to PHP_INT_MAX (effectively "no
+     * limit"); 0 forces re-authentication unless the session was created in
+     * the same second.
+     *
+     * @param mixed $value raw query value
+     */
+    public static function parseMaxAge(mixed $value): int|null
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        if (is_int($value) && $value >= 0) {
+            return $value;
+        }
+        if (is_string($value) && ctype_digit($value)) {
+            return (int) $value;
+        }
+        throw new ValidationFailed('invalid max_age');
+    }
+
+    /**
+     * OIDC Core §3.1.2.1 `ui_locales`: space-separated BCP47 tags.
+     * Returns the first well-formed tag for the login page `lang`
+     * attribute, defaulting to `en`. Never throws: an unusable value
+     * simply falls back, matching Keycloak's lenient handling.
+     *
+     * @param mixed $value raw query value
+     */
+    public static function parseUiLocale(mixed $value): string
+    {
+        if (!is_string($value)) {
+            return 'en';
+        }
+        $tokens = preg_split('/\s+/', trim($value));
+        if ($tokens === false) {
+            return 'en';
+        }
+
+        return self::firstValidLocale($tokens);
+    }
+
+    /**
+     * @param list<string> $tokens
+     */
+    private static function firstValidLocale(array $tokens): string
+    {
+        foreach ($tokens as $token) {
+            if (preg_match('/^[A-Za-z]{2,8}(-[A-Za-z0-9]{1,8})*$/', $token) === 1) {
+                return $token;
+            }
+        }
+
+        return 'en';
+    }
+
+    /**
+     * OIDC Core §3.1.2.1 `login_hint`: opportunistic username hint.
+     * Returns the raw hint for pre-filling the login form, or an empty
+     * string when absent or malformed (never throws).
+     *
+     * @param mixed $value raw query value
+     */
+    public static function parseLoginHint(mixed $value): string
+    {
+        if (!is_string($value)) {
+            return '';
+        }
+        $hint = trim($value);
+        if ($hint === '') {
+            return '';
+        }
+        return mb_substr($hint, 0, 320);
     }
 
     public static function validateCodeChallenge(?string $codeChallenge, ?string $codeVerifier): void

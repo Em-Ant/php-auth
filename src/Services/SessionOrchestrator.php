@@ -53,6 +53,18 @@ class SessionOrchestrator
         return !$isExpired && !$isIdleForTooLong;
     }
 
+    /**
+     * OIDC Core §3.1.2.1 `max_age`: the SSO session only satisfies the
+     * request when its authentication age (measured from creation, not
+     * last activity) is within the requested maximum.
+     */
+    public function isFreshForMaxAge(Session $session, int $maxAge): bool
+    {
+        $age = time() - $session->getCreatedAt()->getTimestamp();
+
+        return $age <= $maxAge;
+    }
+
     public function expire(string $sessionId): void
     {
         $ok = $this->sessionRepository->setExpired($sessionId);

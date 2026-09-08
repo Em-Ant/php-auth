@@ -457,6 +457,43 @@ WILD_SIB_PATH_CODE=$(curl -sS -o /dev/null -w "%{http_code}" \
     "$BASE/realms/web/protocol/openid-connect/auth?client_id=playground&redirect_uri=http://localhost:5173/react-playgroundx&response_type=code&scope=openid")
 [[ "$WILD_SIB_PATH_CODE" = "400" ]] && ok "Wildcard: sibling path rejected" || fail "Wildcard sibling path expected 400, got $WILD_SIB_PATH_CODE"
 
+# ── Step 6f: auth-request hardening batch (F-43) ──────────
+echo ""
+echo "=== Step 6f: login_hint/max_age/ui_locales + 401 challenge + X-Powered-By (F-43) ==="
+# login_hint pre-fills the email field.
+HINT_PAGE=$(curl -sS "$BASE/realms/test/protocol/openid-connect/auth?client_id=local&redirect_uri=http://localhost:5173&response_type=code&scope=openid&login_hint=hinted%40example.com")
+echo "$HINT_PAGE" | grep -q 'value="hinted@example.com"' \
+    && ok "login_hint pre-fills email field" \
+    || fail "login_hint not reflected in login form"
+
+# ui_locales sets the page language.
+LOCALE_PAGE=$(curl -sS "$BASE/realms/test/protocol/openid-connect/auth?client_id=local&redirect_uri=http://localhost:5173&response_type=code&scope=openid&ui_locales=fr-CA%20fr")
+echo "$LOCALE_PAGE" | grep -q '<html lang="fr-CA">' \
+    && ok "ui_locales sets html lang" \
+    || fail "ui_locales not reflected in html lang"
+
+# Malformed max_age is a 400.
+MAX_BAD_CODE=$(curl -sS -o /dev/null -w "%{http_code}" \
+    "$BASE/realms/test/protocol/openid-connect/auth?client_id=local&redirect_uri=http://localhost:5173&response_type=code&scope=openid&max_age=soon")
+[[ "$MAX_BAD_CODE" = "400" ]] && ok "malformed max_age rejected with 400" || fail "malformed max_age expected 400, got $MAX_BAD_CODE"
+
+# userinfo without a token is 401 with a Bearer challenge (RFC 6750 §3).
+> "$HEADER_DUMP"
+UI_401_CODE=$(curl -sS -o /dev/null -w "%{http_code}" -D "$HEADER_DUMP" \
+    "$BASE/realms/test/protocol/openid-connect/userinfo")
+[[ "$UI_401_CODE" = "401" ]] && ok "userinfo without token returns 401" || fail "userinfo missing token expected 401, got $UI_401_CODE"
+grep -qi '^WWW-Authenticate: *Bearer' "$HEADER_DUMP" \
+    && ok "userinfo 401 carries WWW-Authenticate: Bearer" \
+    || fail "userinfo 401 missing WWW-Authenticate: Bearer"
+grep -qi 'error="invalid_token"' "$HEADER_DUMP" \
+    && ok "userinfo challenge carries error=invalid_token" \
+    || fail "userinfo challenge missing error=invalid_token"
+
+# X-Powered-By must not leak on any response.
+grep -qi '^X-Powered-By:' "$HEADER_DUMP" \
+    && fail "X-Powered-By header leaked" \
+    || ok "No X-Powered-By header leaked"
+
 # ── Step 7: Refresh token ─────────────────────────────────────
 echo ""
 echo "=== Step 7: Refresh token ==="

@@ -30,6 +30,7 @@ use AuthServer\Middleware\AdminAuthMiddleware;
 use AuthServer\Middleware\CorsMiddleware;
 use AuthServer\Middleware\RateLimitingMiddleware;
 use AuthServer\Middleware\RequestLogger;
+use AuthServer\Middleware\PoweredByHeaderMiddleware;
 use AuthServer\Middleware\RealmProvider;
 use AuthServer\Middleware\ValidateAccessToken;
 use AuthServer\Response\JsonResponse;
@@ -83,6 +84,7 @@ final class AppBuilder
         $app->add(self::bodyParser());
         $app->add(new CorsMiddleware($container->get('allowed_origins')));
         $app->add(new RequestLogger($logger));
+        $app->add(new PoweredByHeaderMiddleware());
 
         $rateLimitMiddleware = $rateLimiting
             ? self::rateLimitMiddleware($container)

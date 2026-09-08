@@ -3,11 +3,13 @@
 /** @var string $content */
 /** @var string $title */
 /** @var string $sub_path */
+/** @var string|null $lang */
 
 $sp = htmlspecialchars($sub_path, ENT_QUOTES, 'UTF-8');
+$pageLang = htmlspecialchars(isset($lang) && $lang !== '' ? (string) $lang : 'en', ENT_QUOTES, 'UTF-8');
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="<?= $pageLang ?>">
 
 <head>
   <title><?= htmlspecialchars($title, ENT_QUOTES, 'UTF-8') ?></title>

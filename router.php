@@ -2,6 +2,9 @@
 
 declare(strict_types=1);
 
+// P-09: never disclose the PHP version (see src/bootstrap/suppress_version_headers.php).
+require_once __DIR__ . '/src/bootstrap/suppress_version_headers.php';
+
 if (php_sapi_name() === 'cli-server') {
     $publicPath = __DIR__ . '/public' . parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
     $publicPath = realpath($publicPath);

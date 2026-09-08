@@ -12,6 +12,9 @@ if (function_exists('opcache_invalidate') && filter_var(ini_get('opcache.enable'
     opcache_invalidate(__FILE__, true);
 }
 
+// P-09: never disclose the PHP version (see src/bootstrap/suppress_version_headers.php).
+require_once __DIR__ . '/../src/bootstrap/suppress_version_headers.php';
+
 require_once __DIR__ . '/../vendor/autoload.php';
 
 $containerObj = new \DI\Container(Definitions::get());

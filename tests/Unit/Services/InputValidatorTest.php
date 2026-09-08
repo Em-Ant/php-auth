@@ -368,4 +368,49 @@ class InputValidatorTest extends TestCase
         $this->expectException(ValidationFailed::class);
         InputValidator::validateCodeChallenge('challenge-abc', null);
     }
+
+    // ── parseMaxAge (F-43) ─────────────────────────────────────
+
+    public function testParseMaxAgeAbsentReturnsNull(): void
+    {
+        self::assertNull(InputValidator::parseMaxAge(null));
+        self::assertNull(InputValidator::parseMaxAge(''));
+    }
+
+    public function testParseMaxAgeAcceptsNonNegative(): void
+    {
+        self::assertSame(0, InputValidator::parseMaxAge('0'));
+        self::assertSame(3600, InputValidator::parseMaxAge('3600'));
+        self::assertSame(60, InputValidator::parseMaxAge(60));
+    }
+
+    public function testParseMaxAgeRejectsMalformed(): void
+    {
+        $this->expectException(ValidationFailed::class);
+        InputValidator::parseMaxAge('-1');
+    }
+
+    public function testParseMaxAgeRejectsNonNumeric(): void
+    {
+        $this->expectException(ValidationFailed::class);
+        InputValidator::parseMaxAge('soon');
+    }
+
+    // ── parseUiLocale / parseLoginHint (F-43) ──────────────────
+
+    public function testParseUiLocaleReturnsFirstTag(): void
+    {
+        self::assertSame('fr-CA', InputValidator::parseUiLocale('fr-CA fr'));
+        self::assertSame('en', InputValidator::parseUiLocale(null));
+        self::assertSame('en', InputValidator::parseUiLocale(''));
+        self::assertSame('en', InputValidator::parseUiLocale('!!!'));
+    }
+
+    public function testParseLoginHintTrimsAndCapsLength(): void
+    {
+        self::assertSame('a@b.c', InputValidator::parseLoginHint('  a@b.c  '));
+        self::assertSame('', InputValidator::parseLoginHint(null));
+        self::assertSame('', InputValidator::parseLoginHint(['a@b.c']));
+        self::assertSame(320, strlen(InputValidator::parseLoginHint(str_repeat('x', 400))));
+    }
 }

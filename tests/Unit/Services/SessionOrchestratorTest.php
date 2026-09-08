@@ -165,4 +165,30 @@ class SessionOrchestratorTest extends TestCase
         $this->expectException(StorageFailed::class);
         $this->svc->refresh('s-id');
     }
+
+    // ── isFreshForMaxAge (F-43) ─────────────────────────────────
+
+    public function testFreshSessionSatisfiesMaxAge(): void
+    {
+        $session = new Session('s-id', 'r-id', 'u-id', '1', gmdate('Y-m-d H:i:s'), null, 'ACTIVE');
+
+        self::assertTrue($this->svc->isFreshForMaxAge($session, 3600));
+    }
+
+    public function testStaleSessionViolatesMaxAge(): void
+    {
+        $created = gmdate('Y-m-d H:i:s', time() - 7200);
+        $session = new Session('s-id', 'r-id', 'u-id', '1', $created, null, 'ACTIVE');
+
+        self::assertFalse($this->svc->isFreshForMaxAge($session, 3600));
+    }
+
+    public function testMaxAgeMeasuresFromCreationNotActivity(): void
+    {
+        $created = gmdate('Y-m-d H:i:s', time() - 7200);
+        $updated = gmdate('Y-m-d H:i:s');
+        $session = new Session('s-id', 'r-id', 'u-id', '1', $created, $updated, 'ACTIVE');
+
+        self::assertFalse($this->svc->isFreshForMaxAge($session, 3600));
+    }
 }

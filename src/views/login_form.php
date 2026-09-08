@@ -5,9 +5,15 @@
 /** @var string $email */
 /** @var string $password */
 /** @var string|false $error */
+/** @var string|null $lang */
 /** @var string $sub_path */
 // phpcs:disable Generic.Files.LineLength
+// The validated locale (ui_locales) travels with the form action so the
+// page language survives a failed login attempt and the re-rendered form.
 $query = "q=$login_id";
+if (isset($lang) && $lang !== '' && $lang !== 'en') {
+    $query .= "&ui_locales=$lang";
+}
 $action = htmlspecialchars($sub_path . "/realms/$realm/protocol/openid-connect/login-actions/authenticate?$query", ENT_QUOTES, 'UTF-8');
 
 ?>
