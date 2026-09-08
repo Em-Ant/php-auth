@@ -45,17 +45,30 @@ class PasswordPolicyTest extends TestCase
         self::assertSame(0, $policy->minSpecial);
     }
 
-    public function testFromConfigArrayRejectsGarbageAndNegatives(): void
+    public function testFromConfigArrayFallsBackToDefaultsOnGarbage(): void
     {
         $policy = PasswordPolicy::fromConfigArray([
             'min_length' => 'lots',
-            'min_digits' => '-3',
             'min_special' => '1.5',
         ]);
 
         self::assertSame(PasswordPolicy::DEFAULT_MIN_LENGTH, $policy->minLength);
-        self::assertSame(0, $policy->minDigits);
         self::assertSame(PasswordPolicy::DEFAULT_MIN_SPECIAL, $policy->minSpecial);
+    }
+
+    public function testFromConfigArrayRejectsNegativeValues(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('min_digits');
+
+        PasswordPolicy::fromConfigArray(['min_digits' => '-3']);
+    }
+
+    public function testFromRowClampsNegativeDbValues(): void
+    {
+        $policy = PasswordPolicy::fromRow(['password_min_digits' => -3]);
+
+        self::assertSame(0, $policy->minDigits);
     }
 
     public function testFromRowKeepsNullsAndCasts(): void

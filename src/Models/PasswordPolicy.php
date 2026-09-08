@@ -29,7 +29,8 @@ final class PasswordPolicy implements \JsonSerializable
     /**
      * Builds the global policy from the `[password_policy]` config section.
      * Missing or non-numeric keys fall back to the documented defaults;
-     * negatives are clamped to 0 (a negative rule is meaningless).
+     * negative values are rejected (a typo must not silently disable a rule
+     * at boot).
      */
     public static function fromConfigArray(array $config): self
     {
@@ -100,26 +101,40 @@ final class PasswordPolicy implements \JsonSerializable
 
     private static function configInt(array $config, string $key, int $default): int
     {
-        return self::parseRuleValue($config[$key] ?? null) ?? $default;
+        $value = self::parseRuleValue($config[$key] ?? null);
+        if ($value === null) {
+            return $default;
+        }
+        if ($value < 0) {
+            throw new \InvalidArgumentException(
+                "invalid [password_policy] config: '$key' must be a non-negative integer, got $value"
+            );
+        }
+
+        return $value;
     }
 
     private static function rowInt(array $row, string $key): int|null
     {
-        return self::parseRuleValue($row[$key] ?? null);
+        $value = self::parseRuleValue($row[$key] ?? null);
+
+        return $value === null ? null : max(0, $value);
     }
 
     /**
-     * Parses one rule value: integers and numeric strings are accepted and
-     * clamped to 0, anything else (null, missing, garbage) is null so the
-     * caller decides between inheriting and falling back to a default.
+     * Parses one rule value: integers and numeric strings are accepted with
+     * the sign preserved (the caller decides between rejecting a config
+     * value and clamping a DB value read back from external writes);
+     * anything else (null, missing, garbage) is null so the caller decides
+     * between inheriting and falling back to a default.
      */
     private static function parseRuleValue(mixed $raw): int|null
     {
         if (is_int($raw)) {
-            return max(0, $raw);
+            return $raw;
         }
         if (is_string($raw) && filter_var($raw, FILTER_VALIDATE_INT) !== false) {
-            return max(0, (int) $raw);
+            return (int) $raw;
         }
 
         return null;
