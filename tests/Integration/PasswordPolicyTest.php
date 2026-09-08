@@ -57,6 +57,38 @@ class PasswordPolicyTest extends AdminAppTestCase
         }
     }
 
+    public function testUpdateRealmWithExplicitNullResetsRuleToInherit(): void
+    {
+        $realm = $this->createRealmWithKeys('policy-reset-' . getGuid(), [
+            'password_min_length' => 10,
+            'password_min_digits' => 2,
+        ]);
+
+        $updated = $this->assertStatus(200, $this->adminRequest(
+            'PUT',
+            '/admin/realms/' . $realm['id'],
+            ['password_min_length' => null]
+        ));
+
+        self::assertNull($updated['password_policy']['min_length']);
+        self::assertSame(2, $updated['password_policy']['min_digits']);
+    }
+
+    public function testUpdateRealmAbsentPolicyFieldKeepsOverride(): void
+    {
+        $realm = $this->createRealmWithKeys('policy-keep-' . getGuid(), [
+            'password_min_length' => 10,
+        ]);
+
+        $updated = $this->assertStatus(200, $this->adminRequest(
+            'PUT',
+            '/admin/realms/' . $realm['id'],
+            ['name' => 'policy-keep-renamed-' . getGuid()]
+        ));
+
+        self::assertSame(10, $updated['password_policy']['min_length']);
+    }
+
     public function testCreateUserWithWeakPasswordReturns400(): void
     {
         $response = $this->handle($this->userCreateRequest(self::TEST_REALM, 'short'));

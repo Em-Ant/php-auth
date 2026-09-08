@@ -61,10 +61,15 @@ class AdminCrudTest extends AdminAppTestCase
 
     public function testCreateRealmWithGeneratedKey(): void
     {
-        $data = $this->createRealmWithKeys('crud-realm');
+        $kid = $this->assertStatus(201, $this->adminRequest('POST', '/admin/keys'))['kid'];
+
+        $data = $this->assertStatus(201, $this->adminRequest('POST', '/admin/realms', [
+            'name' => 'crud-realm',
+            'keys_id' => $kid,
+        ]));
 
         self::assertSame('crud-realm', $data['name']);
-        self::assertArrayHasKey('keys_id', $data);
+        self::assertSame($kid, $data['keys_id']);
         self::assertSame(1800, $data['refresh_token_expires_in']);
         self::assertSame('openid profile email', $data['scope']);
         self::assertArrayHasKey('id', $data);

@@ -61,7 +61,12 @@ final class PasswordPolicyValidator
     private static function countMatches(string $pattern, string $subject): int
     {
         $count = preg_match_all($pattern, $subject);
+        if ($count === false) {
+            throw new \RuntimeException(
+                "password policy check failed for pattern '$pattern': " . preg_last_error_msg()
+            );
+        }
 
-        return $count === false ? 0 : $count;
+        return $count;
     }
 }

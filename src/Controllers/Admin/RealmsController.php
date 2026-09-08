@@ -90,9 +90,10 @@ class RealmsController
     /**
      * Resolves the realm fields from the request body. `$existing` provides
      * the defaults for absent fields on update; null means create, so the
-     * realm config defaults apply instead. Password-policy fields stay null
-     * unless set, so a realm inherits the global `[password_policy]` default
-     * per rule; an explicit 0 disables a rule.
+     * realm config defaults apply instead. Password-policy fields: absent
+     * keeps the current value (inherit-null on create), an explicit null
+     * resets the rule to inherit the global `[password_policy]` default,
+     * an explicit 0 disables the rule.
      *
      * @return array{
      *     name: string,
@@ -179,11 +180,11 @@ class RealmsController
                 $defaults['offline_refresh_token_expires_in']
             ),
             'password_policy' => new PasswordPolicy(
-                minLength: $this->optionalPolicyInt($body, 'password_min_length', $policy->minLength),
-                minLower: $this->optionalPolicyInt($body, 'password_min_lower', $policy->minLower),
-                minUpper: $this->optionalPolicyInt($body, 'password_min_upper', $policy->minUpper),
-                minDigits: $this->optionalPolicyInt($body, 'password_min_digits', $policy->minDigits),
-                minSpecial: $this->optionalPolicyInt($body, 'password_min_special', $policy->minSpecial),
+                minLength: $this->policyInt($body, 'password_min_length', $policy->minLength),
+                minLower: $this->policyInt($body, 'password_min_lower', $policy->minLower),
+                minUpper: $this->policyInt($body, 'password_min_upper', $policy->minUpper),
+                minDigits: $this->policyInt($body, 'password_min_digits', $policy->minDigits),
+                minSpecial: $this->policyInt($body, 'password_min_special', $policy->minSpecial),
             ),
         ];
     }

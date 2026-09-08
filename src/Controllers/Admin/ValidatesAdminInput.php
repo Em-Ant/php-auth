@@ -60,19 +60,28 @@ trait ValidatesAdminInput
     }
 
     /**
-     * Nullable non-negative body field for per-realm password-policy rules:
-     * absent or null yields the default (null = inherit the global default),
-     * an explicit 0 disables the rule. Anything else is a 400.
+     * Password-policy rule field. Absent keeps `$default` (the existing
+     * override on update, inherit-null on create); an explicit null resets
+     * the rule to inherit (null); a non-negative integer sets the override;
+     * anything else is a 400. Absent and explicit null are deliberately
+     * distinct: a partial update must not silently clear overrides, while
+     * an explicit null is the only way back to inheriting the global
+     * `[password_policy]` default.
      */
-    private function optionalPolicyInt(array $body, string $field, int|null $default): int|null
+    private function policyInt(array $body, string $field, int|null $default): int|null
     {
-        [$present, $value] = $this->submittedValue($body, $field);
-        if (!$present) {
+        if (!array_key_exists($field, $body)) {
             return $default;
+        }
+
+        $value = $body[$field];
+        if ($value === null) {
+            return null;
         }
         if (!is_int($value) || $value < 0) {
             throw new ValidationFailed("'$field' must be a non-negative integer or null");
         }
+
         return $value;
     }
 
