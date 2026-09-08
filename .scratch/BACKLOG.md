@@ -16,21 +16,22 @@ Single source of truth for what to work on next. **Local by design** (3 machines
 
 | ID | Type | Priority | Size | Blocked by | Why-now | Doc |
 |----|------|----------|------|------------|---------|-----|
+| F-09 | feature | P2 | S | | `Mailer` interface + `NativeMailer` adapter — unblocks verification (F-46) and magic link (F-51) | `ROADMAP → Login Methods` |
+| F-43 | fix | P1 | S | | quick win: `login_hint`/`max_age`/`ui_locales`, `WWW-Authenticate` on 401, `X-Powered-By` removal — small hardening batch, do now | `keycloak-parity/PRD.md` |
 | F-13 | feature | P2 | S | | per-realm login page config | `ROADMAP → Login Form` |
-| F-09 | feature | P2 | M | | email magic link | `ROADMAP → Login Methods` |
 | F-10 | feature | P2 | M | | consent screen (`offline_access`) — delayed by design; client gating (scopes #02) is the control until then | `ROADMAP → Token Lifecycle` |
 | F-20 | refactor | P2 | M | | split E2E into two contracts — prod smoke (`bin/smoke-test.sh`, no DB, bounded footprint, ~30 checks) + local OIDC integrity suite; phase 2: PHPUnit-against-live-`BASE_URL` (no Playwright) — also replaces the ad-hoc `python3` JWT payload decoding in `bin/e2e-test.sh` with PHP tooling | `ci-e2e/PRD.md` |
 | F-14 | feature | P3 | S | | fallback full-page login form | `ROADMAP → Login Form` |
 | F-18 | feature | P3 | S | | SMTP adapter (VPS) | `ROADMAP → Login Methods` |
-| F-43 | fix | P3 | S | | deferred batch: `login_hint`/`max_age`/`ui_locales`, `WWW-Authenticate` on 401, `X-Powered-By` removal — with a future hardening pass | `keycloak-parity/PRD.md` |
 | F-46 | feature | P3 | S | wait F-09 (Mailer) | email verification flow — one-time link flips `email_verified`; **blocked until the mail system (Mailer / SMTP) is ready**; admin API + model wiring for the flag already done | `email-verification/PRD.md` |
-| F-49 | feature | P2 | S | | migrate ops auth from api_key to offline token (CI) — end-state JWT only (SSO+offline); F-48 (dual-mode middleware) already landed, static fallback still gated by `[admin] allow_all = true` | `admin-auth/PRD.md #03` |
+| F-51 | feature | P3 | M | wait F-09 (Mailer) | email magic link login (passwordless) — split out of F-09, which is now mailer-only | `ROADMAP → Login Methods` |
+| F-49 | feature | P2 | S | | deferred until Admin UI is usable — do just before: migrate ops auth from api_key to offline token (CI) — end-state JWT only (SSO+offline); F-48 (dual-mode middleware) already landed, static fallback still gated by `[admin] allow_all = true` | `admin-auth/PRD.md #03` |
 | F-15 | feature | P3 | L | | social login (Google/GitHub/GitLab) | `ROADMAP → Login Methods` |
 | F-16 | feature | P3 | L | | 2FA/TOTP | `ROADMAP → Login Methods` |
 | F-17 | feature | P3 | L | | Google-style modal widget (SAM iframe) | `ROADMAP → Login Form` |
 | R-08 | refactor | P3 | S | | remaining domain enums (`ResponseMode`) | `ROADMAP → PHP 8` |
 | R-13 | refactor | P3 | S | | PSR12 for `tests/` (ROADMAP "PSR12 compliance throughout" was never queued) — 198 auto-fixable violations in 25 files; run phpcbf then widen `composer cs_check` scope | `ROADMAP → PHP 8` |
-| R-14 | refactor | P3 | S–M | best alongside F-09 (login-lifecycle work) | `Login` model: raw setters → intention-revealing transition methods (`markAuthenticated/markActive/markRefreshed/markExpired`), single serialization home; invariants over metric (S1448 stays, dismiss) | `login-split/PRD.md` |
+| R-14 | refactor | P3 | S–M | best alongside F-51 (login-lifecycle work) | `Login` model: raw setters → intention-revealing transition methods (`markAuthenticated/markActive/markRefreshed/markExpired`), single serialization home; invariants over metric (S1448 stays, dismiss) | `login-split/PRD.md` |
 | R-09 | refactor | P3 | M | | readonly props + constructor promotion | `ROADMAP → PHP 8` |
 | R-10 | refactor | P3 | M | | named args + match expressions | `ROADMAP → PHP 8` |
 | R-11 | refactor | P3 | L | | PHPStan 5→6→7→8→9 | `ROADMAP → PHPStan` |
