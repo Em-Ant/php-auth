@@ -2,7 +2,10 @@
 
 ## Status
 
-PLANNED
+DONE — shipped 2026-08-28 (F-07). `GET /admin/audit-logs` (filterable: action, actor_type,
+target_type, realm_id, from, to), `GET /admin/audit-logs/{id}`, `DELETE /admin/audit-logs`
+(purge; requires `realm_id` or `older_than`). `password` / `client_secret` are redacted before
+storage. Wire format: [admin-ui/API-CONTRACT.md](../admin-ui/API-CONTRACT.md §5.8).
 
 ## Summary
 
