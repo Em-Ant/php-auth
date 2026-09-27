@@ -812,6 +812,11 @@ CLIST=$(curl -sS -H "$ADMIN_HDR" "$BASE/admin/clients?realm_id=$ADMIN_CREATED_RE
 CLIST_COUNT=$(echo "$CLIST" | python3 -c "import sys,json; print(len(json.load(sys.stdin)['items']))" 2>/dev/null || echo 0)
 [[ "$CLIST_COUNT" -ge 1 ]] && ok "List clients filtered by realm returns $CLIST_COUNT client(s)" || fail "Expected >=1 client, got $CLIST_COUNT"
 
+# Prefix search finds the created client by name
+CSEARCH=$(curl -sS -H "$ADMIN_HDR" "$BASE/admin/clients?realm_id=$ADMIN_CREATED_REALM_ID&q=e2e-admin-cli")
+CSEARCH_TOTAL=$(echo "$CSEARCH" | python3 -c "import sys,json; print(json.load(sys.stdin).get('total',-1))" 2>/dev/null || echo -1)
+[[ "$CSEARCH_TOTAL" = "1" ]] && ok "Search clients by name prefix finds e2e-admin-client" || fail "Expected total=1 for q=e2e-admin-cli, got $CSEARCH_TOTAL"
+
 # Read client
 READ_CLIENT=$(curl -sS -H "$ADMIN_HDR" "$BASE/admin/clients/$ADMIN_CREATED_CLIENT_ID")
 READ_CLIENT_NAME=$(echo "$READ_CLIENT" | sed -n 's/.*"name":"\([^"]*\)".*/\1/p')
@@ -875,6 +880,14 @@ ASSIGN_BASIC=$(curl -sS -o /dev/null -w "%{http_code}" -X POST -H "$ADMIN_HDR" -
 ULIST=$(curl -sS -H "$ADMIN_HDR" "$BASE/admin/users?realm_id=$ADMIN_CREATED_REALM_ID")
 ULIST_COUNT=$(echo "$ULIST" | python3 -c "import sys,json; print(len(json.load(sys.stdin)['items']))" 2>/dev/null || echo 0)
 [[ "$ULIST_COUNT" -ge 1 ]] && ok "List users filtered by realm returns $ULIST_COUNT user(s)" || fail "Expected >=1 user, got $ULIST_COUNT"
+
+# Prefix search finds the created user by email; a mid-string fragment matches nothing
+USEARCH=$(curl -sS -H "$ADMIN_HDR" "$BASE/admin/users?realm_id=$ADMIN_CREATED_REALM_ID&q=e2e-admin@")
+USEARCH_TOTAL=$(echo "$USEARCH" | python3 -c "import sys,json; print(json.load(sys.stdin).get('total',-1))" 2>/dev/null || echo -1)
+[[ "$USEARCH_TOTAL" = "1" ]] && ok "Search users by email prefix finds e2e-admin@example.com" || fail "Expected total=1 for q=e2e-admin@, got $USEARCH_TOTAL"
+UMISS=$(curl -sS -H "$ADMIN_HDR" "$BASE/admin/users?realm_id=$ADMIN_CREATED_REALM_ID&q=admin@example")
+UMISS_TOTAL=$(echo "$UMISS" | python3 -c "import sys,json; print(json.load(sys.stdin).get('total',-1))" 2>/dev/null || echo -1)
+[[ "$UMISS_TOTAL" = "0" ]] && ok "Substring fragment matches nothing (prefix-only)" || fail "Expected total=0 for substring q, got $UMISS_TOTAL"
 
 # Read user
 READ_USER=$(curl -sS -H "$ADMIN_HDR" "$BASE/admin/users/$ADMIN_CREATED_USER_ID")

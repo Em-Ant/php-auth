@@ -14,10 +14,11 @@ interface UserRepository
 
     /**
      * Filtered, paged listing; `total` covers all rows matching the filters.
+     * `$q` is a bound LIKE pattern (see ValidatesAdminInput::searchTerm).
      *
      * @return array{items: User[], total: int}
      */
-    public function searchAll(?string $realmId, int $limit, int $offset): array;
+    public function searchAll(?string $realmId, int $limit, int $offset, ?string $q = null): array;
 
     public function create(User $user): User;
 

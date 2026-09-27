@@ -33,7 +33,8 @@ class UsersController
         $result = $this->users->searchAll(
             $this->queryString($query, 'realm_id'),
             $pagination['limit'],
-            $pagination['offset']
+            $pagination['offset'],
+            $this->searchTerm($query, 'q')
         );
 
         return JsonResponse::paginated(

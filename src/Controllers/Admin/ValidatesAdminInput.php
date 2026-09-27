@@ -122,6 +122,27 @@ trait ValidatesAdminInput
         return trim($value);
     }
 
+    /**
+     * Prefix type-ahead pattern for admin list search (?q=). Returns the
+     * escaped term with a trailing '%' for a bound LIKE, or null when no
+     * search was submitted. Terms over 128 chars are silently truncated to
+     * the cap instead of erroring, like out-of-range pagination values
+     * fall back to defaults. The caller binds the result; it must never
+     * be concatenated into SQL.
+     */
+    private function searchTerm(array $query, string $key): ?string
+    {
+        $term = $this->queryString($query, $key);
+        if ($term === null) {
+            return null;
+        }
+
+        $capped = substr($term, 0, 128);
+        $escaped = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $capped);
+
+        return $escaped . '%';
+    }
+
     private function queryInt(array $query, string $key, int $default, int $min, ?int $max): int
     {
         $raw = $query[$key] ?? null;

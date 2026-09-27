@@ -28,9 +28,8 @@ Documents for building the admin dashboard SPA in its own repo. Start here, in t
 Two things are worth knowing about the state of the backend, because they will look like bugs:
 
 1. **All list endpoints — including `GET /admin/realms` — return the `{items, total, limit, offset}` envelope** (F-52 done). No special case.
-2. **There is no free-text search.** Users and clients can only be filtered by `realm_id`.
-   Tracked as F-53, planned as an additive change. If your table needs search, ask for it to be
-   prioritised rather than building client-side search across paginated pages.
+2. **Search is prefix type-ahead (`?q=`)**: users match on email/name prefix, clients on
+   name/uri prefix (F-53 done). There is no substring search — send the start of the term.
 
 Both are listed with the rest in [API-CONTRACT.md §8](API-CONTRACT.md#8-known-gaps-to-raise-not-to-work-around).
 

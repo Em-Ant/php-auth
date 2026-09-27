@@ -23,27 +23,88 @@ class UserRepository implements IUser
 
     /**
      * Filtered, paged listing. `total` counts all rows matching the filters,
-     * independent of limit/offset.
+     * independent of limit/offset. `$q` is a bound LIKE pattern from
+     * ValidatesAdminInput::searchTerm: email is the preferred (indexed)
+     * branch, name is the fallback filter. Only submitted filters become
+     * WHERE clauses, so the planner can SEARCH the realm/email indexes
+     * instead of scanning; values are always bound, never concatenated.
      *
      * @return array{items: User[], total: int}
      */
-    public function searchAll(?string $realmId, int $limit, int $offset): array
+    public function searchAll(?string $realmId, int $limit, int $offset, ?string $q = null): array
     {
+        [$where, $params] = self::searchFilter($realmId, $q);
+
         $statement = $this->db->prepare(
-            "SELECT *, COUNT(*) OVER() AS result_total
+            "SELECT *
              FROM users
-             WHERE (:realm_id IS NULL OR realm_id = :realm_id)
+             $where
              ORDER BY email
              LIMIT :limit OFFSET :offset"
         );
-        self::bindNullableString($statement, ':realm_id', $realmId);
+        self::bindFilterParams($statement, $params);
         self::bindPageParams($statement, $limit, $offset);
 
-        return $this->fetchPagedPage(
-            $statement,
-            fn(array $r) => $this->buildFromData($r),
-            'failed to list users'
-        );
+        try {
+            $statement->execute();
+            $rows = $statement->fetchAll();
+
+            return [
+                'items' => array_map(fn(array $r) => $this->buildFromData($r), $rows),
+                'total' => $this->countFilter($where, $params),
+            ];
+        } catch (\PDOException $e) {
+            throw new StorageFailed('failed to list users', 0, $e);
+        }
+    }
+
+    /**
+     * Shared WHERE builder for the listing and its total: only submitted
+     * filters become clauses, so the planner can SEARCH the realm/email
+     * indexes instead of scanning. Fragments are static; values stay bound.
+     *
+     * @return array{0: string, 1: array<string, string>}
+     */
+    private static function searchFilter(?string $realmId, ?string $q): array
+    {
+        $conditions = [];
+        $params = [];
+        if ($realmId !== null) {
+            $conditions[] = 'realm_id = :realm_id';
+            $params[':realm_id'] = $realmId;
+        }
+        if ($q !== null) {
+            $conditions[] = "(email LIKE :q ESCAPE '\\' OR name LIKE :q ESCAPE '\\')";
+            $params[':q'] = $q;
+        }
+
+        return [$conditions === [] ? '' : 'WHERE ' . implode(' AND ', $conditions), $params];
+    }
+
+    /**
+     * @param array<string, string> $params
+     */
+    private static function bindFilterParams(\PDOStatement $statement, array $params): void
+    {
+        foreach ($params as $name => $value) {
+            $statement->bindValue($name, $value, \PDO::PARAM_STR);
+        }
+    }
+
+    /**
+     * @param array<string, string> $params
+     */
+    private function countFilter(string $where, array $params): int
+    {
+        try {
+            $statement = $this->db->prepare("SELECT COUNT(*) FROM users $where");
+            self::bindFilterParams($statement, $params);
+            $statement->execute();
+
+            return (int) $statement->fetchColumn();
+        } catch (\PDOException $e) {
+            throw new StorageFailed('failed to count users', 0, $e);
+        }
     }
 
     public function create(User $user): User

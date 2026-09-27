@@ -193,8 +193,8 @@ Beyond `limit`/`offset`, these query params are supported per endpoint. They com
 
 | Endpoint | Filters |
 |---|---|
-| `/admin/users` | `realm_id` |
-| `/admin/clients` | `realm_id` |
+| `/admin/users` | `realm_id`, `q` |
+| `/admin/clients` | `realm_id`, `q` |
 | `/admin/sessions` | `realm_id`, `user_id` |
 | `/admin/logins` | `realm_id`, `client_id` |
 | `/admin/offline-sessions` | `realm_id`, `user_id`, `client_id` |
@@ -204,10 +204,11 @@ Beyond `limit`/`offset`, these query params are supported per endpoint. They com
 | `/admin/clients/{id}/scope-roles` | pagination only |
 | `/admin/realms` | pagination only |
 
-> **Known gap: there is no free-text search.** You cannot look a user up by email or a client
-> by name through the API. Filter by `realm_id` and page. A `?q=` / `?email=` search param is
-> queued as a small additive change; if your table needs it, ask for it to be prioritised
-> rather than building client-side search over paginated pages.
+> **Search is prefix type-ahead (`?q=`), not substring.** On `/admin/users` it matches the
+> start of `email` or `name`; on `/admin/clients` the start of `name` or `uri`. A mid-string
+> fragment matches nothing. Matching is ASCII case-insensitive (SQLite `LIKE` default); there
+> is no Unicode case folding. `%`, `_` and `\` in the term match literally. Terms over 128
+> chars are truncated. Combines with `realm_id` (AND) and pagination as usual.
 
 ### Value formats
 
@@ -599,7 +600,6 @@ contract. The one rule that matters here: **do not link it from the dashboard.**
 
 | Gap | Impact | Status |
 |---|---|---|
-| No search on users or clients | cannot look a user up by email or a client up by name | F-53 — **prefix type-ahead**, so the UI should send the start of the term and expect prefix matches. The server escapes `%` and `_`, so send the term verbatim: a literal `100%` matches `100%`, and typing `%` will not match everything |
 | Audit log cannot be filtered by `target_id` | no per-resource history view; you can only ask for "all client events" | F-56 — `?target_id=`, index already exists |
 | No statistics or count endpoint | a dashboard home page must fan out several list calls and read `total` | not queued — raise if wanted |
 | No bulk create/update/delete | bulk UI actions must loop client-side | by design |
