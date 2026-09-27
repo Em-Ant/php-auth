@@ -34,12 +34,17 @@ class RealmsController
 
     public function list(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
-        return JsonResponse::create($response, [
-            'realms' => array_map(
-                fn(Realm $realm) => self::toArray($realm),
-                $this->realms->findAll()
-            ),
-        ]);
+        $pagination = $this->paginationFromQuery($request->getQueryParams());
+
+        $result = $this->realms->searchAll($pagination['limit'], $pagination['offset']);
+
+        return JsonResponse::paginated(
+            $response,
+            array_map(fn(Realm $realm) => self::toArray($realm), $result['items']),
+            $result['total'],
+            $pagination['limit'],
+            $pagination['offset']
+        );
     }
 
     public function create(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface

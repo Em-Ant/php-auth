@@ -12,7 +12,12 @@ interface RealmRepository
     public function findByName(string $id): ?Realm;
 
     /** @return Realm[] */
-    public function findAll(): array;
+    /**
+     * Paged listing; `total` covers all rows.
+     *
+     * @return array{items: Realm[], total: int}
+     */
+    public function searchAllsearchAll(int $limit, int $offset): array;
 
     public function create(Realm $realm): Realm;
 

@@ -7,7 +7,6 @@ namespace AuthServer\Controllers\Admin;
 use AuthServer\Exceptions\ValidationFailed;
 use AuthServer\Interfaces\ClientRepository;
 use AuthServer\Interfaces\RoleRepository;
-use AuthServer\Models\ScopeRoleMapping;
 use AuthServer\Response\JsonResponse;
 use AuthServer\Services\ScopeRoleAdminService;
 use Psr\Http\Message\ResponseInterface;
@@ -128,6 +127,7 @@ class ScopeRolesController
         }
     }
 
+    /** @return array<string, mixed> */
     private static function mappingToArray(string $roleId, string $scope, string $roleName, bool $required): array
     {
         return [

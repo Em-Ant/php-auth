@@ -197,7 +197,6 @@ An empty or absent list emits no CORS headers at all, and the browser blocks eve
 | Login page shows after a valid session | `prompt=login` was sent | do not send `prompt` |
 | `404` on an admin route | a missing `base_path` prefix | `config.ini` `base_path` must match how the app is mounted |
 | `409` on a delete | something is still referencing it | see the guard table in [DOMAIN-MODEL.md §4](DOMAIN-MODEL.md#4-what-blocks-a-delete) |
-| Realm list has no `total` field | realms are not paginated yet | expected, tracked as F-52; see API-CONTRACT §5.1 |
 | `db/data.db` missing | file was never created | `touch db/data.db`, then `composer migrate` |
 
 ---

@@ -11,6 +11,8 @@ use AuthServer\Models\Realm;
 
 class RealmRepository implements IRepo
 {
+    use PagedListing;
+
     private \PDO $db;
 
     public function __construct(\PDO $db)
@@ -18,18 +20,26 @@ class RealmRepository implements IRepo
         $this->db = $db;
     }
 
-    public function findAll(): array
+    /**
+     * Paged listing. `total` counts all rows, independent of limit/offset.
+     *
+     * @return array{items: Realm[], total: int}
+     */
+    public function searchAll(int $limit, int $offset): array
     {
-        try {
-            $statement = $this->db->query(
-                "SELECT * FROM realms ORDER BY name"
-            );
-            $rows = $statement->fetchAll();
+        $statement = $this->db->prepare(
+            "SELECT *, COUNT(*) OVER() AS result_total
+             FROM realms
+             ORDER BY name
+             LIMIT :limit OFFSET :offset"
+        );
+        self::bindPageParams($statement, $limit, $offset);
 
-            return array_map(fn(array $r) => self::buildFromData($r), $rows);
-        } catch (\PDOException $e) {
-            throw new StorageFailed('failed to list realms', 0, $e);
-        }
+        return $this->fetchPagedPage(
+            $statement,
+            fn(array $r) => self::buildFromData($r),
+            'failed to list realms'
+        );
     }
 
     public function create(Realm $realm): Realm

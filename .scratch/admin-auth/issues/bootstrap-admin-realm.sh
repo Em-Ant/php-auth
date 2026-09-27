@@ -31,7 +31,7 @@ echo "    admin password: $ADMIN_PASSWORD"
 echo "    ci-deployer secret: $CI_SECRET"
 echo
 
-REALM_ID="$(curl -sf -H "$AUTH" "$BASE_URL/admin/realms" | jq -r --arg name "$REALM_NAME" 'first(.realms[]? | select(.name==$name)) | .id?')"
+REALM_ID="$(curl -sf -H "$AUTH" "$BASE_URL/admin/realms" | jq -r --arg name "$REALM_NAME" 'first(.items[]? | select(.name==$name)) | .id?')"
 if [[ -z "$REALM_ID" ]]; then
     KID="$(curl -sf -X POST -H "$AUTH" -H "$H_JSON" "$BASE_URL/admin/keys" | jq -er '.kid')"
     echo "==> created keys: kid=$KID"

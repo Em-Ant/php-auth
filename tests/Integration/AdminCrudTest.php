@@ -53,8 +53,8 @@ class AdminCrudTest extends AdminAppTestCase
     {
         $data = $this->assertStatus(200, $this->adminRequest('GET', '/admin/realms'));
 
-        self::assertArrayHasKey('realms', $data);
-        $names = array_column($data['realms'], 'name');
+        $items = $this->assertEnvelope($data);
+        $names = array_column($items, 'name');
         self::assertContains('web', $names);
         self::assertContains('test', $names);
     }

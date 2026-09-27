@@ -170,7 +170,7 @@ for logic** — only displayed. Slugs you will see:
 
 ### List envelope
 
-All list endpoints except `GET /admin/realms` (§5.1) return:
+All list endpoints return:
 
 ```json
 { "items": [ ... ], "total": 42, "limit": 50, "offset": 0 }
@@ -202,7 +202,7 @@ Beyond `limit`/`offset`, these query params are supported per endpoint. They com
 | `/admin/audit-logs` | `action`, `actor_type`, `target_type`, `realm_id`, `from`, `to` |
 | `/admin/users/{id}/roles` | pagination only |
 | `/admin/clients/{id}/scope-roles` | pagination only |
-| `/admin/realms` | none, and not paginated — see §5.1 |
+| `/admin/realms` | pagination only |
 
 > **Known gap: there is no free-text search.** You cannot look a user up by email or a client
 > by name through the API. Filter by `realm_id` and page. A `?q=` / `?email=` search param is
@@ -249,12 +249,7 @@ Beyond `limit`/`offset`, these query params are supported per endpoint. They com
 
 A realm owns keys, token TTLs, the scope set, and the password policy.
 
-**`GET /admin/realms`** — no auth exception; **this is the one list that is not paginated**.
-Returns a bare object, not the list envelope:
-
-```json
-{ "realms": [ /* realm objects */ ] }
-```
+**`GET /admin/realms`** — list envelope (§3), pagination only, no filters.
 
 Realm object (also the shape of `GET /realms/{id}` and the create/update response):
 
@@ -587,7 +582,7 @@ contract. The one rule that matters here: **do not link it from the dashboard.**
 
 ## 7. Behaviour the UI must get right
 
-1. **The realms list is the odd one out** — `{ "realms": [...] }`, unpaginated. Either special-case it in the table layer or wait for it to be aligned. If the backend aligns it to the standard envelope, treat that as a breaking change and pin your version of this doc.
+1. **The realms list uses the standard envelope** — `{items, total, limit, offset}`, like every other list. No special case.
 2. **Read `limit` back from the response** instead of trusting what you sent — out-of-range values silently become the default.
 3. **Never render a client secret from an API response.** It does not exist. Generate it in the form at creation time and show it to the operator once, client-side.
 4. **Passwords go over the wire as plaintext** and are hashed server-side. Send them only over TLS, and never log or persist them in the browser.
@@ -604,7 +599,6 @@ contract. The one rule that matters here: **do not link it from the dashboard.**
 
 | Gap | Impact | Status |
 |---|---|---|
-| `GET /admin/realms` not paginated, different envelope | realms table needs a special case | queued, small |
 | No search on users or clients | cannot look a user up by email or a client up by name | F-53 — **prefix type-ahead**, so the UI should send the start of the term and expect prefix matches. The server escapes `%` and `_`, so send the term verbatim: a literal `100%` matches `100%`, and typing `%` will not match everything |
 | Audit log cannot be filtered by `target_id` | no per-resource history view; you can only ask for "all client events" | F-56 — `?target_id=`, index already exists |
 | No statistics or count endpoint | a dashboard home page must fan out several list calls and read `total` | not queued — raise if wanted |

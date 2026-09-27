@@ -27,9 +27,7 @@ Documents for building the admin dashboard SPA in its own repo. Start here, in t
 
 Two things are worth knowing about the state of the backend, because they will look like bugs:
 
-1. **`GET /admin/realms` is not paginated** and returns `{"realms": [...]}` while every other
-   list endpoint returns `{items, total, limit, offset}`. Tracked as F-52, expected to be fixed
-   early. Special-case it, or wait for it — it is the only one.
+1. **All list endpoints — including `GET /admin/realms` — return the `{items, total, limit, offset}` envelope** (F-52 done). No special case.
 2. **There is no free-text search.** Users and clients can only be filtered by `realm_id`.
    Tracked as F-53, planned as an additive change. If your table needs search, ask for it to be
    prioritised rather than building client-side search across paginated pages.

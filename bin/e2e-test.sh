@@ -709,7 +709,7 @@ admin_cleanup() {
     # where ADMIN_CREATED_REALM_ID was never set (early exit → 409 on next run).
     # Must run even on failure; do not depend on variables.
     local stale_id
-    stale_id=$(curl -sf -H "$ADMIN_HDR" "$BASE/admin/realms" 2>/dev/null | python3 -c "import sys,json; ds=json.load(sys.stdin).get('realms',[]); print(next((r['id'] for r in ds if r['name']=='e2e-admin-realm'),''))" 2>/dev/null || true)
+    stale_id=$(curl -sf -H "$ADMIN_HDR" "$BASE/admin/realms" 2>/dev/null | python3 -c "import sys,json; ds=json.load(sys.stdin).get('items',[]); print(next((r['id'] for r in ds if r['name']=='e2e-admin-realm'),''))" 2>/dev/null || true)
     if [[ -n "$stale_id" ]]; then
         curl -sf -X DELETE -H "$ADMIN_HDR" "$BASE/admin/realms/$stale_id" >/dev/null 2>&1 || true
         # FK-blocked or server-down fallback — sqlite is disposable in dev
@@ -747,8 +747,12 @@ echo "=== Step 16: Admin — realms CRUD ==="
 
 # List seeded realms
 REALMS_LIST=$(curl -sS -H "$ADMIN_HDR" "$BASE/admin/realms")
-REALM_COUNT=$(echo "$REALMS_LIST" | python3 -c "import sys,json; print(len(json.load(sys.stdin)['realms']))" 2>/dev/null || echo 0)
+REALM_COUNT=$(echo "$REALMS_LIST" | python3 -c "import sys,json; print(json.load(sys.stdin).get('total',0))" 2>/dev/null || echo 0)
 [[ "$REALM_COUNT" -ge 2 ]] && ok "List realms returns seeded realms ($REALM_COUNT found)" || fail "Expected >=2 seeded realms, got $REALM_COUNT"
+echo "$REALMS_LIST" | grep -q '"items"' || fail "List realms envelope missing items"
+REALMS_PAGE=$(curl -sS -H "$ADMIN_HDR" "$BASE/admin/realms?limit=1&offset=1")
+echo "$REALMS_PAGE" | python3 -c "import sys,json; d=json.load(sys.stdin); assert len(d['items'])<=1 and d['limit']==1 and d['offset']==1, d" 2>/dev/null \
+    && ok "List realms honours limit/offset envelope" || fail "List realms pagination envelope broken"
 
 # Create realm (offline_access granted so the F-02 flow can run on it; the
 # throwaway realm is deleted at the end of this section)
